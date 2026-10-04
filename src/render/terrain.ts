@@ -2,7 +2,8 @@ import type { Board, Tile } from '../game/board';
 import { mix, rgba, shade } from './color';
 import { Painter } from './painter';
 import { Camera, CIRCLE_RX, CIRCLE_RY } from './projection';
-import { makeSprite, type Sprite } from './sprites';
+import { ball, curve, ellipsoid, limb, poly, type V3 } from './models/kit';
+import { makeSprite, outlineCanvas, type Sprite } from './sprites';
 import type { Theme } from './theme';
 
 export const GRASS_H = 0.18;
@@ -11,7 +12,7 @@ const WATER_Z = -0.1;
 
 const RAISED = new Set(['grass', 'flowers', 'tree', 'rock']);
 const isRaised = (t: Tile | undefined) => !!t && RAISED.has(t.kind);
-const isWater = (t: Tile | undefined) => !!t && t.kind === 'water';
+const isWater = (t: Tile | undefined) => !!t && (t.kind === 'water' || t.kind === 'lava');
 
 /** Deterministic pseudo random per tile. */
 const rnd = (seed: number, i: number) => {
@@ -179,27 +180,79 @@ function decorateGrass(p: Painter, theme: Theme, t: Tile, col: string): void {
     ctx.fillStyle = rgba(rnd(t.seed, i + 40) > 0.5 ? theme.grassLight : theme.grassDark, 0.2);
     ctx.fill();
   }
-  // Grass blades
-  const blades = theme.snow ? 2 : 5;
-  ctx.strokeStyle = shade(col, theme.snow ? -0.1 : -0.22);
-  ctx.lineWidth = Math.max(0.7, S * 0.016);
-  ctx.lineCap = 'round';
-  ctx.beginPath();
-  for (let i = 0; i < blades; i++) {
-    if (rnd(t.seed, i + 50) > 0.7) continue;
-    const gx = t.x + 0.12 + rnd(t.seed, i + 51) * 0.76;
-    const gy = t.y + 0.12 + rnd(t.seed, i + 52) * 0.76;
-    const sx = p.cam.sx(gx, gy);
-    const sy = p.cam.sy(gx, gy, GRASS_H);
-    const h = S * (0.05 + rnd(t.seed, i + 53) * 0.05);
-    ctx.moveTo(sx - S * 0.03, sy);
-    ctx.lineTo(sx - S * 0.045, sy - h);
-    ctx.moveTo(sx, sy);
-    ctx.lineTo(sx + S * 0.005, sy - h * 1.2);
-    ctx.moveTo(sx + S * 0.03, sy);
-    ctx.lineTo(sx + S * 0.05, sy - h * 0.9);
+  if (theme.ground === 'sand') {
+    // Wind ripples
+    ctx.strokeStyle = rgba(theme.grassDark, 0.45);
+    ctx.lineWidth = Math.max(0.6, S * 0.014);
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    for (let i = 0; i < 3; i++) {
+      const gx = t.x + 0.15 + rnd(t.seed, i + 51) * 0.5;
+      const gy = t.y + 0.15 + rnd(t.seed, i + 52) * 0.6;
+      const sx = p.cam.sx(gx, gy);
+      const sy = p.cam.sy(gx, gy, GRASS_H);
+      const w = S * (0.12 + rnd(t.seed, i + 53) * 0.12);
+      ctx.moveTo(sx, sy);
+      ctx.quadraticCurveTo(sx + w * 0.5, sy - S * 0.03, sx + w, sy + S * 0.01);
+    }
+    ctx.stroke();
+  } else if (theme.ground === 'ash') {
+    // Cracks glowing with heat
+    ctx.lineCap = 'round';
+    for (let i = 0; i < 2; i++) {
+      if (rnd(t.seed, i + 51) > 0.55) continue;
+      let gx = t.x + 0.2 + rnd(t.seed, i + 52) * 0.6;
+      let gy = t.y + 0.2 + rnd(t.seed, i + 53) * 0.6;
+      ctx.beginPath();
+      ctx.moveTo(p.cam.sx(gx, gy), p.cam.sy(gx, gy, GRASS_H));
+      for (let k = 0; k < 3; k++) {
+        gx += (rnd(t.seed, i * 9 + k) - 0.5) * 0.3;
+        gy += (rnd(t.seed, i * 9 + k + 4) - 0.5) * 0.3;
+        ctx.lineTo(p.cam.sx(gx, gy), p.cam.sy(gx, gy, GRASS_H));
+      }
+      ctx.strokeStyle = 'rgba(255,120,40,0.35)';
+      ctx.lineWidth = Math.max(1.5, S * 0.035);
+      ctx.stroke();
+      ctx.strokeStyle = 'rgba(255,200,90,0.85)';
+      ctx.lineWidth = Math.max(0.6, S * 0.012);
+      ctx.stroke();
+    }
+  } else {
+    // Grass blades
+    const blades = theme.snow ? 2 : 5;
+    ctx.strokeStyle = shade(col, theme.snow ? -0.1 : -0.22);
+    ctx.lineWidth = Math.max(0.7, S * 0.016);
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    for (let i = 0; i < blades; i++) {
+      if (rnd(t.seed, i + 50) > 0.7) continue;
+      const gx = t.x + 0.12 + rnd(t.seed, i + 51) * 0.76;
+      const gy = t.y + 0.12 + rnd(t.seed, i + 52) * 0.76;
+      const sx = p.cam.sx(gx, gy);
+      const sy = p.cam.sy(gx, gy, GRASS_H);
+      const h = S * (0.05 + rnd(t.seed, i + 53) * 0.05) * (theme.ground === 'bog' ? 1.8 : 1);
+      ctx.moveTo(sx - S * 0.03, sy);
+      ctx.lineTo(sx - S * 0.045, sy - h);
+      ctx.moveTo(sx, sy);
+      ctx.lineTo(sx + S * 0.005, sy - h * 1.2);
+      ctx.moveTo(sx + S * 0.03, sy);
+      ctx.lineTo(sx + S * 0.05, sy - h * 0.9);
+    }
+    ctx.stroke();
+    if (theme.ground === 'bog' && rnd(t.seed, 70) > 0.6) {
+      // Muddy puddle
+      const gx = t.x + 0.3 + rnd(t.seed, 71) * 0.4;
+      const gy = t.y + 0.3 + rnd(t.seed, 72) * 0.4;
+      ctx.beginPath();
+      ctx.ellipse(p.cam.sx(gx, gy), p.cam.sy(gx, gy, GRASS_H), S * 0.16, S * 0.07, 0, 0, Math.PI * 2);
+      ctx.fillStyle = rgba(theme.waterDeep, 0.55);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.ellipse(p.cam.sx(gx, gy) - S * 0.03, p.cam.sy(gx, gy, GRASS_H) - S * 0.015, S * 0.06, S * 0.02, 0, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(255,255,255,0.25)';
+      ctx.fill();
+    }
   }
-  ctx.stroke();
   if (t.kind === 'flowers') {
     for (let i = 0; i < 9; i++) {
       const fx = t.x + 0.12 + rnd(t.seed, i) * 0.76;
@@ -249,12 +302,50 @@ function drawPathTile(p: Painter, board: Board, theme: Theme, t: Tile): void {
 }
 
 function drawWaterTile(p: Painter, board: Board, theme: Theme, t: Tile): void {
+  if (t.kind === 'lava') {
+    drawLavaTile(p, board, theme, t);
+    return;
+  }
   const { x, y } = t;
   const ctx = p.ctx;
   const g = ctx.createLinearGradient(p.cam.sx(x, y), p.cam.sy(x, y, WATER_Z), p.cam.sx(x + 1, y + 1), p.cam.sy(x + 1, y + 1, WATER_Z));
   g.addColorStop(0, theme.waterDeep);
   g.addColorStop(1, theme.water);
   p.flat(quad(x, y), WATER_Z, g);
+  // Depth: tiles far from any shore read darker (open sea / deep lagoon).
+  let open = 0;
+  for (const [dx, dy] of [
+    [1, 0],
+    [-1, 0],
+    [0, 1],
+    [0, -1],
+  ])
+    if (isWater(board.tile(x + dx, y + dy))) open++;
+  if (open === 4) p.flat(quad(x + 0.1, y + 0.1, 0.8, 0.8), WATER_Z + 0.001, rgba(theme.waterDeep, 0.25));
+  if (theme.ground === 'bog') {
+    // Lily pads and duckweed
+    for (let i = 0; i < 3; i++) {
+      if (rnd(t.seed, i + 90) > 0.65) continue;
+      const lx = x + 0.2 + rnd(t.seed, i + 91) * 0.6;
+      const ly = y + 0.2 + rnd(t.seed, i + 92) * 0.6;
+      const r = 0.07 + rnd(t.seed, i + 93) * 0.06;
+      const sx = p.cam.sx(lx, ly);
+      const sy = p.cam.sy(lx, ly, WATER_Z);
+      const a0 = rnd(t.seed, i + 94) * Math.PI * 2;
+      ctx.beginPath();
+      ctx.moveTo(sx, sy);
+      ctx.ellipse(sx, sy, r * p.cam.scale * CIRCLE_RX, r * p.cam.scale * CIRCLE_RY, 0, a0 + 0.5, a0 + Math.PI * 2 - 0.1);
+      ctx.closePath();
+      ctx.fillStyle = i === 0 ? '#7fae4a' : '#6a9a3e';
+      ctx.fill();
+      if (rnd(t.seed, i + 95) > 0.7) {
+        ctx.beginPath();
+        ctx.arc(sx, sy - 1, Math.max(1.2, p.cam.scale * 0.03), 0, Math.PI * 2);
+        ctx.fillStyle = '#ffd1f0';
+        ctx.fill();
+      }
+    }
+  }
   const foam = (a: P2, b: P2) => {
     ctx.beginPath();
     ctx.moveTo(p.cam.sx(a[0], a[1]), p.cam.sy(a[0], a[1], WATER_Z));
@@ -273,6 +364,43 @@ function drawWaterTile(p: Painter, board: Board, theme: Theme, t: Tile): void {
     ctx.fillStyle = 'rgba(255,255,255,0.25)';
     ctx.fill();
   }
+}
+
+function drawLavaTile(p: Painter, board: Board, theme: Theme, t: Tile): void {
+  const { x, y } = t;
+  const ctx = p.ctx;
+  const cx = p.cam.sx(x + 0.5, y + 0.5);
+  const cy = p.cam.sy(x + 0.5, y + 0.5, WATER_Z);
+  const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, p.cam.scale * 1.1);
+  g.addColorStop(0, '#ffd04a');
+  g.addColorStop(0.45, theme.lava);
+  g.addColorStop(1, theme.lavaDeep);
+  p.flat(quad(x, y), WATER_Z, g);
+  // Cooling crust plates
+  for (let i = 0; i < 3; i++) {
+    if (rnd(t.seed, i + 100) > 0.7) continue;
+    const px = x + 0.18 + rnd(t.seed, i + 101) * 0.64;
+    const py = y + 0.18 + rnd(t.seed, i + 102) * 0.64;
+    const r = 0.08 + rnd(t.seed, i + 103) * 0.1;
+    const pts: P2[] = [];
+    for (let k = 0; k < 6; k++) {
+      const a = (k / 6) * Math.PI * 2 + rnd(t.seed, i * 7 + k);
+      const rr = r * (0.7 + rnd(t.seed, i * 11 + k) * 0.5);
+      pts.push([px + Math.cos(a) * rr, py + Math.sin(a) * rr]);
+    }
+    p.flat(pts, WATER_Z + 0.002, rgba('#3a2420', 0.75));
+  }
+  // Glowing rim where lava meets rock
+  const rim = (a: P2, b: P2) => {
+    ctx.beginPath();
+    ctx.moveTo(p.cam.sx(a[0], a[1]), p.cam.sy(a[0], a[1], WATER_Z));
+    ctx.lineTo(p.cam.sx(b[0], b[1]), p.cam.sy(b[0], b[1], WATER_Z));
+    ctx.strokeStyle = 'rgba(255,220,120,0.8)';
+    ctx.lineWidth = Math.max(1, p.cam.scale * 0.04);
+    ctx.stroke();
+  };
+  if (!isWater(board.tile(x - 1, y))) rim([x + 0.03, y], [x + 0.03, y + 1]);
+  if (!isWater(board.tile(x, y - 1))) rim([x, y + 0.03], [x + 1, y + 0.03]);
 }
 
 /** Tall decoration of a tile (trees, rocks), drawn as a depth-sorted sprite. */
@@ -326,7 +454,27 @@ function drawTrees(p: Painter, theme: Theme, t: Tile): void {
     const size = (count === 1 ? 1.05 : 0.82) * (0.85 + rnd(t.seed, i + 6) * 0.3);
     const leaf = theme.leaves[Math.floor(rnd(t.seed, i + 8) * theme.leaves.length)];
     p.shadow(cx, cy, GRASS_H, 0.36 * size, 0.32);
-    if (theme.pines) {
+    if (theme.tree === 'palm' || (theme.tree === 'desert' && t.nearWater)) {
+      drawPalm(p, cx, cy, size, leaf, theme, t.seed + i);
+      continue;
+    }
+    if (theme.tree === 'desert') {
+      drawCactus(p, cx, cy, size, t.seed + i);
+      continue;
+    }
+    if (theme.tree === 'dead' || (theme.tree === 'swamp' && rnd(t.seed, i + 30) < 0.25)) {
+      drawDeadTree(p, cx, cy, size, theme, t.seed + i);
+      continue;
+    }
+    if (theme.tree === 'swamp' && rnd(t.seed, i + 30) < 0.5) {
+      drawMushrooms(p, cx, cy, size, t.seed + i);
+      continue;
+    }
+    if (theme.tree === 'swamp') {
+      drawWillow(p, cx, cy, size, leaf, theme, t.seed + i);
+      continue;
+    }
+    if (theme.tree === 'pine') {
       p.cylinder(cx, cy, GRASS_H, 0.05 * size, 0.2 * size, theme.trunk);
       for (let k = 0; k < 3; k++) {
         const z = GRASS_H + (0.14 + k * 0.26) * size;
@@ -337,6 +485,170 @@ function drawTrees(p: Painter, theme: Theme, t: Tile): void {
     } else {
       p.cylinder(cx, cy, GRASS_H, 0.055 * size, 0.34 * size, theme.trunk, null, 0.04 * size);
       canopy(p, cx, cy, GRASS_H + 0.58 * size, 0.3 * size, leaf, t.seed + i);
+    }
+  }
+}
+
+function drawPalm(p: Painter, cx: number, cy: number, size: number, leaf: string, theme: Theme, seed: number): void {
+  const lean = (rnd(seed, 3) - 0.5) * 0.5;
+  const lx = Math.cos(seed * 7) * lean;
+  const ly = Math.sin(seed * 7) * lean;
+  const h = 0.95 * size;
+  // Ringed, slightly curved trunk
+  const n = 6;
+  let prev: V3 = [cx, cy, GRASS_H];
+  for (let i = 1; i <= n; i++) {
+    const t = i / n;
+    const q: V3 = [cx + lx * t * t, cy + ly * t * t, GRASS_H + h * t];
+    limb(p, prev, q, 0.055 * size * (1.15 - t * 0.35), 0.05 * size * (1.15 - t * 0.35), i % 2 ? theme.trunk : shade(theme.trunk, 0.12));
+    prev = q;
+  }
+  const top = prev;
+  // Coconuts
+  for (let i = 0; i < 3; i++) {
+    const a = i * 2.1 + seed;
+    ball(p, [top[0] + Math.cos(a) * 0.05 * size, top[1] + Math.sin(a) * 0.05 * size, top[2] - 0.04 * size], 0.035 * size, '#6a4a2a');
+  }
+  // Fronds, back ones first
+  const fronds = 7;
+  const list = Array.from({ length: fronds }, (_, i) => (i / fronds) * Math.PI * 2 + rnd(seed, 9) * 2).sort(
+    (a, b) => Math.cos(a) + Math.sin(a) - (Math.cos(b) + Math.sin(b)),
+  );
+  for (const a of list) {
+    const len = (0.42 + rnd(seed, a * 3) * 0.12) * size;
+    const dx = Math.cos(a);
+    const dy = Math.sin(a);
+    const mid: V3 = [top[0] + dx * len * 0.5, top[1] + dy * len * 0.5, top[2] + 0.06 * size];
+    const tip: V3 = [top[0] + dx * len, top[1] + dy * len, top[2] - 0.16 * size];
+    const w = 0.07 * size;
+    const nx = -dy * w;
+    const ny = dx * w;
+    poly(p, [top, [mid[0] + nx, mid[1] + ny, mid[2]], tip, [mid[0] - nx, mid[1] - ny, mid[2]]], leaf, {
+      smooth: true,
+      grad: [shade(leaf, 0.18), shade(leaf, -0.2)],
+      line: true,
+    });
+    curve(p, [top, mid, tip], shade(leaf, -0.3), 0.012 * size, 0.8);
+  }
+}
+
+function drawCactus(p: Painter, cx: number, cy: number, size: number, seed: number): void {
+  const green = rnd(seed, 2) > 0.5 ? '#5f9a4a' : '#6aa653';
+  const h = (0.55 + rnd(seed, 4) * 0.25) * size;
+  const r = 0.085 * size;
+  limb(p, [cx, cy, GRASS_H], [cx, cy, GRASS_H + h], r, r * 0.92, green);
+  ball(p, [cx, cy, GRASS_H + h], r * 0.92, green, { line: true });
+  // Arms
+  for (const side of [1, -1]) {
+    if (rnd(seed, side + 6) < 0.3) continue;
+    const z0 = GRASS_H + h * (0.35 + rnd(seed, side + 8) * 0.25);
+    const ox = side * 0.17 * size * 0.7;
+    const oy = -side * 0.17 * size * 0.7;
+    const elbow: V3 = [cx + ox, cy + oy, z0];
+    limb(p, [cx, cy, z0 - 0.02], elbow, r * 0.62, r * 0.6, green);
+    limb(p, elbow, [elbow[0], elbow[1], z0 + h * 0.3], r * 0.6, r * 0.55, green);
+    ball(p, [elbow[0], elbow[1], z0 + h * 0.3], r * 0.55, green, { line: true });
+  }
+  // Ribs and a flower
+  curve(
+    p,
+    [
+      [cx + r * 0.3, cy + r * 0.3, GRASS_H + 0.02],
+      [cx + r * 0.3, cy + r * 0.3, GRASS_H + h],
+    ],
+    shade(green, -0.25),
+    0.008 * size,
+    0.7,
+  );
+  if (rnd(seed, 12) > 0.5) ball(p, [cx, cy, GRASS_H + h + r * 0.8], 0.035 * size, '#ff7aa8', { line: false });
+}
+
+function drawDeadTree(p: Painter, cx: number, cy: number, size: number, theme: Theme, seed: number): void {
+  const bark = theme.ground === 'ash' ? '#2e2422' : '#5a4636';
+  const h = 0.62 * size;
+  limb(p, [cx, cy, GRASS_H], [cx + 0.02, cy - 0.02, GRASS_H + h], 0.06 * size, 0.03 * size, bark);
+  const branches = 4;
+  for (let i = 0; i < branches; i++) {
+    const a = rnd(seed, i) * Math.PI * 2;
+    const z = GRASS_H + h * (0.45 + i * 0.13);
+    const len = (0.22 + rnd(seed, i + 5) * 0.12) * size * (1 - i * 0.12);
+    const end: V3 = [cx + Math.cos(a) * len, cy + Math.sin(a) * len, z + 0.14 * size];
+    limb(p, [cx + 0.01, cy - 0.01, z], end, 0.025 * size, 0.008 * size, bark);
+    limb(
+      p,
+      end,
+      [end[0] + Math.cos(a + 0.8) * len * 0.4, end[1] + Math.sin(a + 0.8) * len * 0.4, end[2] + 0.08 * size],
+      0.01 * size,
+      0.004 * size,
+      bark,
+    );
+    if (theme.ground === 'ash' && rnd(seed, i + 9) > 0.5) ball(p, end, 0.02 * size, '#ff7a2b', { glow: 1, line: false });
+  }
+  if (theme.ground === 'bog') {
+    // Hanging moss
+    for (let i = 0; i < 3; i++) {
+      const a = rnd(seed, i + 20) * Math.PI * 2;
+      const r = 0.12 * size;
+      const z = GRASS_H + h * 0.85;
+      curve(
+        p,
+        [
+          [cx + Math.cos(a) * r, cy + Math.sin(a) * r, z],
+          [cx + Math.cos(a) * r, cy + Math.sin(a) * r, z - 0.2 * size],
+        ],
+        '#8aa65a',
+        0.02 * size,
+        0.85,
+      );
+    }
+  }
+}
+
+function drawWillow(p: Painter, cx: number, cy: number, size: number, leaf: string, theme: Theme, seed: number): void {
+  p.cylinder(cx, cy, GRASS_H, 0.06 * size, 0.42 * size, theme.trunk, null, 0.045 * size);
+  canopy(p, cx, cy, GRASS_H + 0.62 * size, 0.3 * size, leaf, seed);
+  // Drooping strands curtain
+  const n = 12;
+  for (let i = 0; i < n; i++) {
+    const a = (i / n) * Math.PI * 2;
+    if (Math.cos(a) + Math.sin(a) < -0.6) continue;
+    const r = 0.3 * size * (0.9 + rnd(seed, i) * 0.2);
+    const sx = cx + Math.cos(a) * r;
+    const sy = cy + Math.sin(a) * r;
+    const z0 = GRASS_H + 0.68 * size;
+    curve(
+      p,
+      [
+        [sx, sy, z0],
+        [sx + Math.cos(a) * 0.05, sy + Math.sin(a) * 0.05, z0 - 0.2 * size],
+        [sx + Math.cos(a) * 0.06, sy + Math.sin(a) * 0.06, z0 - (0.38 + rnd(seed, i + 3) * 0.12) * size],
+      ],
+      shade(leaf, i % 2 ? -0.1 : 0.06),
+      0.035 * size,
+      0.95,
+    );
+  }
+}
+
+function drawMushrooms(p: Painter, cx: number, cy: number, size: number, seed: number): void {
+  const caps = rnd(seed, 2) > 0.5 ? ['#d94a4a', '#e86a5a'] : ['#7a5ad6', '#9a7ae6'];
+  const items: [number, number, number][] = [
+    [0, 0, 1],
+    [0.16, 0.1, 0.6],
+    [-0.12, 0.14, 0.45],
+  ];
+  items.sort((a, b) => a[0] + a[1] - (b[0] + b[1]));
+  for (const [dx, dy, k] of items) {
+    const x = cx + dx * size;
+    const y = cy + dy * size;
+    const h = 0.32 * size * k;
+    limb(p, [x, y, GRASS_H], [x, y, GRASS_H + h], 0.045 * size * k, 0.035 * size * k, '#efe6cf');
+    const cap = caps[k === 1 ? 0 : 1];
+    ellipsoid(p, [x, y, GRASS_H + h], [0.17 * size * k, 0, 0], [0, 0.17 * size * k, 0], [0, 0, 0.1 * size * k], cap, { shine: 0.5 });
+    for (let i = 0; i < 4; i++) {
+      const a = rnd(seed, i + k * 10) * Math.PI * 2;
+      const d = 0.09 * size * k;
+      ball(p, [x + Math.cos(a) * d * 0.7, y + Math.sin(a) * d * 0.7, GRASS_H + h + 0.06 * size * k], 0.022 * size * k, '#fff4e6', { line: false });
     }
   }
 }
@@ -374,7 +686,8 @@ function drawRocks(p: Painter, theme: Theme, t: Tile): void {
       oy -= s * 0.05;
     }
     const crown = base.map(([fx, fy]) => [cx + ox + (fx - cx) * 0.55, cy + oy + (fy - cy) * 0.55] as P2);
-    p.flat(crown, z + 0.001, theme.snow ? '#f4f8ff' : rgba(theme.moss, 0.55));
+    p.flat(crown, z + 0.001, theme.snow ? '#f4f8ff' : rgba(theme.moss, theme.ground === 'ash' ? 0.85 : 0.55));
+    if (theme.ground === 'ash') ball(p, [cx + ox, cy + oy, z + 0.01], s * 0.18, '#ff7a2b', { glow: 1.2, line: false });
   }
 }
 
@@ -434,6 +747,7 @@ export class GroundCache {
       for (const t of row) {
         if (!hasDecor(t)) continue;
         const sprite = makeSprite(scale, dpr, 2.6, 3, 0.5, 0.78, { x: t.x + 0.5, y: t.y + 0.5, z: GRASS_H }, (sp) => drawDecor(sp, this.theme, t));
+        outlineCanvas(sprite.canvas, Math.max(1, scale * dpr * 0.014), 'rgba(40,28,44,0.45)');
         this.decor.push({ x: t.x + 0.5, y: t.y + 0.5, sprite });
       }
   }

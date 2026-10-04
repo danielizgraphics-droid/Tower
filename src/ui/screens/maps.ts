@@ -4,14 +4,23 @@ import type { Difficulty } from '../../data/types';
 import { Game } from '../../game/game';
 import { generateMap, seedCode } from '../../game/mapgen';
 import { ModifierSet } from '../../game/modifiers';
-import { isMapUnlocked } from '../../meta/profile';
+import { isMapUnlocked, UNLOCK_WAVE } from '../../meta/profile';
 import { Renderer } from '../../render/renderer';
 import { THEMES } from '../../render/theme';
 import type { App, Screen } from '../app';
 import { h } from '../dom';
 import { icon } from '../icons';
 
-const BIOME_ICON: Record<Biome, string> = { meadow: 'clover', autumn: 'flame', snow: 'snow', dusk: 'skull' };
+const BIOME_ICON: Record<Biome, string> = {
+  meadow: 'clover',
+  coast: 'wave',
+  autumn: 'flame',
+  desert: 'hourglass',
+  swamp: 'flask',
+  snow: 'snow',
+  volcano: 'burst',
+  dusk: 'skull',
+};
 
 /** Renders a still image of a generated map. */
 function mapPreview(biome: Biome, seed: number): string {
@@ -89,7 +98,7 @@ export function mapsScreen(app: App): Screen {
                   ),
                   prog?.bestEndless ? h('span', `∞ ${prog.bestEndless}`) : null,
                 ]
-              : h('span', `Supera ${BIOME_BY_ID[bd.requires!].name}`),
+              : h('span', `Oleada ${UNLOCK_WAVE} en ${BIOME_BY_ID[bd.requires!].name}`),
           ),
         );
         card.classList.toggle('on', bd.id === state.biome);

@@ -107,7 +107,8 @@ export type AttackKind =
 
 export type TargetMode = 'first' | 'last' | 'strong' | 'close';
 
-export type TowerId = 'archer' | 'ballista' | 'cannon' | 'arcane' | 'pyre' | 'frost' | 'storm' | 'alchemist' | 'sanctum' | 'obelisk';
+export type TowerId =
+  'archer' | 'ballista' | 'cannon' | 'arcane' | 'pyre' | 'frost' | 'storm' | 'alchemist' | 'sanctum' | 'obelisk' | 'harbor' | 'tide';
 
 export type TowerTag = 'physical' | 'magic' | 'siege' | 'elemental' | 'support' | 'dark';
 
@@ -148,6 +149,8 @@ export interface TowerDef {
   role: string;
   tags: TowerTag[];
   cost: number;
+  /** Where it can be built: grass (default) or open water. */
+  placement?: 'land' | 'water';
   attack: AttackKind;
   damageType: DamageType;
   targetsGround: boolean;
@@ -239,9 +242,24 @@ export type EnemyId =
   | 'wyvern'
   | 'warlord'
   | 'lich'
-  | 'dragon';
+  | 'dragon'
+  | 'spider'
+  | 'orc'
+  | 'necromancer'
+  | 'harpy'
+  | 'ram'
+  | 'imp'
+  | 'scorpion'
+  | 'mummy'
+  | 'triton'
+  | 'yeti'
+  | 'salamander'
+  | 'witch'
+  | 'hydra'
+  | 'colossus'
+  | 'scorpionKing';
 
-export type EnemyShape = 'humanoid' | 'beast' | 'blob' | 'flyer' | 'giant' | 'ghost' | 'dragon';
+export type EnemyShape = 'humanoid' | 'beast' | 'blob' | 'flyer' | 'giant' | 'ghost' | 'dragon' | 'siege';
 
 export interface EnemyDef {
   id: EnemyId;
@@ -270,6 +288,18 @@ export interface EnemyDef {
   summon?: { into: EnemyId; count: number; every: number };
   /** Resistance to slows/stuns 0..1. */
   ccResist?: number;
+  /** Speeds up once its health drops below a fraction. */
+  enrage?: { below: number; speed: number };
+  /** Teleports forward along the path every few seconds. */
+  blink?: { every: number; distance: number };
+  /** Rises again once after dying, with this fraction of its health. */
+  revive?: number;
+  /** Periodically grants shield to nearby allies. */
+  shieldAura?: { amount: number; every: number; radius: number };
+  /** Immune to knockback and pull effects. */
+  unstoppable?: boolean;
+  /** Regional enemy: only appears in these biomes (and more often there). */
+  biomes?: Biome[];
   /** Damage-type multipliers (1 = normal). */
   resist?: Partial<Record<DamageType, number>>;
   /** Visual scale (1 = normal). */
@@ -324,6 +354,8 @@ export interface AugmentDef {
 
 export type Difficulty = 'easy' | 'normal' | 'hard';
 
+export type Biome = 'meadow' | 'autumn' | 'snow' | 'dusk' | 'desert' | 'swamp' | 'coast' | 'volcano';
+
 export interface MapDef {
   id: string;
   name: string;
@@ -332,7 +364,8 @@ export interface MapDef {
    * Tile rows, back (top of screen) to front.
    *  .  grass (buildable)     #  path          S  spawn (path start)
    *  C  castle (path end)     T  tree          R  rock
-   *  W  water                 F  flowers (buildable)
+   *  W  water (naval towers)  F  flowers (buildable)
+   *  L  lava
    */
   tiles: string[];
   waves: number;
@@ -340,5 +373,5 @@ export interface MapDef {
   hpScale: number;
   /** Map id that must be cleared before this one unlocks. */
   requires?: string;
-  theme: 'meadow' | 'autumn' | 'snow' | 'dusk';
+  theme: Biome;
 }

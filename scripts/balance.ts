@@ -1,5 +1,5 @@
 import { generateMap } from '../src/game/mapgen';
-const MAPS = (['meadow', 'autumn', 'snow', 'dusk'] as const).map((b) => generateMap({ biome: b, seed: 777 }));
+const MAPS = (['meadow', 'coast', 'autumn', 'desert', 'swamp', 'snow', 'volcano', 'dusk'] as const).map((b) => generateMap({ biome: b, seed: 777 }));
 import { AutoPlayer, ALL_TOWERS, simulate } from '../src/game/autoplay';
 import { Game } from '../src/game/game';
 import { ModifierSet } from '../src/game/modifiers';
@@ -8,7 +8,7 @@ import { buyNode, defaultProfile, profileModifiers } from '../src/meta/profile';
 import { GENERAL_TREE, TOWER_TREES } from '../src/meta/talentTrees';
 
 const [mapArg = 'meadow', diffArg = 'normal', talentArg = 'none', seedsArg = '3'] = process.argv.slice(2);
-const STARTER: TowerId[] = ['archer', 'cannon', 'arcane', 'frost'];
+const STARTER: TowerId[] = ['archer', 'cannon', 'arcane', 'frost', 'harbor'];
 
 function modsFor(level: string, pool: TowerId[]): ModifierSet {
   if (level === 'none') return new ModifierSet();

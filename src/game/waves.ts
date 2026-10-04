@@ -1,5 +1,6 @@
 import { ENEMIES, ENEMY_LIST } from '../data/enemies';
-import type { EnemyId, MapDef } from '../data/types';
+import { BIOME_BY_ID } from '../data/biomes';
+import type { Biome, EnemyId, MapDef } from '../data/types';
 import { Rng } from '../engine/rng';
 
 export interface SpawnGroup {
@@ -29,10 +30,15 @@ export function waveHpMultiplier(wave: number): number {
 
 const BOSS_CYCLE: EnemyId[] = ['warlord', 'lich', 'dragon'];
 
-/** Boss of a wave (every 10th wave), cycling forever in endless mode. */
-export function bossFor(wave: number): EnemyId | undefined {
+/** Boss of a wave (every 10th wave), cycling forever in endless mode. Regions may replace the middle boss. */
+export function bossFor(wave: number, biome?: Biome): EnemyId | undefined {
   if (wave % 10 !== 0) return undefined;
-  return BOSS_CYCLE[(wave / 10 - 1) % BOSS_CYCLE.length];
+  const slot = (wave / 10 - 1) % BOSS_CYCLE.length;
+  if (slot === 1 && biome) {
+    const regional = BIOME_BY_ID[biome]?.boss;
+    if (regional) return regional;
+  }
+  return BOSS_CYCLE[slot];
 }
 
 function threatBudget(wave: number): number {
@@ -47,7 +53,7 @@ export function generateWave(map: MapDef, wave: number): WaveDef {
   const rng = new Rng(hashString(map.id) * 31 + wave * 7919);
   const groups: SpawnGroup[] = [];
   let budget = threatBudget(wave);
-  const boss = bossFor(wave);
+  const boss = bossFor(wave, map.theme);
   let t = 0;
 
   if (boss) {
@@ -55,12 +61,13 @@ export function generateWave(map: MapDef, wave: number): WaveDef {
     budget *= 0.45;
   }
 
-  const eligible = ENEMY_LIST.filter((e) => e.minWave <= wave && !e.boss && e.threat > 0);
+  const eligible = ENEMY_LIST.filter((e) => e.minWave <= wave && !e.boss && e.threat > 0 && (!e.biomes || e.biomes.includes(map.theme)));
   // Newly introduced enemy types get the spotlight on their debut wave.
   const debut = eligible.filter((e) => e.minWave === wave);
   const groupCount = Math.min(eligible.length, wave < 4 ? 1 : wave < 12 ? rng.int(2, 3) : rng.int(2, 4));
   const chosen: EnemyId[] = debut.map((e) => e.id);
-  const weights = eligible.map((e) => 1 + Math.max(0, 8 - (wave - e.minWave)) * 0.25);
+  // Regional enemies show up more often in their home biome.
+  const weights = eligible.map((e) => (1 + Math.max(0, 8 - (wave - e.minWave)) * 0.25) * (e.biomes ? 1.8 : 1));
   let guard = 0;
   while (chosen.length < groupCount && guard++ < 50) {
     const idx = rng.weighted(weights);

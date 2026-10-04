@@ -1,3 +1,4 @@
+import { BIOME_BY_ID } from '../../data/biomes';
 import { DAMAGE_TYPES } from '../../data/damage';
 import { ENEMY_LIST } from '../../data/enemies';
 import { SPELL_LIST } from '../../data/spells';
@@ -20,7 +21,13 @@ function traits(e: EnemyDef): string[] {
   if (e.heal) t.push('Sanador');
   if (e.split) t.push('Se divide');
   if (e.summon) t.push('Invocador');
+  if (e.enrage) t.push('Frenesí');
+  if (e.blink) t.push('Teletransporte');
+  if (e.revive) t.push('Resucita');
+  if (e.shieldAura) t.push('Aura de escudo');
+  if (e.unstoppable) t.push('Imparable');
   if (e.ccResist) t.push(`Resiste control ${Math.round(e.ccResist * 100)}%`);
+  if (e.biomes) t.push(`Región: ${e.biomes.map((b) => BIOME_BY_ID[b].name).join(', ')}`);
   for (const [k, v] of Object.entries(e.resist ?? {})) t.push(`${DAMAGE_TYPES[k as DamageType].name} ×${v}`);
   return t;
 }

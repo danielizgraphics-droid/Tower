@@ -1,6 +1,6 @@
-import type { MapDef } from './types';
+import type { Biome, EnemyId } from './types';
 
-export type Biome = MapDef['theme'];
+export type { Biome };
 
 export interface BiomeDef {
   id: Biome;
@@ -14,6 +14,12 @@ export interface BiomeDef {
   rocks: number;
   water: number;
   flowers: number;
+  /** Lava pools (volcanic regions). */
+  lava?: number;
+  /** A stretch of sea along the front shore. */
+  sea?: boolean;
+  /** Regional boss that replaces the wave-20 boss. */
+  boss?: EnemyId;
   places: string[];
   prefixes: string[];
 }
@@ -32,6 +38,20 @@ export const BIOMES: BiomeDef[] = [
     places: ['Alborada', 'Robledal', 'Trigal Alto', 'Fuentesol', 'Villaverde', 'Monteluz', 'Riachuelo', 'Brezales'],
   },
   {
+    id: 'coast',
+    name: 'Costa de Coral',
+    description: 'Calas, palmeras y mucha agua: el sitio ideal para las torres marinas.',
+    hpScale: 1,
+    requires: 'meadow',
+    trees: 0.06,
+    rocks: 0.02,
+    water: 2.2,
+    flowers: 0.05,
+    sea: true,
+    prefixes: ['Cala de', 'Playa de', 'Bahía de', 'Arrecife de'],
+    places: ['Coral', 'Espuma Blanca', 'Caracolas', 'Marea Alta', 'Puerto Sal', 'Gaviotas', 'Arenas Doradas'],
+  },
+  {
     id: 'autumn',
     name: 'Bosque Otoñal',
     description: 'Arces rojizos y senderos estrechos. Los enemigos son más resistentes.',
@@ -45,6 +65,34 @@ export const BIOMES: BiomeDef[] = [
     places: ['Hojarasca', 'Valdecuervo', 'Castañar', 'Ocaso Rojo', 'Robleda', 'Piedrafita', 'Bellotas'],
   },
   {
+    id: 'desert',
+    name: 'Desierto de Ámbar',
+    description: 'Dunas, cactus y oasis escasos. Escorpiones y momias acechan.',
+    hpScale: 1.15,
+    requires: 'coast',
+    trees: 0.05,
+    rocks: 0.05,
+    water: 1.1,
+    flowers: 0.015,
+    boss: 'scorpionKing',
+    prefixes: ['Dunas de', 'Oasis de', 'Ruinas de', 'Cañón de'],
+    places: ['Ámbar', 'Sol Eterno', 'Arena Roja', 'Kaharí', 'Espejismo', 'Siete Pozos', 'Escarabajo'],
+  },
+  {
+    id: 'swamp',
+    name: 'Pantano Sombrío',
+    description: 'Aguas turbias entre sauces y setas gigantes. Hogar de brujas y de la Hidra.',
+    hpScale: 1.2,
+    requires: 'autumn',
+    trees: 0.1,
+    rocks: 0.02,
+    water: 2,
+    flowers: 0.03,
+    boss: 'hydra',
+    prefixes: ['Ciénaga de', 'Marismas de', 'Pantano de', 'Fangal de'],
+    places: ['Niebla Verde', 'Sapo Viejo', 'Juncales', 'Agua Negra', 'Brujería', 'Lodazal'],
+  },
+  {
     id: 'snow',
     name: 'Montañas Heladas',
     description: 'Pinos nevados y roca desnuda. El frío endurece a los invasores.',
@@ -56,6 +104,21 @@ export const BIOMES: BiomeDef[] = [
     flowers: 0.01,
     prefixes: ['Paso de', 'Cumbres de', 'Puerto de', 'Glaciar de'],
     places: ['Escarcha', 'Peñablanca', 'Ventisquero', 'Hielo Eterno', 'Cuervonevado', 'Lobos Grises'],
+  },
+  {
+    id: 'volcano',
+    name: 'Tierras Volcánicas',
+    description: 'Ceniza, basalto y ríos de lava. Aquí no hay agua para torres marinas.',
+    hpScale: 1.35,
+    requires: 'desert',
+    trees: 0.04,
+    rocks: 0.07,
+    water: 0,
+    lava: 2.2,
+    flowers: 0.03,
+    boss: 'colossus',
+    prefixes: ['Caldera de', 'Faldas de', 'Forja de', 'Cráter de'],
+    places: ['Ceniza Ardiente', 'Magmar', 'Pico Negro', 'Brasas', 'Azufre', 'Obsidiana'],
   },
   {
     id: 'dusk',

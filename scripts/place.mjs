@@ -1,7 +1,7 @@
 // Touch placement QA: drag a tower from the build bar, tap-to-ghost + drag + confirm, desktop mouse drag.
 import { chromium } from 'playwright-core';
 const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' });
-const URL = 'http://localhost:5173/?screen=game&biome=meadow&seed=12345';
+const URL = 'http://localhost:5173/?screen=game&biome=' + (process.env.BIOME ?? 'meadow') + '&seed=12345';
 
 async function touchDrag(cdp, from, to, steps = 12, release = true) {
   const pt = (p) => [{ x: p.x, y: p.y, id: 1 }];

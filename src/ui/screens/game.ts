@@ -107,16 +107,24 @@ export function gameScreen(app: App, route: Route): Screen {
     const card = h(
       'button.tcard',
       { 'aria-label': t.name },
-      h('span.key', String((i + 1) % 10)),
+      h('span.key', i < 10 ? String((i + 1) % 10) : (['-', '='][i - 10] ?? '')),
+      t.placement === 'water' ? h('span.naval', { title: 'Torre naval: se construye sobre el agua' }, icon('drop', 11)) : null,
       h('img', { src: towerPortrait(t.id, 1, -1, 64), alt: '', draggable: false }),
       h('span.name', t.name.replace('Torre de ', '').replace('Torre ', '')),
       costEl,
     );
     if (!unlocked.includes(t.id)) card.classList.add('locked');
+    const noWater = t.placement === 'water' && !game.hasWater;
+    if (noWater) card.classList.add('nowater');
     // Pointer: tap to pick (then drag the ghost on the map) or pull the card up onto the map and drop it.
     card.addEventListener('pointerdown', (e) => {
       if (e.button !== 0 || finished || !unlocked.includes(t.id)) return;
       lastPointer = e.pointerType;
+      if (noWater) {
+        sfx('error');
+        toast('Este mapa no tiene agua para torres navales');
+        return;
+      }
       drag = {
         pointerId: e.pointerId,
         from: 'card',
@@ -145,6 +153,9 @@ export function gameScreen(app: App, route: Route): Screen {
           { style: 'margin-top:4px' },
           `${DAMAGE_TYPES[t.damageType].name} · ${t.targetsAir ? 'tierra y aire' : 'solo tierra'} · ${t.role}`,
         ),
+        t.placement === 'water'
+          ? h('div', { style: 'margin-top:4px;color:#2f8fc4;font-weight:800' }, noWater ? 'Este mapa no tiene agua.' : 'Se construye sobre el agua.')
+          : null,
       ),
     );
     cards.set(t.id, card);
@@ -220,7 +231,7 @@ export function gameScreen(app: App, route: Route): Screen {
     buildId = id;
     spellId = null;
     renderer.view.spell = null;
-    renderer.view.grid = !!id;
+    renderer.view.grid = id;
     if (id) select(null);
     else drag = null;
     setGhost(id ? placing : null);
@@ -415,7 +426,9 @@ export function gameScreen(app: App, route: Route): Screen {
   function setGhost(tile: { x: number; y: number } | null) {
     placing = buildId ? tile : null;
     renderer.view.ghost =
-      buildId && tile ? { id: buildId, x: tile.x, y: tile.y, valid: game.canBuildAt(tile.x, tile.y) && game.gold >= game.buildCost(buildId) } : null;
+      buildId && tile
+        ? { id: buildId, x: tile.x, y: tile.y, valid: game.canBuildAt(tile.x, tile.y, buildId) && game.gold >= game.buildCost(buildId) }
+        : null;
   }
 
   /** On-screen size of one tile, in CSS pixels. */
@@ -433,7 +446,7 @@ export function gameScreen(app: App, route: Route): Screen {
     let bestScore = Infinity;
     for (let y = 0; y < b.height; y++) {
       for (let x = 0; x < b.width; x++) {
-        if (!game.canBuildAt(x, y)) continue;
+        if (!game.canBuildAt(x, y, buildId ?? undefined)) continue;
         const nearRoad = [
           [1, 0],
           [-1, 0],
@@ -452,6 +465,9 @@ export function gameScreen(app: App, route: Route): Screen {
 
   function buildFailReason(x: number, y: number): string {
     if (game.towerAt(x, y)) return 'Ya hay una torre ahí';
+    const naval = !!buildId && TOWERS[buildId].placement === 'water';
+    if (naval) return 'Las torres navales se construyen sobre el agua';
+    if (game.board.isWater(x, y)) return 'Solo las torres navales pueden ir sobre el agua';
     if (game.board.isWalkable(x, y)) return 'No se puede construir sobre el camino';
     return 'Casilla no disponible';
   }
@@ -459,7 +475,7 @@ export function gameScreen(app: App, route: Route): Screen {
   /** Builds the selected tower on a tile. Returns true when it was placed. */
   function tryBuild(x: number, y: number, keepMode: boolean): boolean {
     if (!buildId) return false;
-    if (!game.canBuildAt(x, y)) {
+    if (!game.canBuildAt(x, y, buildId)) {
       sfx('error');
       toast(buildFailReason(x, y));
       return false;
@@ -1069,10 +1085,10 @@ export function gameScreen(app: App, route: Route): Screen {
     else if (k === 'q') toggleSpell('meteor');
     else if (k === 'w' && game.unlockedSpells.has('frostNova')) toggleSpell('frostNova');
     else if (k === 'e' && game.unlockedSpells.has('blessing')) toggleSpell('blessing');
-    else if (/^[0-9]$/.test(k)) {
-      const idx = k === '0' ? 9 : Number(k) - 1;
+    else if (/^[0-9=-]$/.test(k)) {
+      const idx = k === '0' ? 9 : k === '-' ? 10 : k === '=' ? 11 : Number(k) - 1;
       const t = TOWER_LIST[idx];
-      if (t && unlocked.includes(t.id)) selectBuild(buildId === t.id ? null : t.id);
+      if (t && unlocked.includes(t.id) && !(t.placement === 'water' && !game.hasWater)) selectBuild(buildId === t.id ? null : t.id);
     }
   }
 

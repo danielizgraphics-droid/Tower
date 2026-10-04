@@ -1,7 +1,7 @@
 import { chromium } from 'playwright-core';
 const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' });
 const page = await browser.newPage({ ignoreHTTPSErrors: true, viewport: { width: 1600, height: 900 }, deviceScaleFactor: 1 });
-await page.goto('http://localhost:5173/?screen=game&map=meadow');
+await page.goto('http://localhost:5173/?screen=game&biome=meadow&seed=1');
 await page.waitForTimeout(600);
 const res = await page.evaluate(() => {
   const { game, renderer } = window.__game;
@@ -40,6 +40,8 @@ const res = await page.evaluate(() => {
   const cv = cvs[cvs.length - 1];
   const cx2 = cv.getContext('2d');
   const flush = () => cx2.getImageData(0, 0, 1, 1);
+  // Warm sprite caches first so steady-state cost is measured.
+  for (let i = 0; i < 30; i++) renderer.render(1 / 60);
   out.push(
     time('render', () => {
       renderer.render(1 / 60);
@@ -63,7 +65,7 @@ await browser.close();
 const page2 = await (
   await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' })
 ).newPage({ ignoreHTTPSErrors: true, viewport: { width: 1600, height: 900 } });
-await page2.goto('http://localhost:5173/?screen=game&map=meadow');
+await page2.goto('http://localhost:5173/?screen=game&biome=meadow&seed=1');
 await page2.waitForTimeout(600);
 console.log(
   await page2.evaluate(() => {

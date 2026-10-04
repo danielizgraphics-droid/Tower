@@ -6,10 +6,14 @@ música se generan por código.
 
 ## Características
 
-- **10 torres**, cada una con 3 niveles base y **3 especializaciones** (30 torres finales distintas),
-  con su propio modelo visual por nivel y rama.
+- **12 torres** (10 de tierra y 2 **navales** que se construyen sobre el agua: Fuerte Naval y Santuario de
+  las Mareas), cada una con 3 niveles base y **3 especializaciones** (36 torres finales distintas), con su
+  propio modelo por nivel y rama: puertas, ventanas iluminadas, estandartes, galeones, faros, kraken...
 - **Capas de defensa enemiga** (escudo → armadura → vida) y **8 tipos de daño** con eficacias distintas.
-- **17 enemigos**: voladores, sanadores, regeneradores, invocadores, limos que se dividen y 3 jefes.
+- **32 enemigos** ilustrados con esqueleto animado (caminar, galopar, aletear) y contorno de ilustración:
+  voladores, sanadores, invocadores, limos que se dividen, berserkers con frenesí, diablillos que se
+  teletransportan, momias que resucitan, brujas que dan escudos, arietes imparables... Hay enemigos
+  **regionales** y 6 jefes (3 de ellos propios de su región: Hidra, Coloso de magma y Escorpión rey).
 - **Bendiciones cada 5 oleadas**: eliges 1 de 3 mejoras aleatorias (común / rara / épica) para la partida.
 - **Progresión permanente**:
   - Árbol de talentos general (**Comandante**), pagado con estrellas: economía, defensa, arcano y estrategia.
@@ -17,9 +21,11 @@ música se generan por código.
     maestría da un punto de talento (incluye potenciadores por especialización y una habilidad definitiva).
   - Desbloqueo de torres con estrellas.
 - **3 hechizos** con maná (Lluvia de Meteoros, Nova de Escarcha, Bendición de Batalla).
-- **Mapas procedurales**: cada partida genera un campo distinto (camino sinuoso, estanques, bosques y rocas)
-  en 4 regiones (prados, bosque otoñal, montañas heladas, ruinas del crepúsculo). Cada mapa tiene un código
-  que lo identifica y puedes pedir otro antes de empezar.
+- **Mapas procedurales**: cada partida genera un campo distinto (camino sinuoso, lagunas junto al camino,
+  bosques y rocas) en **8 regiones**: prados, costa de coral (mar y palmeras), bosque otoñal, desierto de
+  ámbar (oasis y cactus), pantano sombrío (sauces, setas y nenúfares), montañas heladas, tierras volcánicas
+  (ríos de lava, ceniza y basalto) y ruinas del crepúsculo. Cada región se abre al llegar a la oleada 15 en
+  la anterior. Cada mapa tiene un código que lo identifica y puedes pedir otro antes de empezar.
 - **Modo campaña** (30 oleadas) o **modo infinito**: las oleadas no acaban nunca, cada 10 llega un jefe y los
   enemigos crecen exponencialmente. Se guarda tu récord por región.
 - 3 dificultades.

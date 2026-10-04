@@ -243,5 +243,8 @@ export function applyRunResult(p: Profile, r: RunResult): RewardSummary {
 export function isMapUnlocked(p: Profile, mapRequires: string | undefined): boolean {
   if (!mapRequires) return true;
   const m = p.maps[mapRequires];
-  return !!m && Object.values(m.cleared).some(Boolean);
+  return !!m && (Object.values(m.cleared).some(Boolean) || m.bestWave >= UNLOCK_WAVE || (m.bestEndless ?? 0) >= UNLOCK_WAVE);
 }
+
+/** Waves to reach in a region to open the next one. */
+export const UNLOCK_WAVE = 15;

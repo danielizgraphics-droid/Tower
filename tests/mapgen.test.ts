@@ -4,7 +4,7 @@ import { BIOMES } from '../src/data/biomes';
 import { generateMap } from '../src/game/mapgen';
 
 describe('procedural maps', () => {
-  it('always produce a valid single path with room to build', () => {
+  it('always produce a valid single path with room to build', { timeout: 60000 }, () => {
     for (const biome of BIOMES)
       for (let seed = 1; seed <= 60; seed++) {
         const def = generateMap({ biome: biome.id, seed: seed * 7919 });

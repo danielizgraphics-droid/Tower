@@ -1,20 +1,27 @@
 <!doctype html>
 <html><head><meta charset="utf-8"><title>Gallery</title>
-<style>body{margin:0;background:#a9b6ea;font:12px sans-serif} .row{display:flex;gap:2px;align-items:end;padding:2px 8px} .row b{width:110px} img{width:110px;height:110px;background:rgba(255,255,255,.25);border-radius:8px} .e{flex-wrap:wrap} .e img{width:90px;height:90px}</style>
+<style>body{margin:0;background:#a9b6ea;font:12px sans-serif} .row{display:flex;gap:2px;align-items:end;padding:2px 8px} .row b{width:90px} img{background:rgba(255,255,255,.25);border-radius:8px} .e{flex-wrap:wrap}</style>
 </head><body><div id="g"></div>
 <script type="module">
+// ?towers=a,b  ?enemies=0  ?size=110
 import { TOWER_LIST } from '../src/data/towers';
 import { ENEMY_LIST } from '../src/data/enemies';
 import { towerPortrait, enemyPortrait } from '../src/render/portraits';
+const q = new URLSearchParams(location.search);
+const only = q.get('towers')?.split(',');
+const size = Number(q.get('size') ?? 110);
 const g = document.getElementById('g');
 for (const t of TOWER_LIST) {
+  if (only && !only.includes(t.id)) continue;
   const row = document.createElement('div'); row.className = 'row';
   row.innerHTML = `<b>${t.id}</b>`;
   const variants = [[1,-1],[2,-1],[3,-1],[4,0],[5,0],[4,1],[5,1],[4,2],[5,2]];
-  for (const [tier, br] of variants) { const im = new Image(); im.src = towerPortrait(t.id, tier, br, 110); row.appendChild(im); }
+  for (const [tier, br] of variants) { const im = new Image(); im.width = im.height = size; im.src = towerPortrait(t.id, tier, br, size); row.appendChild(im); }
   g.appendChild(row);
 }
-const er = document.createElement('div'); er.className = 'row e';
-for (const e of ENEMY_LIST) { const im = new Image(); im.src = enemyPortrait(e.id, 90); im.title = e.id; er.appendChild(im); }
-g.appendChild(er);
+if (q.get('enemies') !== '0') {
+  const er = document.createElement('div'); er.className = 'row e';
+  for (const e of ENEMY_LIST) { const d = document.createElement('div'); d.style.cssText = 'display:flex;flex-direction:column;align-items:center;font-size:10px'; const im = new Image(); im.width = im.height = 150; im.src = enemyPortrait(e.id, 150); d.append(im, e.id); er.appendChild(d); }
+  g.appendChild(er);
+}
 </script></body></html>

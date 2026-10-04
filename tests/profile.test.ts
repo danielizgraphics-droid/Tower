@@ -16,9 +16,9 @@ import {
 import { GENERAL_TREE, TOWER_TREES, towerLevelFromXp } from '../src/meta/talentTrees';
 
 describe('profile & talents', () => {
-  it('starts with 4 unlocked towers and no stars', () => {
+  it('starts with 5 unlocked towers (incl. the naval fort) and no stars', () => {
     const p = defaultProfile();
-    expect(Object.values(p.towers).filter((t) => t.unlocked)).toHaveLength(4);
+    expect(Object.values(p.towers).filter((t) => t.unlocked)).toHaveLength(5);
     expect(p.stars).toBe(0);
   });
 

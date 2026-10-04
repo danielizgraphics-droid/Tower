@@ -26,7 +26,7 @@ describe('board', () => {
       [0, 1],
       [0, -1],
     ])
-      if (tiles[y + dy]?.[x + dx] === '.') {
+      if (['.', 'F', 'W', 'T', 'R', 'L'].includes(tiles[y + dy]?.[x + dx] ?? '#')) {
         tiles[y + dy][x + dx] = '#';
         break;
       }

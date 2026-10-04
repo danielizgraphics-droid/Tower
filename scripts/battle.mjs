@@ -13,26 +13,24 @@ await page.evaluate(
     const ids = ['archer', 'ballista', 'cannon', 'arcane', 'pyre', 'frost', 'storm', 'alchemist', 'sanctum', 'obelisk'];
     game.unlockedTowers.push(...ids.filter((i) => !game.unlockedTowers.includes(i)));
     game.gold = 1e6;
-    const spots = [
-      [6, 2],
-      [8, 2],
-      [6, 4],
-      [8, 4],
-      [6, 6],
-      [9, 6],
-      [11, 5],
-      [11, 7],
-      [9, 8],
-      [12, 2],
-      [15, 4],
-      [17, 6],
-      [15, 8],
-      [5, 8],
-      [3, 10],
-      [6, 10],
-    ];
+    const b = game.board;
+    const spots = [];
+    for (let y = 0; y < b.height; y++)
+      for (let x = 0; x < b.width; x++)
+        if (
+          game.canBuildAt(x, y) &&
+          [
+            [1, 0],
+            [-1, 0],
+            [0, 1],
+            [0, -1],
+          ].some(([dx, dy]) => b.isWalkable(x + dx, y + dy))
+        )
+          spots.push([x, y]);
+    spots.sort(() => 0.5 - ((spots.length * 7919) % 13) / 13);
+    spots.splice(16);
     spots.forEach(([x, y], i) => {
-      const t = game.build(ids[i % 10], x, y);
+      const t = game.build(ids[(i * 3) % 10], x, y);
       if (t) for (let k = 0; k < i % 5; k++) game.upgrade(t, i % 3);
     });
     document.querySelector('.hint')?.remove();

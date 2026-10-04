@@ -12,6 +12,7 @@ function projectileStyle(t: Tower): string {
   if (id === 'archer') return t.branch === 2 ? 'runeArrow' : 'arrow';
   if (id === 'ballista') return t.branch === 2 ? 'harpoon' : 'bolt';
   if (id === 'cannon') return 'ball';
+  if (id === 'harbor') return t.branch === 1 ? 'harpoon' : 'ball';
   if (id === 'alchemist') return 'flask';
   if (id === 'frost') return t.branch === 2 ? 'icicle' : 'shard';
   if (id === 'sanctum') return 'holy';
@@ -211,8 +212,8 @@ const ATTACKS: Record<AttackKind, AttackFn> = {
     const mode = t.targetMode === 'first' ? 'first' : t.targetMode;
     const [e] = g.findTargets(t, s, 1, mode);
     if (!e) return false;
-    const style = t.def.id === 'pyre' ? 'meteor' : t.def.id === 'storm' ? 'thunder' : 'smite';
-    const delay = style === 'meteor' ? 0.8 : style === 'smite' ? 0.4 : 0.25;
+    const style = t.def.id === 'pyre' ? 'meteor' : t.def.id === 'storm' ? 'thunder' : t.def.id === 'tide' ? 'tentacle' : 'smite';
+    const delay = style === 'meteor' ? 0.8 : style === 'smite' || style === 'tentacle' ? 0.45 : 0.25;
     const p = lead(g, e, delay);
     aimAt(t, p.x, p.y);
     g.strikes.push({ x: p.x, y: p.y, delay, total: delay, radius: Math.max(0.5, s.splash), payload, style });

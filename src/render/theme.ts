@@ -1,4 +1,7 @@
-import type { MapDef } from '../data/types';
+import type { Biome } from '../data/types';
+
+export type TreeStyle = 'round' | 'pine' | 'palm' | 'desert' | 'swamp' | 'dead';
+export type GroundStyle = 'grass' | 'sand' | 'ash' | 'bog';
 
 export interface Theme {
   bgTop: string;
@@ -22,13 +25,19 @@ export interface Theme {
   rock: string;
   moss: string;
   flowers: string[];
-  /** Pines with snow instead of round trees. */
+  /** Snow caps on trees and rocks. */
   snow: boolean;
-  /** Trees are pines. */
-  pines: boolean;
+  /** Vegetation family. */
+  tree: TreeStyle;
+  /** Surface texture of buildable ground. */
+  ground: GroundStyle;
+  lava: string;
+  lavaDeep: string;
 }
 
-export const THEMES: Record<MapDef['theme'], Theme> = {
+const LAVA = { lava: '#ff8a2b', lavaDeep: '#c4321c' };
+
+export const THEMES: Record<Biome, Theme> = {
   meadow: {
     bgTop: '#c3cdf2',
     bgBottom: '#8b95d6',
@@ -51,7 +60,9 @@ export const THEMES: Record<MapDef['theme'], Theme> = {
     moss: '#7fae55',
     flowers: ['#ffb3c7', '#fff1a0', '#ffffff', '#c7b3ff'],
     snow: false,
-    pines: false,
+    tree: 'round',
+    ground: 'grass',
+    ...LAVA,
   },
   autumn: {
     bgTop: '#f2d6bb',
@@ -75,7 +86,9 @@ export const THEMES: Record<MapDef['theme'], Theme> = {
     moss: '#9aa65a',
     flowers: ['#ffe08a', '#ffb07a', '#ffffff'],
     snow: false,
-    pines: false,
+    tree: 'round',
+    ground: 'grass',
+    ...LAVA,
   },
   snow: {
     bgTop: '#d7e6f8',
@@ -99,7 +112,9 @@ export const THEMES: Record<MapDef['theme'], Theme> = {
     moss: '#c9d6e6',
     flowers: ['#c9e6ff', '#ffffff'],
     snow: true,
-    pines: true,
+    tree: 'pine',
+    ground: 'grass',
+    ...LAVA,
   },
   dusk: {
     bgTop: '#8a77bd',
@@ -123,6 +138,112 @@ export const THEMES: Record<MapDef['theme'], Theme> = {
     moss: '#6f9a80',
     flowers: ['#ffd1f0', '#c9b3ff', '#fff3a0'],
     snow: false,
-    pines: true,
+    tree: 'pine',
+    ground: 'grass',
+    ...LAVA,
+  },
+  coast: {
+    bgTop: '#bfe6f5',
+    bgBottom: '#6fb0dc',
+    haze: '#e8f8ff',
+    grass: '#8fd06a',
+    grassLight: '#ace37f',
+    grassDark: '#68ab4b',
+    path: '#f2deaa',
+    pathLight: '#fcefcb',
+    pathDark: '#d8bd84',
+    dirt: '#d9b980',
+    dirtDark: '#b08c55',
+    stone: '#a89e8e',
+    water: '#3fc6dc',
+    waterDeep: '#1d84b8',
+    foam: '#ffffff',
+    leaves: ['#4fa64a', '#5eb954', '#3f9440'],
+    trunk: '#a07850',
+    rock: '#c2b9a8',
+    moss: '#e9dcb2',
+    flowers: ['#ff9fb8', '#ffe07a', '#ffffff'],
+    snow: false,
+    tree: 'palm',
+    ground: 'grass',
+    ...LAVA,
+  },
+  desert: {
+    bgTop: '#f8e1b4',
+    bgBottom: '#dc9d6c',
+    haze: '#fdf0d6',
+    grass: '#e7c47e',
+    grassLight: '#f2d698',
+    grassDark: '#cba15f',
+    path: '#cf9663',
+    pathLight: '#dcab7c',
+    pathDark: '#ad744a',
+    dirt: '#c9915a',
+    dirtDark: '#9a6a3e',
+    stone: '#b4886a',
+    water: '#4cc6c8',
+    waterDeep: '#2a8ea8',
+    foam: '#effff6',
+    leaves: ['#6aa13d', '#7ab249', '#5a8f34'],
+    trunk: '#9a6a3e',
+    rock: '#d9ab78',
+    moss: '#ecd39a',
+    flowers: ['#ff8fa3', '#fff1a0', '#ffb0d0'],
+    snow: false,
+    tree: 'desert',
+    ground: 'sand',
+    ...LAVA,
+  },
+  swamp: {
+    bgTop: '#b3c3ab',
+    bgBottom: '#5d7a6b',
+    haze: '#d6e0cf',
+    grass: '#7b9a52',
+    grassLight: '#90ad62',
+    grassDark: '#5d7a3e',
+    path: '#a89070',
+    pathLight: '#baa282',
+    pathDark: '#866f50',
+    dirt: '#6e5a3e',
+    dirtDark: '#4f402c',
+    stone: '#6f6f63',
+    water: '#5f8f68',
+    waterDeep: '#36624c',
+    foam: '#cfe3b8',
+    leaves: ['#5e7f3a', '#6f8f45', '#4d6b30'],
+    trunk: '#4f3b2a',
+    rock: '#8a8a78',
+    moss: '#7f9a4a',
+    flowers: ['#e9f5a0', '#c7b3ff', '#ffffff'],
+    snow: false,
+    tree: 'swamp',
+    ground: 'bog',
+    ...LAVA,
+  },
+  volcano: {
+    bgTop: '#7a5560',
+    bgBottom: '#2b1d28',
+    haze: '#b47a68',
+    grass: '#6e6563',
+    grassLight: '#80766f',
+    grassDark: '#514948',
+    path: '#8c6c58',
+    pathLight: '#9f7e68',
+    pathDark: '#6a4c3e',
+    dirt: '#4a3a36',
+    dirtDark: '#30252a',
+    stone: '#3a3036',
+    water: '#5cb8e0',
+    waterDeep: '#3a86c2',
+    foam: '#ffd04a',
+    leaves: ['#3a2e2c', '#45352f'],
+    trunk: '#2e2422',
+    rock: '#4d4549',
+    moss: '#ff7a2b',
+    flowers: ['#ff9a3a', '#ffd04a'],
+    snow: false,
+    tree: 'dead',
+    ground: 'ash',
+    ...LAVA,
   },
 };

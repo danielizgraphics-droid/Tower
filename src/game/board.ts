@@ -1,6 +1,6 @@
 import type { MapDef } from '../data/types';
 
-export type TileKind = 'grass' | 'flowers' | 'path' | 'spawn' | 'castle' | 'tree' | 'rock' | 'water';
+export type TileKind = 'grass' | 'flowers' | 'path' | 'spawn' | 'castle' | 'tree' | 'rock' | 'water' | 'lava';
 
 export interface Tile {
   kind: TileKind;
@@ -8,6 +8,8 @@ export interface Tile {
   y: number;
   /** Deterministic per-tile variation (0..1) for decoration. */
   seed: number;
+  /** Touches open water (palms grow at oases). */
+  nearWater?: boolean;
 }
 
 const CHAR_TO_KIND: Record<string, TileKind> = {
@@ -19,6 +21,7 @@ const CHAR_TO_KIND: Record<string, TileKind> = {
   T: 'tree',
   R: 'rock',
   W: 'water',
+  L: 'lava',
 };
 
 export interface PathPoint {
@@ -51,6 +54,8 @@ export class Board {
         return { kind, x, y, seed: hash(x, y, def.id.length) };
       }),
     );
+    for (const row of this.tiles)
+      for (const t of row) t.nearWater = [-1, 0, 1].some((dy) => [-1, 0, 1].some((dx) => this.tiles[t.y + dy]?.[t.x + dx]?.kind === 'water'));
     const find = (k: TileKind) => {
       for (const row of this.tiles) for (const t of row) if (t.kind === k) return { x: t.x, y: t.y };
       throw new Error(`Map ${def.id}: missing ${k}`);
@@ -69,6 +74,11 @@ export class Board {
   isWalkable(x: number, y: number): boolean {
     const k = this.tile(x, y)?.kind;
     return k === 'path' || k === 'spawn' || k === 'castle';
+  }
+
+  /** Open water where naval towers can be built. */
+  isWater(x: number, y: number): boolean {
+    return this.tile(x, y)?.kind === 'water';
   }
 
   isBuildable(x: number, y: number): boolean {

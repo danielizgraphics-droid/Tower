@@ -40,6 +40,10 @@ export class Enemy {
   shieldIdle = 99;
   summonTimer = 0;
   healTimer = 0;
+  blinkTimer = 0;
+  auraTimer = 0;
+  /** Already rose once (revive). */
+  revived = false;
   /** Visual: seconds since last hit (for the white flash). */
   hitFlash = 1;
   /** Visual: time alive. */
@@ -59,10 +63,16 @@ export class Enemy {
     this.pool = this.maxHp + this.maxArmor + this.maxShield;
     this.dist = dist;
     if (def.summon) this.summonTimer = def.summon.every * 0.5;
+    if (def.blink) this.blinkTimer = def.blink.every * 0.6;
   }
 
   get flying(): boolean {
     return !!this.def.flying;
+  }
+
+  /** Raging (enrage threshold crossed). */
+  get enraged(): boolean {
+    return !!this.def.enrage && this.hp < this.maxHp * this.def.enrage.below;
   }
 
   get ccFactor(): number {
@@ -71,7 +81,8 @@ export class Enemy {
 
   get currentSpeed(): number {
     if (this.stunTime > 0 || this.freezeTime > 0) return 0;
-    return this.def.speed * (1 - this.slow * this.ccFactor);
+    const enr = this.def.enrage && this.hp < this.maxHp * this.def.enrage.below ? this.def.enrage.speed : 1;
+    return this.def.speed * enr * (1 - this.slow * this.ccFactor);
   }
 
   get isSlowed(): boolean {
@@ -184,7 +195,7 @@ export interface Strike {
   total: number;
   radius: number;
   payload: HitPayload;
-  style: 'meteor' | 'smite' | 'thunder' | 'spellMeteor';
+  style: 'meteor' | 'smite' | 'thunder' | 'spellMeteor' | 'tentacle';
 }
 
 export interface Rift {

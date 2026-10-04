@@ -142,35 +142,78 @@ function decorate(grid: string[][], rng: Rng, biome: BiomeDef): void {
     for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) if (isPath(x + dx, y + dy)) return true;
     return false;
   };
-  // Ponds: grow small blobs away from the path.
-  const ponds = Math.round(rng.range(0.5, 2.2) * biome.water);
-  for (let p = 0; p < ponds; p++) {
-    for (let tries = 0; tries < 30; tries++) {
+  const distToPath = (x: number, y: number, max: number) => {
+    for (let r = 0; r <= max; r++) if (nearPath(x, y, r)) return r;
+    return max + 1;
+  };
+  /** Grows an irregular blob of `ch` tiles. Water may touch the road (naval towers need it close). */
+  const blob = (ch: string, minSize: number, maxSize: number, nearRoad: boolean, avoid: number) => {
+    for (let tries = 0; tries < 60; tries++) {
       const x = rng.int(1, W - 2);
       const y = rng.int(1, H - 2);
-      if (grid[y][x] !== '.' || nearPath(x, y, 1)) continue;
-      const size = rng.int(2, 5);
+      if (grid[y][x] !== '.') continue;
+      const dp = distToPath(x, y, 3);
+      if (dp < Math.max(1, avoid)) continue;
+      if (nearRoad && dp > 2 && tries < 45) continue;
+      const size = rng.int(minSize, maxSize);
       const cells = [{ x, y }];
-      grid[y][x] = 'W';
-      for (let k = 0; k < size * 3 && cells.length < size; k++) {
+      grid[y][x] = ch;
+      for (let k = 0; k < size * 4 && cells.length < size; k++) {
         const c = rng.pick(cells);
         const [dx, dy] = rng.pick(DIRS);
         const nx = c.x + dx;
         const ny = c.y + dy;
-        if (nx < 1 || ny < 1 || nx >= W - 1 || ny >= H - 1 || grid[ny][nx] !== '.' || nearPath(nx, ny, 1)) continue;
-        grid[ny][nx] = 'W';
+        if (nx < 1 || ny < 1 || nx >= W - 1 || ny >= H - 1 || grid[ny][nx] !== '.' || nearPath(nx, ny, avoid)) continue;
+        grid[ny][nx] = ch;
         cells.push({ x: nx, y: ny });
       }
-      break;
+      return;
+    }
+  };
+  // Ponds and lagoons: most hug the road so naval towers have somewhere to stand.
+  const ponds = biome.water > 0 ? Math.max(1, Math.round(rng.range(0.6, 1.6) * biome.water)) : 0;
+  for (let i = 0; i < ponds; i++) blob('W', 2, biome.water > 1.5 ? 6 : 5, i < Math.max(1, ponds - 1), 0);
+  // Guarantee: water-bearing regions always have a pool beside the road.
+  const waterNearRoad = () => {
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) if (grid[y][x] === 'W' && distToPath(x, y, 2) <= 2) return true;
+    return false;
+  };
+  if (ponds > 0 && !waterNearRoad()) {
+    const cands: { x: number; y: number }[] = [];
+    for (let y = 1; y < H - 1; y++) for (let x = 1; x < W - 1; x++) if (grid[y][x] === '.' && distToPath(x, y, 1) === 1) cands.push({ x, y });
+    if (cands.length) {
+      const c = rng.pick(cands);
+      grid[c.y][c.x] = 'W';
+      for (const [dx, dy] of DIRS)
+        if (grid[c.y + dy]?.[c.x + dx] === '.' && !nearPath(c.x + dx, c.y + dy, 0) && rng.chance(0.5)) grid[c.y + dy][c.x + dx] = 'W';
+    }
+  }
+  // Lava pools (kept one tile from the road).
+  const pools = Math.round(rng.range(0.8, 1.4) * (biome.lava ?? 0));
+  for (let i = 0; i < pools; i++) blob('L', 2, 6, false, 1);
+  // Sea along the front shores.
+  if (biome.sea) {
+    let depth = rng.int(1, 3);
+    for (let t = 0; t < W; t++) {
+      if (rng.chance(0.35)) depth = Math.max(1, Math.min(3, depth + rng.pick([-1, 1])));
+      for (let k = 0; k < depth; k++) {
+        for (const [x, y] of [
+          [t, H - 1 - k],
+          [W - 1 - k, t],
+        ]) {
+          if (grid[y]?.[x] === '.' && !nearPath(x, y, 0)) grid[y][x] = 'W';
+        }
+      }
     }
   }
   // Trees cluster on the borders and away from the path; rocks scattered; flowers on grass.
   for (let y = 0; y < H; y++)
     for (let x = 0; x < W; x++) {
       if (grid[y][x] !== '.') continue;
+      const shore = ['W', 'L'].some((c) => grid[y - 1]?.[x] === c || grid[y + 1]?.[x] === c || grid[y]?.[x - 1] === c || grid[y]?.[x + 1] === c);
       const edge = x === 0 || y === 0 || x === W - 1 || y === H - 1;
       const close = nearPath(x, y, 1);
-      let tree = biome.trees * (edge ? 3.2 : close ? 0.25 : 1);
+      let tree = biome.trees * (edge ? 3.2 : close ? 0.25 : 1) * (shore && biome.id === 'desert' ? 4 : 1);
       // Clustering: neighbours that are trees raise the chance.
       if (grid[y - 1]?.[x] === 'T' || grid[y]?.[x - 1] === 'T') tree *= 2.2;
       const r = rng.next();

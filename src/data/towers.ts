@@ -671,6 +671,146 @@ const defs: TowerDef[] = [
       ),
     },
   },
+  // ------------------------------------------------------------------ 11. Harbor (naval)
+  {
+    id: 'harbor',
+    name: 'Fuerte Naval',
+    description: 'Se construye sobre el agua. Cañones de cubierta con gran alcance y daño en área.',
+    role: 'Naval · Área',
+    tags: ['physical', 'siege'],
+    placement: 'water',
+    cost: 120,
+    attack: 'lob',
+    damageType: 'physical',
+    targetsGround: true,
+    targetsAir: false,
+    base: { damage: 26, range: 3.5, rate: 0.55, projectileSpeed: 6, splash: 0.7 },
+    tiers: [
+      { cost: 85, add: { damage: 10, range: 0.2 } },
+      { cost: 140, add: { damage: 14, splash: 0.15 } },
+    ],
+    branches: [
+      {
+        id: 'galleon',
+        name: 'Galeón de Guerra',
+        description: 'Andanadas: varios cañonazos a la vez contra objetivos distintos.',
+        visual: { body: '#8a5a34', accent: '#c23b34', fx: '#ffcf7a' },
+        steps: [
+          { cost: 260, add: { multishot: 2, damage: 10 } },
+          { cost: 400, add: { multishot: 2, damage: 22, splash: 0.2 } },
+        ],
+      },
+      {
+        id: 'whaler',
+        name: 'Ballenero',
+        description: 'Arpones que atraviesan filas enteras, frenan y empujan hacia atrás. Alcanzan voladores.',
+        attack: 'bolt',
+        targetsAir: true,
+        visual: { body: '#7a6a58', accent: '#2f6fb0', fx: '#d9e6f2' },
+        steps: [
+          { cost: 250, add: { damage: 48, pierce: 3, slow: 0.3, slowDuration: 1.2, knockback: 0.35, projectileSpeed: 10 }, mul: { rate: 0.8 } },
+          { cost: 380, add: { damage: 70, pierce: 2, knockback: 0.25 } },
+        ],
+      },
+      {
+        id: 'lighthouse',
+        name: 'Faro',
+        description: 'Un haz de luz que abrasa sin descanso y amplía el alcance de las torres cercanas.',
+        attack: 'beam',
+        damageType: 'holy',
+        targetsAir: true,
+        visual: { body: '#efe6d6', accent: '#d94a3a', fx: '#fff2b0' },
+        steps: [
+          { cost: 240, add: { range: 0.6, beamRamp: 0.5, beamRampMax: 1.5, auraRange: 0.12 }, mul: { damage: 0.3, rate: 8 } },
+          { cost: 370, add: { damage: 4, beamRampMax: 1, auraRange: 0.08, auraCrit: 0.08 } },
+        ],
+      },
+    ],
+    visual: { body: '#8a5a34', accent: '#3d74cf', fx: '#ffd27a' },
+    unlockCost: 0,
+    talents: {
+      branchBoost: [
+        talent('Andanada', 'Galeón: +10% daño por rango.', [pct('harbor', 'damage', 0.1, 0)]),
+        talent('Arpón dentado', 'Ballenero: +1 perforación por rango.', [flat('harbor', 'pierce', 1, 1)]),
+        talent('Lente de Fresnel', 'Faro: +0.3 de rampa máxima por rango.', [flat('harbor', 'beamRampMax', 0.3, 2)]),
+      ],
+      capstone: talent(
+        'Almirantazgo',
+        'Todos los fuertes navales: +10% alcance y +10% cadencia.',
+        [pct('harbor', 'range', 0.1), pct('harbor', 'rate', 0.1)],
+        1,
+      ),
+    },
+  },
+  // ------------------------------------------------------------------ 12. Tide (naval)
+  {
+    id: 'tide',
+    name: 'Santuario de las Mareas',
+    description: 'Se construye sobre el agua. Olas que golpean, frenan y empujan a los enemigos cercanos.',
+    role: 'Naval · Control',
+    tags: ['magic', 'elemental'],
+    placement: 'water',
+    cost: 115,
+    attack: 'pulse',
+    damageType: 'frost',
+    targetsGround: true,
+    targetsAir: false,
+    base: { damage: 11, range: 2.3, rate: 0.45, slow: 0.2, slowDuration: 1, knockback: 0.2 },
+    tiers: [
+      { cost: 80, add: { damage: 6, slow: 0.05 } },
+      { cost: 130, add: { damage: 8, range: 0.3, knockback: 0.1 } },
+    ],
+    branches: [
+      {
+        id: 'tsunami',
+        name: 'Maremoto',
+        description: 'Olas gigantes que arrollan y aturden a todo lo que alcanzan.',
+        visual: { body: '#d8e6ea', accent: '#1d84b8', fx: '#8fe0ff' },
+        steps: [
+          { cost: 230, add: { damage: 20, knockback: 0.3, range: 0.3 } },
+          { cost: 360, add: { damage: 32, knockback: 0.25, stunChance: 0.2, stunDuration: 0.6 } },
+        ],
+      },
+      {
+        id: 'maelstrom',
+        name: 'Remolino',
+        description: 'Abre torbellinos que arrastran a los enemigos hacia atrás en el camino.',
+        attack: 'rift',
+        visual: { body: '#cfe0e6', accent: '#147a8c', fx: '#5fe0d8' },
+        steps: [
+          { cost: 260, add: { pull: 1.6, splash: 0.9, range: 0.8, damage: 10 }, mul: { rate: 0.9 } },
+          { cost: 390, add: { pull: 1, damage: 40, splash: 0.25 } },
+        ],
+      },
+      {
+        id: 'kraken',
+        name: 'Kraken',
+        description: 'Tentáculos colosales emergen y aplastan a los enemigos, aturdiéndolos.',
+        attack: 'strike',
+        damageType: 'physical',
+        visual: { body: '#d0dce4', accent: '#7a3f8f', fx: '#c48cff' },
+        steps: [
+          { cost: 280, add: { damage: 85, splash: 0.7, stunChance: 0.3, stunDuration: 0.9, range: 0.7 }, mul: { rate: 0.85 } },
+          { cost: 420, add: { damage: 130, splash: 0.2, stunChance: 0.15 } },
+        ],
+      },
+    ],
+    visual: { body: '#d8e6ea', accent: '#2a9fc4', fx: '#9fe8ff' },
+    unlockCost: 6,
+    talents: {
+      branchBoost: [
+        talent('Resaca', 'Maremoto: +0.1 casillas de empuje por rango.', [flat('tide', 'knockback', 0.1, 0)]),
+        talent('Ojo del remolino', 'Remolino: +0.4 casillas de arrastre por rango.', [flat('tide', 'pull', 0.4, 1)]),
+        talent('Abrazo abisal', 'Kraken: +15% daño por rango.', [pct('tide', 'damage', 0.15, 2)]),
+      ],
+      capstone: talent(
+        'Señor de las Mareas',
+        'Todos los santuarios marinos: +10% ralentización y +10% alcance.',
+        [flat('tide', 'slow', 0.1), pct('tide', 'range', 0.1)],
+        1,
+      ),
+    },
+  },
 ];
 
 export const TOWERS: Record<TowerId, TowerDef> = Object.fromEntries(defs.map((d) => [d.id, d])) as Record<TowerId, TowerDef>;

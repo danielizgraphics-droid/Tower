@@ -8,11 +8,14 @@ import type { Game } from '../game/game';
 import { effectiveAttack } from '../game/modifiers';
 import { rgba, shade } from './color';
 import { Fx } from './fx';
-import { drawEnemyModel, enemyHeight } from './models/enemies';
+import { animPhase, drawEnemyStatus, enemyHeight, hoverBob, type EnemyLook } from './models/enemies';
+import { CreatureSprites, DIRS, FRAMES } from './creatureSprites';
+import { limb as kitLimb } from './models/kit';
+import { drawCreature } from './models/creatures';
 import { drawTowerModel } from './models/towers';
 import { Painter } from './painter';
 import { Camera, HEIGHT_SCALE, depthOf } from './projection';
-import { drawSprite, makeSprite, type Sprite } from './sprites';
+import { drawSprite, makeSprite, outlineCanvas, type Sprite } from './sprites';
 import { GRASS_H, GroundCache, SLAB } from './terrain';
 import { THEMES, type Theme } from './theme';
 
@@ -26,8 +29,8 @@ export interface ViewState {
   hover: { x: number; y: number } | null;
   selected: Tower | null;
   ghost: { id: TowerId; x: number; y: number; valid: boolean } | null;
-  /** Show the placement grid over every free buildable cell. */
-  grid: boolean;
+  /** Show the placement grid for this tower (land or water cells). */
+  grid: TowerId | null;
   spell: { id: SpellId; x: number; y: number } | null;
   showDamage: boolean;
   shakeEnabled: boolean;
@@ -44,6 +47,7 @@ export class Renderer {
   private ground: GroundCache;
   /** Scale the cached bitmaps (ground, sprites) were rendered at. */
   private cacheScale = 0;
+  private creatures = new CreatureSprites();
   private cacheDpr = 0;
   private zoomChangedAt = 0;
   private towerSprites = new Map<string, Sprite>();
@@ -64,7 +68,7 @@ export class Renderer {
   insets = { top: 70, bottom: 120, left: 12, right: 12 };
   private unsub: (() => void)[] = [];
   private castleHit = 0;
-  view: ViewState = { hover: null, selected: null, ghost: null, grid: false, spell: null, showDamage: true, shakeEnabled: true };
+  view: ViewState = { hover: null, selected: null, ghost: null, grid: null, spell: null, showDamage: true, shakeEnabled: true };
 
   constructor(
     private canvas: HTMLCanvasElement,
@@ -243,12 +247,25 @@ export class Renderer {
           );
           fx.ring(x, y, 0.02, 0.1, radius, '#ffe066', 0.4, 0.07, true);
           fx.burst('spark', x, y, 0.2, 14, '#fff3a0', 2.4, 0.05, 0.4);
+        } else if (style === 'tentacle') {
+          fx.ring(x, y, 0.02, 0.1, radius * 1.1, '#c48cff', 0.5, 0.08, true);
+          fx.burst('bubble', x, y, 0.2, 14, '#9fe8ff', 2, 0.05, 0.6);
+          fx.burst('debris', x, y, 0.1, 8, '#5a3a2a', 2.2, 0.06);
+          if (this.view.shakeEnabled) fx.shake = Math.max(fx.shake, 0.3);
         } else {
           fx.ring(x, y, 0.02, 0.1, radius, '#fff2b0', 0.5, 0.08, true);
           fx.burst('glow', x, y, 0.3, 14, '#fff6c8', 1.6, 0.07, 0.7);
         }
       }),
       ev.on('heal', ({ x, y }) => fx.burst('glow', x, y, 0.5, 4, '#7dffa0', 0.6, 0.05, 0.6)),
+      ev.on('blink', ({ x, y }) => {
+        fx.burst('smoke', x, y, 1, 8, '#ff7a3a', 1.2, 0.08, 0.5);
+        fx.burst('spark', x, y, 1.1, 6, '#ffd04a', 1.8, 0.04, 0.35);
+      }),
+      ev.on('revive', ({ x, y }) => {
+        fx.ring(x, y, 0.05, 0.1, 0.7, '#7cf2c8', 0.6, 0.06);
+        fx.burst('glow', x, y, 0.5, 10, '#7cf2c8', 1.2, 0.06, 0.8);
+      }),
       ev.on('shieldBreak', ({ x, y }) => {
         fx.burst('spark', x, y, 0.6, 10, '#9fd8ff', 2, 0.05, 0.4);
         fx.ring(x, y, 0.5, 0.2, 0.6, '#9fd8ff', 0.3, 0.05);
@@ -332,6 +349,7 @@ export class Renderer {
       ctx.translate((Math.random() - 0.5) * m, (Math.random() - 0.5) * m);
     }
 
+    this.creatures.budget = 6;
     this.ground.draw(ctx, this.cam);
     this.drawDynamicGround();
     this.drawGroundOverlays();
@@ -361,6 +379,17 @@ export class Renderer {
     const p = this.painter;
     for (const row of b.tiles)
       for (const t of row) {
+        if (t.kind === 'lava') {
+          // Bubbles swelling and popping on the molten surface.
+          for (let i = 0; i < 2; i++) {
+            const ph = (this.time * 0.35 + t.seed * 3 + i * 0.5) % 1;
+            const bx = t.x + 0.25 + ((t.seed * 7 + i * 0.37) % 0.5);
+            const by = t.y + 0.3 + ((t.seed * 11 + i * 0.29) % 0.4);
+            if (ph < 0.8) p.disc(bx, by, -0.095, 0.03 + ph * 0.07, rgba('#ffe08a', 0.35 + ph * 0.4), false);
+            else p.ring(bx, by, -0.095, 0.1 + (ph - 0.8) * 0.6, rgba('#ffe08a', (1 - ph) * 4), Math.max(1, this.cam.scale * 0.015));
+          }
+          continue;
+        }
         if (t.kind !== 'water') continue;
         for (let i = 0; i < 2; i++) {
           const ph = (this.time * 0.4 + t.seed + i * 0.5) % 1;
@@ -476,6 +505,7 @@ export class Renderer {
       s = makeSprite(this.cacheScale * TOWER_SCALE, this.dpr, 2, 3.2, 0.5, 0.84, { x: 0.5, y: 0.5, z: GRASS_H }, (sp) =>
         drawTowerModel(sp, { id, tier, branch, angle: 0, fireAnim: 1, time: 0, layer: 'static' }, 0.5, 0.5, GRASS_H),
       );
+      outlineCanvas(s.canvas, Math.max(1, this.cacheScale * this.dpr * 0.016), 'rgba(40,28,44,0.7)');
       this.towerSprites.set(key, s);
     }
     return s;
@@ -483,10 +513,12 @@ export class Renderer {
 
   private drawEnemy(e: Enemy): void {
     const p = this.painter;
+    const ctx = this.ctx;
+    const d = e.def;
     const spawnFade = Math.min(1, e.age / 0.35);
-    if (spawnFade < 1) this.ctx.globalAlpha = spawnFade;
-    drawEnemyModel(p, {
-      def: e.def,
+    if (spawnFade < 1) ctx.globalAlpha = spawnFade;
+    const look: EnemyLook = {
+      def: d,
       x: e.x,
       y: e.y,
       angle: e.angle,
@@ -501,12 +533,33 @@ export class Renderer {
       poisoned: e.poison.length > 0,
       vulnerable: e.vulnTime > 0,
       time: this.time,
-    });
-    this.ctx.globalAlpha = 1;
+    };
+    const airborne = d.shape === 'flyer' || d.shape === 'dragon';
+    p.shadow(e.x, e.y, 0.001, (airborne ? 0.22 : 0.26) * d.size * (d.shape === 'dragon' ? 1.6 : 1), airborne ? 0.16 : 0.26);
+    const dir = (((Math.round(e.angle / ((Math.PI * 2) / DIRS)) % DIRS) + DIRS) % DIRS) as number;
+    const frame = Math.floor(animPhase(look) * FRAMES) % FRAMES;
+    const variant = e.hitFlash < 0.08 ? 1 : look.frozen ? 2 : 0;
+    this.creatures.setScale(this.cacheScale, this.cacheDpr);
+    const sprite = this.creatures.peek(d, dir, frame, variant);
+    if (sprite) {
+      const pos = this.cam.project(e.x, e.y, hoverBob(d, e.age));
+      drawSprite(ctx, sprite, pos.x, pos.y, this.cam.scale / this.cacheScale);
+    } else {
+      drawCreature(p, d, { x: e.x, y: e.y + 0, angle: (dir / DIRS) * Math.PI * 2, t: frame / FRAMES });
+    }
+    drawEnemyStatus(p, look);
+    ctx.globalAlpha = 1;
   }
+
+  private lavaTiles: { x: number; y: number }[] | null = null;
 
   private spawnContinuousFx(dt: number): void {
     const fx = this.fx;
+    if (!this.lavaTiles) this.lavaTiles = this.game.board.tiles.flat().filter((t) => t.kind === 'lava');
+    for (const t of this.lavaTiles) {
+      if (Math.random() < dt * 0.7)
+        fx.emit('flame', t.x + 0.2 + Math.random() * 0.6, t.y + 0.2 + Math.random() * 0.6, 0, { vz: 0.6, max: 0.9, size: 0.035, color: '#ffb03a' });
+    }
     for (const e of this.game.enemies) {
       if (!e.alive) continue;
       const z = enemyHeight(e.def);
@@ -605,7 +658,7 @@ export class Renderer {
       s.y,
       0.02,
       s.radius * (0.4 + 0.6 * k),
-      rgba(s.style === 'smite' ? '#fff2b0' : s.style === 'thunder' ? '#ffe066' : '#ff7a2b', 0.5 + 0.4 * k),
+      rgba(s.style === 'smite' ? '#fff2b0' : s.style === 'thunder' ? '#ffe066' : s.style === 'tentacle' ? '#c48cff' : '#ff7a2b', 0.5 + 0.4 * k),
       Math.max(1, this.cam.scale * 0.03),
       [6, 5],
     );
@@ -615,6 +668,20 @@ export class Renderer {
       p.sphere(s.x - ox, s.y - ox * 0.3, h, 0.18, '#ff7a2b', 1.2);
       p.sphere(s.x - ox, s.y - ox * 0.3, h, 0.12, '#5a2a2a');
       if (Math.random() < 0.6) this.fx.emit('flame', s.x - ox, s.y - ox * 0.3, h, { max: 0.4, size: 0.12, color: '#ff8a3d', gravity: 0 });
+    } else if (s.style === 'tentacle') {
+      // A tentacle bursts out beside the target, rears up and slams down.
+      const rise = Math.min(1, k * 1.6);
+      const slam = Math.max(0, (k - 0.6) / 0.4);
+      const bx = s.x + 0.32;
+      const by = s.y - 0.18;
+      const pts: [number, number, number][] = [];
+      for (let i = 0; i <= 5; i++) {
+        const t = i / 5;
+        const up = Math.sin(t * Math.PI * 0.9) * 0.9 * rise * (1 - slam * 0.75);
+        pts.push([bx + (s.x - bx) * t * (0.4 + slam * 0.6), by + (s.y - by) * t * (0.4 + slam * 0.6), up + t * 0.5 * rise * (1 - slam)]);
+      }
+      for (let i = 0; i < 5; i++) kitLimb(p, pts[i], pts[i + 1], 0.09 * (1 - i * 0.16), 0.09 * (1 - (i + 1) * 0.16), '#7a3f8f', { shine: 0.3 });
+      p.ring(bx, by, 0.01, 0.15 + rise * 0.1, 'rgba(255,255,255,0.6)', Math.max(1, this.cam.scale * 0.02));
     } else if (s.style === 'smite') {
       const ctx = this.ctx;
       const top = this.cam.project(s.x, s.y, 5);
@@ -634,6 +701,7 @@ export class Renderer {
     const cy = b.castle.y + 0.5;
     if (!this.castleSprite) {
       this.castleSprite = makeSprite(this.cacheScale, this.dpr, 2.8, 3, 0.5, 0.75, { x: cx, y: cy, z: 0 }, (sp) => drawCastleModel(sp, cx, cy));
+      outlineCanvas(this.castleSprite.canvas, Math.max(1, this.cacheScale * this.dpr * 0.016), 'rgba(40,28,44,0.7)');
     }
     const pos = this.cam.project(cx, cy, 0);
     const ctx = this.ctx;
@@ -719,12 +787,13 @@ export class Renderer {
         }
       }
     }
-    if (v.grid) this.drawPlacementGrid();
+    if (v.grid) this.drawPlacementGrid(v.grid);
     if (v.ghost) {
       const { id, x, y, valid } = v.ghost;
       const cx = x + 0.5;
       const cy = y + 0.5;
       const stats = g.previewStats(id, 1, -1);
+      const cellZ = g.board.tile(x, y)?.kind === 'water' || g.board.tile(x, y)?.kind === 'lava' ? -0.09 : GRASS_H + 0.005;
       p.disc(cx, cy, GRASS_H + 0.01, stats.range, valid ? 'rgba(255,255,255,0.12)' : 'rgba(255,90,90,0.12)', false);
       p.ring(cx, cy, GRASS_H + 0.01, stats.range, valid ? 'rgba(255,255,255,0.8)' : 'rgba(255,110,110,0.8)', 1.5, [8, 6]);
       p.flat(
@@ -734,10 +803,10 @@ export class Renderer {
           [x + 1, y + 1],
           [x, y + 1],
         ],
-        GRASS_H + 0.005,
+        cellZ,
         valid ? 'rgba(90,230,100,0.65)' : 'rgba(255,70,60,0.6)',
       );
-      this.strokeCell(x, y, valid ? 'rgba(120,255,120,1)' : 'rgba(255,90,80,1)', Math.max(2.5, this.cam.scale * 0.07), 0.1);
+      this.strokeCell(x, y, valid ? 'rgba(120,255,120,1)' : 'rgba(255,90,80,1)', Math.max(2.5, this.cam.scale * 0.07), 0.1, cellZ + 0.001);
     } else if (v.hover && !v.spell) {
       const { x, y } = v.hover;
       if (g.board.isBuildable(x, y) && !g.towerAt(x, y)) {
@@ -761,16 +830,17 @@ export class Renderer {
   }
 
   /** Outlines every free buildable cell so the player sees where towers fit. */
-  private drawPlacementGrid(): void {
+  private drawPlacementGrid(id: TowerId): void {
     const g = this.game;
     const ctx = this.ctx;
-    const z = GRASS_H + 0.004;
+    const naval = TOWERS[id].placement === 'water';
+    const z = naval ? -0.09 : GRASS_H + 0.004;
     const inset = 0.09;
     const pulse = 0.5 + 0.5 * Math.sin(performance.now() / 380);
     ctx.beginPath();
     for (let y = 0; y < g.board.height; y++) {
       for (let x = 0; x < g.board.width; x++) {
-        if (!g.canBuildAt(x, y)) continue;
+        if (!g.canBuildAt(x, y, id)) continue;
         const a = this.cam.project(x + inset, y + inset, z);
         const b = this.cam.project(x + 1 - inset, y + inset, z);
         const c = this.cam.project(x + 1 - inset, y + 1 - inset, z);
@@ -790,9 +860,8 @@ export class Renderer {
     ctx.stroke();
   }
 
-  private strokeCell(x: number, y: number, color: string, width: number, outset = 0): void {
+  private strokeCell(x: number, y: number, color: string, width: number, outset = 0, z = GRASS_H + 0.006): void {
     const ctx = this.ctx;
-    const z = GRASS_H + 0.006;
     const o = outset;
     ctx.save();
     ctx.shadowColor = color;

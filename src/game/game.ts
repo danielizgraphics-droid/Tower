@@ -37,6 +37,8 @@ export interface GameEvents {
   gold: { x: number; y: number; amount: number };
   phase: { phase: Phase };
   shieldBreak: { x: number; y: number };
+  blink: { x: number; y: number };
+  revive: { x: number; y: number };
 }
 
 export interface GameOptions {
@@ -388,8 +390,15 @@ export class Game {
     return Math.round(base * this.mods.costMultiplier(def.id, 'upgrade'));
   }
 
-  canBuildAt(x: number, y: number): boolean {
-    return this.board.isBuildable(x, y) && !this.towerAt(x, y);
+  /** Free tile for a tower: grass for land towers, open water for naval ones (default: land). */
+  canBuildAt(x: number, y: number, id?: TowerId): boolean {
+    if (this.towerAt(x, y)) return false;
+    return id && TOWERS[id].placement === 'water' ? this.board.isWater(x, y) : this.board.isBuildable(x, y);
+  }
+
+  /** The map has room for naval towers. */
+  get hasWater(): boolean {
+    return this.board.tiles.some((row) => row.some((t) => t.kind === 'water'));
   }
 
   towerAt(x: number, y: number): Tower | undefined {
@@ -398,7 +407,7 @@ export class Game {
 
   build(id: TowerId, x: number, y: number): Tower | null {
     if (this.phase === 'victory' || this.phase === 'defeat') return null;
-    if (!this.unlockedTowers.includes(id) || !this.canBuildAt(x, y)) return null;
+    if (!this.unlockedTowers.includes(id) || !this.canBuildAt(x, y, id)) return null;
     const cost = this.buildCost(id);
     if (this.gold < cost) return null;
     if (cost === 0 && this.freeTowersLeft > 0) this.freeTowersUsed++;
@@ -550,6 +559,33 @@ export class Game {
           if (healed) this.events.emit('heal', { x: e.x, y: e.y });
         }
       }
+      if (def.shieldAura) {
+        e.auraTimer += dt;
+        if (e.auraTimer >= def.shieldAura.every) {
+          e.auraTimer = 0;
+          const amount = def.shieldAura.amount * waveHpMultiplier(e.wave);
+          const r2 = def.shieldAura.radius * def.shieldAura.radius;
+          for (const o of this.enemies) {
+            if (!o.alive || o === e || dist2(o.x, o.y, e.x, e.y) > r2) continue;
+            o.shield = Math.min(Math.max(o.maxShield, amount * 2), o.shield + amount);
+            o.maxShield = Math.max(o.maxShield, o.shield);
+            o.shieldIdle = 0;
+          }
+          this.events.emit('pulse', { x: e.x, y: e.y, radius: def.shieldAura.radius, color: '#b98bff' });
+        }
+      }
+      if (def.blink && e.stunTime <= 0 && e.freezeTime <= 0) {
+        e.blinkTimer += dt;
+        if (e.blinkTimer >= def.blink.every) {
+          e.blinkTimer = 0;
+          this.events.emit('blink', { x: e.x, y: e.y });
+          e.dist = Math.min(board.length - 0.3, e.dist + def.blink.distance);
+          const bp = board.pointAt(e.dist);
+          e.x = bp.x;
+          e.y = bp.y;
+          this.events.emit('blink', { x: e.x, y: e.y });
+        }
+      }
       if (def.summon) {
         e.summonTimer += dt;
         if (e.summonTimer >= def.summon.every) {
@@ -654,7 +690,7 @@ export class Game {
       e.burnSource = p.tower;
     }
     if (s.poisonDps > 0) this.addPoison(e, p.tower, s.poisonDps * mult, s.poisonDuration || 3, Math.max(1, Math.round(s.poisonStacks)));
-    if (s.knockback > 0 && !e.def.boss) e.dist = Math.max(0, e.dist - s.knockback * cc);
+    if (s.knockback > 0 && !e.def.boss && !e.def.unstoppable) e.dist = Math.max(0, e.dist - s.knockback * cc);
     if (s.armorShred > 0 && e.armor > 0) {
       const shred = Math.min(e.armor, s.armorShred * mult);
       e.armor -= shred;
@@ -730,6 +766,16 @@ export class Game {
 
   killEnemy(e: Enemy, source: Tower | null): void {
     if (!e.alive) return;
+    if (e.def.revive && !e.revived) {
+      // Rises again once: no bounty until the second death.
+      e.revived = true;
+      e.hp = Math.max(1, e.maxHp * e.def.revive);
+      e.burnTime = 0;
+      e.poison = [];
+      e.stunTime = Math.max(e.stunTime, 0.8);
+      this.events.emit('revive', { x: e.x, y: e.y });
+      return;
+    }
     e.alive = false;
     e.hp = 0;
     this.kills++;
@@ -954,7 +1000,7 @@ export class Game {
       r.time -= dt;
       for (const e of this.enemiesInRadius(r.x, r.y, r.radius, false)) {
         if (e.def.boss) continue;
-        e.dist = Math.max(0, e.dist - (r.pull / r.total) * dt * e.ccFactor);
+        if (!e.def.unstoppable) e.dist = Math.max(0, e.dist - (r.pull / r.total) * dt * e.ccFactor);
       }
     }
     this.rifts = this.rifts.filter((r) => r.time > 0);

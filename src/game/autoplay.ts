@@ -81,10 +81,16 @@ export class AutoPlayer {
     const airSoon = g.wave >= 3;
 
     // Build candidates: best free spot per tower type.
-    const freeSpots: { x: number; y: number }[] = [];
+    const landSpots: { x: number; y: number }[] = [];
+    const waterSpots: { x: number; y: number }[] = [];
     const b = g.board;
-    for (let y = 0; y < b.height; y++) for (let x = 0; x < b.width; x++) if (g.canBuildAt(x, y)) freeSpots.push({ x, y });
+    for (let y = 0; y < b.height; y++)
+      for (let x = 0; x < b.width; x++) {
+        if (g.canBuildAt(x, y)) landSpots.push({ x, y });
+        else if (g.canBuildAt(x, y, 'harbor')) waterSpots.push({ x, y });
+      }
     for (const id of this.towerPool) {
+      const freeSpots = TOWERS[id].placement === 'water' ? waterSpots : landSpots;
       const cost = g.buildCost(id);
       const s = g.previewStats(id, 1, -1);
       let best = 0;

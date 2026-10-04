@@ -14,7 +14,7 @@ describe('tower stats', () => {
   });
 
   it('every tower has 3 distinct branches with 2 steps and sane base stats', () => {
-    expect(TOWER_LIST).toHaveLength(10);
+    expect(TOWER_LIST).toHaveLength(12);
     for (const t of TOWER_LIST) {
       expect(new Set(t.branches.map((b) => b.id)).size).toBe(3);
       for (let b = 0; b < 3; b++) {

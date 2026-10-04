@@ -2263,3 +2263,23 @@ table.dmg td.bad {
     font-size: 13px;
   }
 }
+
+.tcard .naval {
+  position: absolute;
+  top: 3px;
+  right: 4px;
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  color: #fff;
+  background: radial-gradient(circle at 35% 30%, #7fd6f5, #2a86c4);
+  box-shadow:
+    0 0 0 1.5px #fff,
+    0 1px 2px rgba(0, 0, 0, 0.3);
+}
+.tcard.nowater {
+  opacity: 0.5;
+  filter: grayscale(0.7);
+}
