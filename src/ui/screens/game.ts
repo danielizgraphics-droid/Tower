@@ -16,6 +16,7 @@ import { wavePreview } from '../../game/waves';
 import { applyRunResult, isMapUnlocked, profileModifiers, type RewardSummary } from '../../meta/profile';
 import { enemyPortrait, towerPortrait } from '../../render/portraits';
 import { Renderer } from '../../render/renderer';
+import { GRASS_H } from '../../render/terrain';
 import type { App, Route, Screen } from '../app';
 import { h, setText, toggleClass } from '../dom';
 import { statLines, TARGET_LABELS } from '../format';
@@ -43,6 +44,23 @@ export function gameScreen(app: App, route: Route): Screen {
 
   // ------------------------------------------------------------ state
   let buildId: TowerId | null = null;
+  /** Tile the placement ghost sits on while choosing where to build. */
+  let placing: { x: number; y: number } | null = null;
+  /** A tower being carried by finger or mouse, either from its card or the ghost on the map. */
+  let drag: {
+    pointerId: number;
+    from: 'card' | 'map';
+    id: TowerId;
+    sx: number;
+    sy: number;
+    ox: number;
+    oy: number;
+    active: boolean;
+    type: string;
+  } | null = null;
+  let lastPointer = 'mouse';
+  /** Touch: carry the tower this far above the finger so it stays visible. */
+  const LIFT = 72;
   let spellId: SpellId | null = null;
   let selected: Tower | null = null;
   let finished = false;
@@ -90,12 +108,33 @@ export function gameScreen(app: App, route: Route): Screen {
       'button.tcard',
       { 'aria-label': t.name },
       h('span.key', String((i + 1) % 10)),
-      h('img', { src: towerPortrait(t.id, 1, -1, 64), alt: '' }),
+      h('img', { src: towerPortrait(t.id, 1, -1, 64), alt: '', draggable: false }),
       h('span.name', t.name.replace('Torre de ', '').replace('Torre ', '')),
       costEl,
     );
     if (!unlocked.includes(t.id)) card.classList.add('locked');
-    card.onclick = () => selectBuild(buildId === t.id ? null : t.id);
+    // Pointer: tap to pick (then drag the ghost on the map) or pull the card up onto the map and drop it.
+    card.addEventListener('pointerdown', (e) => {
+      if (e.button !== 0 || finished || !unlocked.includes(t.id)) return;
+      lastPointer = e.pointerType;
+      drag = {
+        pointerId: e.pointerId,
+        from: 'card',
+        id: t.id,
+        sx: e.clientX,
+        sy: e.clientY,
+        ox: 0,
+        oy: e.pointerType === 'mouse' ? 0 : -LIFT,
+        active: false,
+        type: e.pointerType,
+      };
+    });
+    // Once the tower is lifted, stop the bar from scrolling under the finger.
+    card.addEventListener('touchmove', (e) => drag?.active && e.preventDefault(), { passive: false });
+    // Keyboard activation (Enter / Space on a focused card).
+    card.onclick = (e) => {
+      if (e.detail === 0) selectBuild(buildId === t.id ? null : t.id);
+    };
     tip(card, () =>
       h(
         'div',
@@ -142,7 +181,12 @@ export function gameScreen(app: App, route: Route): Screen {
   panel.style.display = 'none';
   const rotateHint = h('div.rotate-hint', icon('refresh', 16), 'Gira el dispositivo para ver mejor el campo de batalla');
   setTimeout(() => rotateHint.classList.add('fade'), 6000);
-  const hud = h('div.hud', topBar, preview, cornerLeft, cornerRight, buildBar, spellsEl, panel, rotateHint);
+  const confirmOk = h('button.pc-btn.ok', { 'aria-label': 'Construir aquí', title: 'Construir aquí' }, icon('check', 24));
+  const confirmNo = h('button.pc-btn.no', { 'aria-label': 'Cancelar', title: 'Cancelar' }, icon('close', 18));
+  const confirmCost = h('span.pc-cost');
+  const confirmEl = h('div.place-confirm', confirmNo, confirmCost, confirmOk);
+  confirmEl.style.display = 'none';
+  const hud = h('div.hud', topBar, preview, cornerLeft, cornerRight, buildBar, spellsEl, panel, rotateHint, confirmEl);
   const el = h('div', { style: 'position:absolute;inset:0' }, canvas, hud);
 
   // ------------------------------------------------------------ helpers
@@ -176,8 +220,10 @@ export function gameScreen(app: App, route: Route): Screen {
     buildId = id;
     spellId = null;
     renderer.view.spell = null;
+    renderer.view.grid = !!id;
     if (id) select(null);
-    if (!id) renderer.view.ghost = null;
+    else drag = null;
+    setGhost(id ? placing : null);
     for (const [tid, c] of cards) toggleClass(c, 'on', tid === id);
     for (const [, b] of spellBtns) toggleClass(b, 'on', false);
   }
@@ -364,14 +410,80 @@ export function gameScreen(app: App, route: Route): Screen {
   const pointers = new Map<number, { x: number; y: number; sx: number; sy: number; moved: boolean; type: string }>();
   let pinchDist = 0;
   let pinchZoom = 1;
-  let touchGhost: { x: number; y: number } | null = null;
+  let pinchMid = { x: 0, y: 0 };
+
+  function setGhost(tile: { x: number; y: number } | null) {
+    placing = buildId ? tile : null;
+    renderer.view.ghost =
+      buildId && tile ? { id: buildId, x: tile.x, y: tile.y, valid: game.canBuildAt(tile.x, tile.y) && game.gold >= game.buildCost(buildId) } : null;
+  }
+
+  /** On-screen size of one tile, in CSS pixels. */
+  function tilePx(): number {
+    const a = renderer.toScreen(0, 0, 0);
+    const b = renderer.toScreen(1, 0, 0);
+    return Math.hypot(b.x - a.x, b.y - a.y);
+  }
+
+  /** A sensible first spot for the ghost: a free cell beside the road, near the middle of the view. */
+  function defaultTile(): { x: number; y: number } | null {
+    const b = game.board;
+    const c = renderer.pickGround(innerWidth / 2, innerHeight * 0.45);
+    let best: { x: number; y: number } | null = null;
+    let bestScore = Infinity;
+    for (let y = 0; y < b.height; y++) {
+      for (let x = 0; x < b.width; x++) {
+        if (!game.canBuildAt(x, y)) continue;
+        const nearRoad = [
+          [1, 0],
+          [-1, 0],
+          [0, 1],
+          [0, -1],
+        ].some(([dx, dy]) => b.isWalkable(x + dx, y + dy));
+        const score = Math.hypot(x + 0.5 - c.x, y + 0.5 - c.y) + (nearRoad ? 0 : 2.5);
+        if (score < bestScore) {
+          bestScore = score;
+          best = { x, y };
+        }
+      }
+    }
+    return best;
+  }
+
+  function buildFailReason(x: number, y: number): string {
+    if (game.towerAt(x, y)) return 'Ya hay una torre ahí';
+    if (game.board.isWalkable(x, y)) return 'No se puede construir sobre el camino';
+    return 'Casilla no disponible';
+  }
+
+  /** Builds the selected tower on a tile. Returns true when it was placed. */
+  function tryBuild(x: number, y: number, keepMode: boolean): boolean {
+    if (!buildId) return false;
+    if (!game.canBuildAt(x, y)) {
+      sfx('error');
+      toast(buildFailReason(x, y));
+      return false;
+    }
+    if (game.gold < game.buildCost(buildId)) {
+      sfx('error');
+      toast('Oro insuficiente');
+      return false;
+    }
+    const t = game.build(buildId, x, y);
+    if (!t) return false;
+    if (tutorialStep === 0) {
+      tutorialStep = 1;
+      hint('¡Bien! Pulsa «Iniciar oleada» cuando estés listo. Puedes seguir construyendo durante la batalla.');
+    }
+    if (!keepMode || game.gold < game.buildCost(buildId)) selectBuild(null);
+    else setGhost(null);
+    return true;
+  }
 
   function updateHover(x: number, y: number) {
     const tile = renderer.pickTile(x, y);
     renderer.view.hover = tile;
-    if (buildId && tile) {
-      renderer.view.ghost = { id: buildId, x: tile.x, y: tile.y, valid: game.canBuildAt(tile.x, tile.y) };
-    } else if (buildId) renderer.view.ghost = null;
+    if (buildId && !drag?.active) setGhost(tile);
     if (spellId) {
       const g = renderer.pickGround(x, y);
       renderer.view.spell = { id: spellId, x: g.x, y: g.y };
@@ -396,48 +508,20 @@ export function gameScreen(app: App, route: Route): Screen {
       return;
     }
     const tile = renderer.pickTile(x, y);
-    if (!tile) {
-      select(null);
+    if (buildId) {
+      // Touch placement is handled by the ghost drag; the mouse builds straight away.
+      if (pointerType !== 'mouse' || !tile) return;
+      const existing = game.towerAt(tile.x, tile.y);
+      if (existing) {
+        selectBuild(null);
+        select(existing);
+        return;
+      }
+      tryBuild(tile.x, tile.y, shift);
       return;
     }
-    if (buildId) {
-      if (!game.canBuildAt(tile.x, tile.y)) {
-        const existing = game.towerAt(tile.x, tile.y);
-        if (existing) {
-          selectBuild(null);
-          select(existing);
-          sfx('click');
-        } else {
-          sfx('error');
-          toast(game.board.isWalkable(tile.x, tile.y) ? 'No se puede construir sobre el camino' : 'Casilla no disponible');
-        }
-        return;
-      }
-      if (pointerType === 'touch' && (!touchGhost || touchGhost.x !== tile.x || touchGhost.y !== tile.y)) {
-        // First tap previews, second tap confirms.
-        touchGhost = tile;
-        renderer.view.ghost = { id: buildId, x: tile.x, y: tile.y, valid: true };
-        toast('Toca de nuevo para construir');
-        return;
-      }
-      const cost = game.buildCost(buildId);
-      if (game.gold < cost) {
-        sfx('error');
-        toast('Oro insuficiente');
-        return;
-      }
-      const t = game.build(buildId, tile.x, tile.y);
-      touchGhost = null;
-      if (t) {
-        if (tutorialStep === 0) {
-          tutorialStep = 1;
-          hint('¡Bien! Pulsa «Iniciar oleada» cuando estés listo. Puedes seguir construyendo durante la batalla.');
-        }
-        if (!shift || game.gold < game.buildCost(buildId)) {
-          selectBuild(null);
-          renderer.view.ghost = null;
-        }
-      }
+    if (!tile) {
+      select(null);
       return;
     }
     const t = game.towerAt(tile.x, tile.y);
@@ -447,17 +531,136 @@ export function gameScreen(app: App, route: Route): Screen {
     } else select(null);
   }
 
+  /** True when a screen point is over the battlefield rather than over a HUD element. */
+  const overMap = (x: number, y: number) => document.elementFromPoint(x, y) === canvas;
+
+  function moveDrag(x: number, y: number) {
+    if (!drag || !buildId) return;
+    if (drag.from === 'card' && !overMap(x, y)) {
+      setGhost(null);
+      return;
+    }
+    const tile = renderer.pickTile(x + drag.ox, y + drag.oy);
+    if (!tile && drag.from === 'map') return; // off the board: leave the ghost where it was
+    if (tile && (tile.x !== placing?.x || tile.y !== placing?.y) && placing) app.sfx('hover');
+    setGhost(tile);
+  }
+
+  function onWindowMove(e: PointerEvent) {
+    if (!drag || drag.pointerId !== e.pointerId) return;
+    const dx = e.clientX - drag.sx;
+    const dy = e.clientY - drag.sy;
+    if (!drag.active) {
+      if (drag.from === 'card') {
+        // Pulling up lifts the tower out of the bar; sideways swipes keep scrolling the bar.
+        const lift = drag.type === 'mouse' ? Math.hypot(dx, dy) > 8 : dy < -12 && -dy > Math.abs(dx) * 0.7;
+        if (!lift) return;
+        drag.active = true;
+        hideTip();
+        if (buildId !== drag.id) selectBuild(drag.id);
+        placing = null;
+        cards.get(drag.id)?.classList.add('dragging');
+      } else if (Math.hypot(dx, dy) > 6) drag.active = true;
+      else return;
+    }
+    moveDrag(e.clientX, e.clientY);
+  }
+
+  function onWindowUp(e: PointerEvent) {
+    if (!drag || drag.pointerId !== e.pointerId) return;
+    const d = drag;
+    drag = null;
+    cards.get(d.id)?.classList.remove('dragging');
+    const cancelled = e.type === 'pointercancel';
+    if (d.from === 'card') {
+      if (!d.active) {
+        if (cancelled) return;
+        // A tap on the card: toggle build mode and drop a ghost the player can drag around.
+        if (buildId === d.id) selectBuild(null);
+        else {
+          selectBuild(d.id);
+          if (d.type !== 'mouse') setGhost(defaultTile());
+        }
+        return;
+      }
+      if (cancelled || !placing) {
+        selectBuild(null);
+        return;
+      }
+      // Released over the map: build right there. If the cell is not valid the ghost stays for adjusting.
+      if (!tryBuild(placing.x, placing.y, false) && d.type === 'mouse') selectBuild(null);
+      return;
+    }
+    // Ghost dragged or tapped on the map (touch).
+    if (d.active || cancelled || !buildId || finished) return;
+    const tile = renderer.pickTile(e.clientX, e.clientY);
+    if (!tile) return;
+    const existing = game.towerAt(tile.x, tile.y);
+    if (existing && !(placing && placing.x === tile.x && placing.y === tile.y)) {
+      selectBuild(null);
+      sfx('click');
+      select(existing);
+    } else if (placing && placing.x === tile.x && placing.y === tile.y) tryBuild(tile.x, tile.y, false);
+    else setGhost(tile);
+  }
+  window.addEventListener('pointermove', onWindowMove);
+  window.addEventListener('pointerup', onWindowUp);
+  window.addEventListener('pointercancel', onWindowUp);
+
+  confirmOk.onclick = () => {
+    if (placing) tryBuild(placing.x, placing.y, false);
+  };
+  confirmNo.onclick = () => selectBuild(null);
+
+  function updateConfirm() {
+    // Keep the battlefield clear while choosing a spot.
+    if (hintEl) toggleClass(hintEl, 'away', !!buildId);
+    toggleClass(rotateHint, 'away', !!buildId);
+    const show = !!buildId && !!placing && lastPointer !== 'mouse' && !drag?.active && !finished && game.phase !== 'augment';
+    confirmEl.style.display = show ? '' : 'none';
+    if (!show || !placing || !buildId) return;
+    const top = renderer.toScreen(placing.x + 0.5, placing.y + 0.5, GRASS_H + 1.35);
+    const half = 70;
+    const x = Math.min(innerWidth - half, Math.max(half, top.x));
+    const y = Math.max(96, top.y);
+    confirmEl.style.transform = `translate(${Math.round(x)}px, ${Math.round(y)}px) translate(-50%, -100%)`;
+    toggleClass(confirmOk, 'disabled', !renderer.view.ghost?.valid);
+    setText(confirmCost, String(game.buildCost(buildId)));
+    toggleClass(confirmCost, 'short', game.gold < game.buildCost(buildId));
+  }
+
   canvas.addEventListener('pointerdown', (e) => {
     canvas.setPointerCapture(e.pointerId);
+    lastPointer = e.pointerType;
     pointers.set(e.pointerId, { x: e.clientX, y: e.clientY, sx: e.clientX, sy: e.clientY, moved: false, type: e.pointerType });
     if (pointers.size === 2) {
+      // Second finger: pinch / pan instead of moving the ghost.
+      if (drag?.from === 'map') drag = null;
       const [a, b] = [...pointers.values()];
       pinchDist = Math.hypot(a.x - b.x, a.y - b.y);
       pinchZoom = renderer.zoom;
+      pinchMid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+      return;
     }
     if (e.button === 2) {
       selectBuild(null);
       select(null);
+      return;
+    }
+    if (buildId && e.pointerType !== 'mouse' && pointers.size === 1 && !finished) {
+      // Grab the ghost where it is (keeping the finger offset) or, away from it, carry it above the finger.
+      let ox = 0;
+      let oy = -LIFT;
+      if (placing) {
+        const g = renderer.toScreen(placing.x + 0.5, placing.y + 0.5, GRASS_H);
+        const size = tilePx();
+        const near = Math.abs(e.clientX - g.x) < size * 0.9 && e.clientY < g.y + size * 0.5 && e.clientY > g.y - size * 1.9;
+        if (near) {
+          ox = g.x - e.clientX;
+          oy = g.y - e.clientY;
+        }
+      }
+      drag = { pointerId: e.pointerId, from: 'map', id: buildId, sx: e.clientX, sy: e.clientY, ox, oy, active: false, type: e.pointerType };
     }
   });
   canvas.addEventListener('pointermove', (e) => {
@@ -474,10 +677,14 @@ export function gameScreen(app: App, route: Route): Screen {
     if (pointers.size === 2) {
       const [a, b] = [...pointers.values()];
       const d = Math.hypot(a.x - b.x, a.y - b.y);
-      if (pinchDist > 0) renderer.setZoom(pinchZoom * (d / pinchDist), (a.x + b.x) / 2, (a.y + b.y) / 2);
+      const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+      if (pinchDist > 0) renderer.setZoom(pinchZoom * (d / pinchDist), mid.x, mid.y);
+      renderer.pan(mid.x - pinchMid.x, mid.y - pinchMid.y);
+      pinchMid = mid;
       for (const q of pointers.values()) q.moved = true;
       return;
     }
+    if (drag?.from === 'map' && drag.pointerId === e.pointerId) return; // moving the ghost, not the camera
     if (p.moved) renderer.pan(dx, dy);
     else if (e.pointerType === 'mouse') updateHover(e.clientX, e.clientY);
   });
@@ -489,9 +696,10 @@ export function gameScreen(app: App, route: Route): Screen {
   };
   canvas.addEventListener('pointerup', endPointer);
   canvas.addEventListener('pointercancel', endPointer);
-  canvas.addEventListener('pointerleave', () => {
+  canvas.addEventListener('pointerleave', (e) => {
+    if (e.pointerType !== 'mouse') return;
     renderer.view.hover = null;
-    if (buildId) renderer.view.ghost = null;
+    if (buildId && !drag) setGhost(null);
   });
   canvas.addEventListener('contextmenu', (e) => e.preventDefault());
   canvas.addEventListener(
@@ -942,7 +1150,9 @@ export function gameScreen(app: App, route: Route): Screen {
   // Initial UI state
   renderer.insets = { top: 120, bottom: 120, left: 10, right: 10 };
   if (tutorialStep === 0)
-    hint('Elige una torre en la barra inferior y colócala en la hierba junto al camino. Los enemigos salen del portal violeta.');
+    hint(
+      'Arrastra una torre desde la barra inferior hasta una casilla junto al camino, o tócala y mueve la silueta por el mapa. Los enemigos salen del portal violeta.',
+    );
   renderAugs();
 
   return {
@@ -950,8 +1160,10 @@ export function gameScreen(app: App, route: Route): Screen {
     ownsStage: true,
     update(dt: number) {
       game.update(dt);
+      if (placing) setGhost(placing);
       renderer.render(dt);
       updateHud(dt);
+      updateConfirm();
     },
     resize() {
       const w = innerWidth;
@@ -974,6 +1186,9 @@ export function gameScreen(app: App, route: Route): Screen {
     },
     destroy() {
       hideTip();
+      window.removeEventListener('pointermove', onWindowMove);
+      window.removeEventListener('pointerup', onWindowUp);
+      window.removeEventListener('pointercancel', onWindowUp);
       renderer.destroy();
       game.events.clear();
       app.save();

@@ -26,6 +26,8 @@ export interface ViewState {
   hover: { x: number; y: number } | null;
   selected: Tower | null;
   ghost: { id: TowerId; x: number; y: number; valid: boolean } | null;
+  /** Show the placement grid over every free buildable cell. */
+  grid: boolean;
   spell: { id: SpellId; x: number; y: number } | null;
   showDamage: boolean;
   shakeEnabled: boolean;
@@ -62,7 +64,7 @@ export class Renderer {
   insets = { top: 70, bottom: 120, left: 12, right: 12 };
   private unsub: (() => void)[] = [];
   private castleHit = 0;
-  view: ViewState = { hover: null, selected: null, ghost: null, spell: null, showDamage: true, shakeEnabled: true };
+  view: ViewState = { hover: null, selected: null, ghost: null, grid: false, spell: null, showDamage: true, shakeEnabled: true };
 
   constructor(
     private canvas: HTMLCanvasElement,
@@ -717,6 +719,7 @@ export class Renderer {
         }
       }
     }
+    if (v.grid) this.drawPlacementGrid();
     if (v.ghost) {
       const { id, x, y, valid } = v.ghost;
       const cx = x + 0.5;
@@ -732,8 +735,9 @@ export class Renderer {
           [x, y + 1],
         ],
         GRASS_H + 0.005,
-        valid ? 'rgba(255,255,255,0.35)' : 'rgba(255,80,80,0.35)',
+        valid ? 'rgba(90,230,100,0.65)' : 'rgba(255,70,60,0.6)',
       );
+      this.strokeCell(x, y, valid ? 'rgba(120,255,120,1)' : 'rgba(255,90,80,1)', Math.max(2.5, this.cam.scale * 0.07), 0.1);
     } else if (v.hover && !v.spell) {
       const { x, y } = v.hover;
       if (g.board.isBuildable(x, y) && !g.towerAt(x, y)) {
@@ -754,6 +758,63 @@ export class Renderer {
       p.disc(v.spell.x, v.spell.y, 0.03, def.radius, rgba(def.color, 0.18), false);
       p.ring(v.spell.x, v.spell.y, 0.03, def.radius, rgba(def.color, 0.9), 2, [6, 4]);
     }
+  }
+
+  /** Outlines every free buildable cell so the player sees where towers fit. */
+  private drawPlacementGrid(): void {
+    const g = this.game;
+    const ctx = this.ctx;
+    const z = GRASS_H + 0.004;
+    const inset = 0.09;
+    const pulse = 0.5 + 0.5 * Math.sin(performance.now() / 380);
+    ctx.beginPath();
+    for (let y = 0; y < g.board.height; y++) {
+      for (let x = 0; x < g.board.width; x++) {
+        if (!g.canBuildAt(x, y)) continue;
+        const a = this.cam.project(x + inset, y + inset, z);
+        const b = this.cam.project(x + 1 - inset, y + inset, z);
+        const c = this.cam.project(x + 1 - inset, y + 1 - inset, z);
+        const d = this.cam.project(x + inset, y + 1 - inset, z);
+        ctx.moveTo(a.x, a.y);
+        ctx.lineTo(b.x, b.y);
+        ctx.lineTo(c.x, c.y);
+        ctx.lineTo(d.x, d.y);
+        ctx.closePath();
+      }
+    }
+    ctx.fillStyle = `rgba(255,255,235,${0.2 + 0.08 * pulse})`;
+    ctx.fill();
+    ctx.lineJoin = 'round';
+    ctx.lineWidth = Math.max(1.5, this.cam.scale * 0.035);
+    ctx.strokeStyle = `rgba(255,255,245,${0.75 + 0.2 * pulse})`;
+    ctx.stroke();
+  }
+
+  private strokeCell(x: number, y: number, color: string, width: number, outset = 0): void {
+    const ctx = this.ctx;
+    const z = GRASS_H + 0.006;
+    const o = outset;
+    ctx.save();
+    ctx.shadowColor = color;
+    ctx.shadowBlur = width * 3;
+    ctx.beginPath();
+    const corners: [number, number][] = [
+      [x - o, y - o],
+      [x + 1 + o, y - o],
+      [x + 1 + o, y + 1 + o],
+      [x - o, y + 1 + o],
+    ];
+    corners.forEach(([cx, cy], i) => {
+      const q = this.cam.project(cx, cy, z);
+      if (i === 0) ctx.moveTo(q.x, q.y);
+      else ctx.lineTo(q.x, q.y);
+    });
+    ctx.closePath();
+    ctx.lineJoin = 'round';
+    ctx.lineWidth = width;
+    ctx.strokeStyle = color;
+    ctx.stroke();
+    ctx.restore();
   }
 
   /** Overlays drawn above the scene (placement ghost). */

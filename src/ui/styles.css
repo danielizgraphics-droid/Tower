@@ -1197,6 +1197,104 @@ h4 {
   display: none;
 }
 
+.tcard {
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+.tcard img {
+  -webkit-user-drag: none;
+  pointer-events: none;
+}
+.tcard.dragging {
+  opacity: 0.55;
+  transform: translateY(-4px) scale(0.94);
+}
+
+/* Build confirmation floating above the placement ghost (touch). */
+.place-confirm {
+  position: absolute;
+  left: 0;
+  top: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgba(58, 38, 22, 0.92), rgba(36, 23, 13, 0.92));
+  border: 2px solid var(--gold-5);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.35);
+  will-change: transform;
+  animation: pc-in 0.16s ease-out;
+}
+@keyframes pc-in {
+  from {
+    opacity: 0;
+  }
+}
+.place-confirm::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: -8px;
+  width: 12px;
+  height: 12px;
+  background: rgba(36, 23, 13, 0.92);
+  border-right: 2px solid var(--gold-5);
+  border-bottom: 2px solid var(--gold-5);
+  transform: translateX(-50%) rotate(45deg);
+}
+.pc-btn {
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  color: #fff;
+  border: 2px solid rgba(255, 255, 255, 0.85);
+  box-shadow:
+    inset 0 2px 0 rgba(255, 255, 255, 0.35),
+    inset 0 -3px 0 rgba(0, 0, 0, 0.25),
+    0 2px 0 rgba(0, 0, 0, 0.35);
+  cursor: pointer;
+  transition: transform 0.08s ease;
+}
+.pc-btn:active {
+  transform: scale(0.92);
+}
+.pc-btn.ok {
+  background: radial-gradient(circle at 35% 30%, #7fdc6a, #3d9a3a 70%, #2b7a2c);
+}
+.pc-btn.no {
+  width: 38px;
+  height: 38px;
+  background: radial-gradient(circle at 35% 30%, #f07a6a, #c23b34 70%, #962a26);
+}
+.pc-btn.disabled {
+  filter: grayscale(0.85) brightness(0.8);
+}
+.pc-cost {
+  display: flex;
+  align-items: center;
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 15px;
+  color: #ffd76a;
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.6);
+}
+.pc-cost::before {
+  content: '';
+  width: 13px;
+  height: 13px;
+  margin-right: 4px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #ffe9a0, #e0a93a 60%, #a86f1c);
+  box-shadow: 0 0 0 1.5px #7a4f12;
+}
+.pc-cost.short {
+  color: #ff8a7a;
+}
+
 .spells {
   position: absolute;
   right: 12px;
@@ -2139,5 +2237,29 @@ table.dmg td.bad {
     gap: 10px;
     font-size: 10px;
     letter-spacing: 0;
+  }
+}
+
+.hint.away,
+.rotate-hint.away {
+  opacity: 0 !important;
+  pointer-events: none !important;
+  transition: opacity 0.15s ease;
+}
+@media (max-height: 520px) {
+  .place-confirm {
+    gap: 5px;
+    padding: 3px;
+  }
+  .pc-btn {
+    width: 36px;
+    height: 36px;
+  }
+  .pc-btn.no {
+    width: 30px;
+    height: 30px;
+  }
+  .pc-cost {
+    font-size: 13px;
   }
 }
