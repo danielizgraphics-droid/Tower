@@ -2,7 +2,7 @@
 import { chromium } from 'playwright-core';
 const [out = 'screenshots/late.png', w = '1600', h = '900', zoom = '1'] = process.argv.slice(2);
 const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' });
-const page = await browser.newPage({ viewport: { width: +w, height: +h }, deviceScaleFactor: 1 });
+const page = await browser.newPage({ ignoreHTTPSErrors: true, viewport: { width: +w, height: +h }, deviceScaleFactor: 1 });
 const errors = [];
 page.on('pageerror', (e) => errors.push(e.message));
 await page.goto('http://localhost:5173/?screen=game&map=meadow');

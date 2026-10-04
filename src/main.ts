@@ -1,4 +1,13 @@
+// Self-hosted fonts (latin subset covers Spanish) so the game works offline.
+import '@fontsource/cinzel/latin-700.css';
+import '@fontsource/cinzel/latin-800.css';
+import '@fontsource/cinzel-decorative/latin-900.css';
+import '@fontsource/nunito/latin-600.css';
+import '@fontsource/nunito/latin-700.css';
+import '@fontsource/nunito/latin-800.css';
+import '@fontsource/nunito/latin-900.css';
 import './ui/styles.css';
+import type { Biome } from './data/biomes';
 import type { Difficulty } from './data/types';
 import { App } from './ui/app';
 import { codexScreen } from './ui/screens/codex';
@@ -17,7 +26,14 @@ app.register('game', gameScreen);
 // Deep links (?screen=game&map=meadow&difficulty=normal) help testing and sharing.
 const params = new URLSearchParams(location.search);
 const screen = params.get('screen');
-if (screen === 'game') app.go({ name: 'game', map: params.get('map') ?? 'meadow', difficulty: (params.get('difficulty') as Difficulty) ?? 'normal' });
+if (screen === 'game')
+  app.go({
+    name: 'game',
+    biome: (params.get('biome') as Biome) ?? 'meadow',
+    seed: Number(params.get('seed') ?? 12345),
+    difficulty: (params.get('difficulty') as Difficulty) ?? 'normal',
+    endless: params.get('endless') === '1',
+  });
 else if (screen === 'maps' || screen === 'talents' || screen === 'codex') app.go({ name: screen });
 else app.go({ name: 'menu' });
 

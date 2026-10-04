@@ -1,7 +1,9 @@
 import { RARITY_INFO } from '../../data/augments';
 import { DAMAGE_TYPES } from '../../data/damage';
 import { ENEMIES } from '../../data/enemies';
-import { DIFFICULTY, MAP_BY_ID, MAPS } from '../../data/maps';
+import { BIOMES } from '../../data/biomes';
+import { DIFFICULTY } from '../../data/maps';
+import { generateMap, seedCode } from '../../game/mapgen';
 import { SPELLS, SPELL_LIST } from '../../data/spells';
 import { BRANCH_TIER, MAX_TIER, TOWERS, TOWER_LIST } from '../../data/towers';
 import type { AugmentDef, Difficulty, SpellId, TargetMode, TowerId } from '../../data/types';
@@ -26,7 +28,9 @@ const SPELL_KEYS: Record<SpellId, string> = { meteor: 'Q', frostNova: 'W', bless
 
 export function gameScreen(app: App, route: Route): Screen {
   if (route.name !== 'game') throw new Error('bad route');
-  const mapDef = MAP_BY_ID[route.map];
+  const run = route;
+  const endless = run.endless;
+  const mapDef = generateMap({ biome: run.biome, seed: run.seed, waves: endless ? Infinity : 30 });
   const difficulty: Difficulty = route.difficulty;
   const profile = app.profile;
   const unlocked = TOWER_LIST.filter((t) => profile.towers[t.id].unlocked).map((t) => t.id);
@@ -57,27 +61,27 @@ export function gameScreen(app: App, route: Route): Screen {
   const manaBar = h('div');
   const waveVal = h('div.val');
   const waveBtn = h('button.btn.small.primary', icon('play', 16), h('span.label', 'Iniciar oleada'));
-  const autoBtn = h('button.btn.small.icon-only.ghost', { title: 'Oleadas automáticas', 'aria-label': 'Oleadas automáticas' }, icon('refresh', 16));
-  const livesStat = h('div.stat.lives.panel', h('div.badge', icon('heart', 18)), h('div', livesVal, h('div.bar', livesBar)));
-  const goldStat = h('div.stat.gold.panel', h('div.badge', icon('coin', 18)), h('div', goldVal, h('div.sub', 'Oro')));
-  const manaStat = h('div.stat.mana.panel', h('div.badge', icon('drop', 18)), h('div', manaVal, h('div.bar', manaBar)));
+  const autoBtn = h('button.btn.small.icon-only.wood', { title: 'Oleadas automáticas', 'aria-label': 'Oleadas automáticas' }, icon('refresh', 16));
+  const livesStat = h('div.stat.lives', h('div.badge', icon('heart', 18)), h('div', livesVal, h('div.bar', livesBar)));
+  const goldStat = h('div.stat.gold', h('div.badge', icon('coin', 18)), h('div', goldVal, h('div.sub', 'Oro')));
+  const manaStat = h('div.stat.mana', h('div.badge', icon('drop', 18)), h('div', manaVal, h('div.bar', manaBar)));
   const waveStat = h(
-    'div.wave-box.panel',
-    h('div.stat.wave', { style: 'padding:0;min-height:0' }, h('div.badge', icon('wave', 18)), h('div', waveVal, h('div.sub', 'Oleada'))),
+    'div.stat.wave.wave-box',
+    h('div', { style: 'display:flex;align-items:center;gap:8px' }, h('div.badge', icon('wave', 18)), h('div', waveVal, h('div.sub', 'Oleada'))),
     waveBtn,
     autoBtn,
   );
-  const topBar = h('div.top-bar', livesStat, waveStat, goldStat, manaStat);
-  const preview = h('div.next-preview');
+  const topBar = h('div.top-bar.plank', livesStat, waveStat, goldStat, manaStat);
+  const preview = h('div.next-preview.plank');
 
-  const pauseBtn = h('button.btn.icon-only.ghost', { 'aria-label': 'Pausa' }, icon('pause', 20));
+  const pauseBtn = h('button.btn.icon-only.wood', { 'aria-label': 'Pausa' }, icon('pause', 20));
   const speedLabel = h('span', '×1');
-  const speedBtn = h('button.btn.icon-only.ghost.speed-btn', { 'aria-label': 'Velocidad', title: 'Velocidad (F)' }, icon('fast', 16), speedLabel);
+  const speedBtn = h('button.btn.icon-only.wood.speed-btn', { 'aria-label': 'Velocidad', title: 'Velocidad (F)' }, icon('fast', 16), speedLabel);
   const cornerLeft = h('div.corner-left', pauseBtn, speedBtn);
   const augsEl = h('div.augs');
   const cornerRight = h('div.corner-right', augsEl);
 
-  const buildBar = h('div.build-bar.panel');
+  const buildBar = h('div.build-bar.plank');
   const cards = new Map<TowerId, HTMLElement>();
   const costEls = new Map<TowerId, HTMLElement>();
   TOWER_LIST.forEach((t, i) => {
@@ -290,44 +294,43 @@ export function gameScreen(app: App, route: Route): Screen {
       upgrade.title = 'Atajo: U';
     }
     const targets = `${def.targetsGround ? 'Tierra' : ''}${def.targetsGround && effectiveTargetsAir(def, t.branch) ? ' y aire' : effectiveTargetsAir(def, t.branch) ? 'Aire' : ''}`;
-    panel.replaceChildren(
-      ...[
+    const parts = [
+      h(
+        'div.tp-head',
+        h('img', { src: towerPortrait(def.id, t.tier, t.branch, 64), alt: '' }),
         h(
-          'div.tp-head',
-          h('img', { src: towerPortrait(def.id, t.tier, t.branch, 64), alt: '' }),
+          'div',
+          { style: 'flex:1' },
+          h('h3', branch ? branch.name : def.name),
           h(
             'div',
-            { style: 'flex:1' },
-            h('h3', branch ? branch.name : def.name),
-            h(
-              'div',
-              { style: 'margin-top:3px' },
-              h('span.tag', { style: `background:${DAMAGE_TYPES[dmgType].color};color:#2f2748` }, DAMAGE_TYPES[dmgType].name),
-              h('span.muted.tiny', targets),
-            ),
-            tierDots,
+            { style: 'margin-top:3px' },
+            h('span.tag', { style: `background:${DAMAGE_TYPES[dmgType].color};color:#2f2748` }, DAMAGE_TYPES[dmgType].name),
+            h('span.muted.tiny', targets),
           ),
-          h('button.btn.small.icon-only.ghost', { onclick: () => select(null), 'aria-label': 'Cerrar' }, icon('close', 16)),
+          tierDots,
         ),
+        h('button.btn.small.icon-only.wood', { onclick: () => select(null), 'aria-label': 'Cerrar' }, icon('close', 16)),
+      ),
+      h(
+        'div.stats',
+        lines.map((l) => h('div.row', h('span.muted', l.label), h('span', h('b', l.value), l.delta ? h('span.delta', l.delta) : null))),
+      ),
+      targeting,
+      upgrade,
+      h(
+        'div.tp-actions',
         h(
-          'div.stats',
-          lines.map((l) => h('div.row', h('span.muted', l.label), h('span', h('b', l.value), l.delta ? h('span.delta', l.delta) : null))),
+          'button.btn.small.red',
+          { onclick: () => doSell(), title: 'Atajo: S' },
+          icon('trash', 16),
+          'Vender',
+          h('span.cost', { style: 'color:#fff' }, icon('coin', 12), String(game.sellValue(t))),
         ),
-        targeting,
-        upgrade,
-        h(
-          'div.tp-actions',
-          h(
-            'button.btn.small.red',
-            { onclick: () => doSell(), title: 'Atajo: S' },
-            icon('trash', 16),
-            'Vender',
-            h('span.cost', { style: 'color:#fff' }, icon('coin', 12), String(game.sellValue(t))),
-          ),
-        ),
-        h('div.muted.tiny', { style: 'margin-top:8px;text-align:center' }, `${t.kills} bajas · ${formatNumber(t.damageDealt)} de daño`),
-      ].filter((x): x is HTMLElement => !!x),
-    );
+      ),
+      h('div.muted.tiny', { style: 'margin-top:8px;text-align:center' }, `${t.kills} bajas · ${formatNumber(t.damageDealt)} de daño`),
+    ].filter((x): x is HTMLElement => !!x);
+    panel.replaceChildren(parts[0], h('div.tp-body', parts.slice(1)));
   }
 
   function doUpgrade(branch?: number) {
@@ -548,7 +551,10 @@ export function gameScreen(app: App, route: Route): Screen {
       h(
         'div.modal-card.panel',
         h('h2', 'Pausa'),
-        h('p.muted', `${mapDef.name} · ${DIFFICULTY[difficulty].name} · Oleada ${game.wave}/${game.totalWaves}`),
+        h(
+          'p.muted',
+          `${mapDef.name} · ${DIFFICULTY[difficulty].name} · Oleada ${game.wave}${endless ? '' : `/${game.totalWaves}`} · mapa #${seedCode(run.seed)}`,
+        ),
         game.augments.length
           ? h(
               'div',
@@ -580,7 +586,12 @@ export function gameScreen(app: App, route: Route): Screen {
             icon('gear', 18),
             'Ajustes',
           ),
-          h('button.btn', { onclick: () => (sfx('click'), app.go({ name: 'game', map: mapDef.id, difficulty })) }, icon('refresh', 18), 'Reiniciar'),
+          h(
+            'button.btn',
+            { onclick: () => (sfx('click'), app.go({ name: 'game', biome: run.biome, seed: run.seed, difficulty, endless })) },
+            icon('refresh', 18),
+            'Reiniciar',
+          ),
           h('button.btn.red', { onclick: () => abandon() }, icon('home', 18), 'Abandonar'),
         ),
       ),
@@ -721,10 +732,11 @@ export function gameScreen(app: App, route: Route): Screen {
     finished = true;
     game.paused = true;
     hint(null);
-    const mapsBefore = new Set(MAPS.filter((m) => isMapUnlocked(profile, m.requires)).map((m) => m.id));
+    const mapsBefore = new Set(BIOMES.filter((m) => isMapUnlocked(profile, m.requires)).map((m) => m.id));
     const g = game.global;
     const reward: RewardSummary = applyRunResult(profile, {
-      mapId: mapDef.id,
+      mapId: run.biome,
+      endless,
       difficulty,
       wavesCleared: game.wavesCleared,
       totalWaves: game.totalWaves,
@@ -737,7 +749,7 @@ export function gameScreen(app: App, route: Route): Screen {
     });
     profile.tutorialDone = true;
     app.save();
-    const newMaps = MAPS.filter((m) => !mapsBefore.has(m.id) && isMapUnlocked(profile, m.requires)).map((m) => m.name);
+    const newMaps = BIOMES.filter((m) => !mapsBefore.has(m.id) && isMapUnlocked(profile, m.requires)).map((m) => m.name);
     if (abandoned) {
       app.go({ name: 'menu' });
       return;
@@ -755,7 +767,14 @@ export function gameScreen(app: App, route: Route): Screen {
               icon(victory ? 'crown' : 'skull', 56),
             ),
             h('h2', victory ? '¡Victoria!' : 'Derrota'),
-            h('p.muted', victory ? `Has defendido ${mapDef.name}.` : `El castillo ha caído en la oleada ${game.wave}.`),
+            h(
+              'p.muted',
+              victory
+                ? `Has defendido ${mapDef.name}.`
+                : endless
+                  ? `Resististe ${game.wavesCleared} oleadas en ${mapDef.name}.`
+                  : `El castillo ha caído en la oleada ${game.wave}.`,
+            ),
             h(
               'div.results',
               h('div.line', h('span', 'Oleadas superadas'), h('span', `${game.wavesCleared}/${game.totalWaves}`)),
@@ -773,7 +792,7 @@ export function gameScreen(app: App, route: Route): Screen {
                   'div.pill',
                   { style: 'margin-top:10px;background:#efe6ff;color:#4b3596;padding:6px 12px' },
                   icon('map', 16),
-                  `¡Nuevo mapa desbloqueado: ${newMaps.join(', ')}!`,
+                  `¡Nueva región desbloqueada: ${newMaps.join(', ')}!`,
                 )
               : null,
             reward.levelUps.length
@@ -798,7 +817,7 @@ export function gameScreen(app: App, route: Route): Screen {
               h('button.btn.purple', { onclick: () => (sfx('click'), app.go({ name: 'talents' })) }, icon('star', 18), 'Talentos'),
               h(
                 'button.btn.primary',
-                { onclick: () => (sfx('click'), app.go({ name: 'game', map: mapDef.id, difficulty })) },
+                { onclick: () => (sfx('click'), app.go({ name: 'game', biome: run.biome, seed: run.seed, difficulty, endless })) },
                 icon('refresh', 18),
                 victory ? 'Jugar de nuevo' : 'Reintentar',
               ),
@@ -877,7 +896,7 @@ export function gameScreen(app: App, route: Route): Screen {
     }
     setText(manaVal, `${Math.floor(game.mana)}`);
     manaBar.style.width = `${(game.mana / game.global.maxMana) * 100}%`;
-    setText(waveVal, `${game.wave}/${game.totalWaves}`);
+    setText(waveVal, endless ? `${game.wave}` : `${game.wave}/${game.totalWaves}`);
     const canStart = game.canStartWave() && !finished;
     waveBtn.disabled = !canStart;
     const label = waveBtn.querySelector('.label') as HTMLElement;
@@ -950,7 +969,7 @@ export function gameScreen(app: App, route: Route): Screen {
       // On tall phones the wide board would be tiny: start zoomed in (players can pinch/pan).
       if (portrait && !zoomedForPortrait) {
         zoomedForPortrait = true;
-        renderer.setZoom(1.9);
+        renderer.setZoom(1.35);
       }
     },
     destroy() {

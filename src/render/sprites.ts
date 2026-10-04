@@ -1,5 +1,5 @@
 import { Painter } from './painter';
-import { Camera, DX, DY, HEIGHT_SCALE } from './projection';
+import { Camera } from './projection';
 
 /** A pre-rendered bitmap anchored at a world point. Sizes are in CSS pixels. */
 export interface Sprite {
@@ -12,14 +12,13 @@ export interface Sprite {
 }
 
 /**
- * Renders `draw` into an offscreen canvas so that the world point (wx, wy, wz)
- * lands on the sprite anchor. `wTiles`/`hTiles` give the sprite size in tiles and
- * `fx`/`fy` the anchor position as a fraction of that size.
+ * Renders `draw` into an offscreen canvas so that the world point `world`
+ * lands on the sprite anchor. `wTiles`/`hTiles` give the sprite size in world
+ * units and `fx`/`fy` the anchor position as a fraction of that size.
  */
 export function makeSprite(
   scale: number,
   dpr: number,
-  rows: number,
   wTiles: number,
   hTiles: number,
   fx: number,
@@ -38,9 +37,9 @@ export function makeSprite(
   const ay = h * fy;
   const cam = new Camera();
   cam.scale = scale;
-  cam.rows = rows;
-  cam.ox = ax - (world.x + (rows - world.y) * DX) * scale;
-  cam.oy = ay - (world.y * DY - world.z * HEIGHT_SCALE) * scale;
+  const at = cam.project(world.x, world.y, world.z);
+  cam.ox = ax - at.x;
+  cam.oy = ay - at.y;
   const p = new Painter(cam);
   p.ctx = ctx;
   draw(p);

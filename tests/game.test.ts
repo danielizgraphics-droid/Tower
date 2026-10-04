@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { ENEMIES } from '../src/data/enemies';
-import { MAPS } from '../src/data/maps';
+import { generateMap } from '../src/game/mapgen';
+
+const MAP = generateMap({ biome: 'meadow', seed: 2024 });
 import { AutoPlayer, ALL_TOWERS, simulate } from '../src/game/autoplay';
 import { Game } from '../src/game/game';
 import { ModifierSet } from '../src/game/modifiers';
@@ -8,7 +10,7 @@ import { generateWave, waveHpMultiplier } from '../src/game/waves';
 import { buyNode, defaultProfile, profileModifiers } from '../src/meta/profile';
 import { GENERAL_TREE, TOWER_TREES } from '../src/meta/talentTrees';
 
-const newGame = (seed = 1) => new Game({ map: MAPS[0], difficulty: 'normal', mods: new ModifierSet(), unlockedTowers: ALL_TOWERS, seed });
+const newGame = (seed = 1) => new Game({ map: MAP, difficulty: 'normal', mods: new ModifierSet(), unlockedTowers: ALL_TOWERS, seed });
 
 /** First buildable tile next to the path. */
 function spotNearPath(g: Game): { x: number; y: number } {
@@ -30,18 +32,22 @@ function spotNearPath(g: Game): { x: number; y: number } {
 
 describe('waves', () => {
   it('are deterministic and grow over time', () => {
-    const a = generateWave(MAPS[0], 7);
-    const b = generateWave(MAPS[0], 7);
+    const a = generateWave(MAP, 7);
+    const b = generateWave(MAP, 7);
     expect(a).toEqual(b);
     expect(waveHpMultiplier(30)).toBeGreaterThan(waveHpMultiplier(10));
     for (let w = 1; w <= 30; w++) {
-      const wave = generateWave(MAPS[0], w);
+      const wave = generateWave(MAP, w);
       expect(wave.groups.length).toBeGreaterThan(0);
       for (const g of wave.groups) expect(ENEMIES[g.enemy].minWave <= w || ENEMIES[g.enemy].boss).toBe(true);
     }
-    expect(generateWave(MAPS[0], 10).boss).toBe('warlord');
-    expect(generateWave(MAPS[0], 20).boss).toBe('lich');
-    expect(generateWave(MAPS[0], 30).boss).toBe('dragon');
+    expect(generateWave(MAP, 10).boss).toBe('warlord');
+    expect(generateWave(MAP, 20).boss).toBe('lich');
+    expect(generateWave(MAP, 30).boss).toBe('dragon');
+    // Endless: bosses keep cycling and enemies keep scaling.
+    expect(generateWave(MAP, 40).boss).toBe('warlord');
+    expect(generateWave(MAP, 90).boss).toBe('dragon');
+    expect(waveHpMultiplier(60) / waveHpMultiplier(30)).toBeGreaterThan(5);
   });
 });
 
@@ -125,6 +131,21 @@ describe('combat', () => {
   });
 });
 
+describe('endless mode', () => {
+  it('never runs out of waves', () => {
+    const g = new Game({
+      map: generateMap({ biome: 'meadow', seed: 3, waves: Infinity }),
+      difficulty: 'easy',
+      mods: new ModifierSet(),
+      unlockedTowers: ALL_TOWERS,
+      seed: 1,
+    });
+    g.wave = 120;
+    expect(g.canStartWave()).toBe(true);
+    expect(g.nextWaveDef()?.index).toBe(121);
+  });
+});
+
 describe('augments', () => {
   it('are offered every 5 waves and apply their modifiers', () => {
     const g = newGame(3);
@@ -168,7 +189,7 @@ describe('full runs (balance smoke tests)', () => {
       for (const t of ['archer', 'cannon', 'arcane', 'frost'] as const) for (const n of TOWER_TREES[t].nodes) buyNode(prof, TOWER_TREES[t], n.id);
     }
     const g = new Game({
-      map: MAPS[0],
+      map: MAP,
       difficulty: 'normal',
       mods: profileModifiers(prof),
       unlockedTowers: ['archer', 'cannon', 'arcane', 'frost'],
@@ -180,7 +201,7 @@ describe('full runs (balance smoke tests)', () => {
 
   it('an untalented auto player cannot steamroll heroic difficulty', () => {
     const g = new Game({
-      map: MAPS[0],
+      map: MAP,
       difficulty: 'hard',
       mods: new ModifierSet(),
       unlockedTowers: ['archer', 'cannon', 'arcane', 'frost'],

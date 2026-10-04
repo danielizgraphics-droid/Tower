@@ -4,7 +4,7 @@ import { ModifierSet } from '../game/modifiers';
 import { GENERAL_TREE, TOWER_TREES, isAnyRequirement, towerLevelFromXp, type TalentNode, type TalentTree } from './talentTrees';
 
 export const SAVE_KEY = 'bastion-arcano.save';
-export const SAVE_VERSION = 2;
+export const SAVE_VERSION = 3;
 
 export interface TowerProgress {
   unlocked: boolean;
@@ -12,9 +12,12 @@ export interface TowerProgress {
   talents: Record<string, number>;
 }
 
+/** Progress per biome. */
 export interface MapProgress {
   bestWave: number;
   cleared: Partial<Record<Difficulty, boolean>>;
+  /** Best wave reached in endless mode. */
+  bestEndless?: number;
 }
 
 export interface Settings {
@@ -184,7 +187,9 @@ export function profileModifiers(p: Profile): ModifierSet {
 // ---------------------------------------------------------------- run rewards
 
 export interface RunResult {
+  /** Biome id. */
   mapId: string;
+  endless?: boolean;
   difficulty: Difficulty;
   wavesCleared: number;
   totalWaves: number;
@@ -206,7 +211,8 @@ export interface RewardSummary {
 export const STAR_MULT = { easy: 0.6, normal: 1, hard: 1.6 } as const;
 
 export function computeStars(r: RunResult, alreadyCleared: boolean): number {
-  const perWave = r.wavesCleared * 0.5;
+  // Endless runs pay a little more for every wave survived past the campaign.
+  const perWave = r.wavesCleared * 0.5 + (r.endless ? Math.max(0, r.wavesCleared - 30) * 0.25 : 0);
   const victory = r.victory ? (alreadyCleared ? 4 : 10) : 0;
   return Math.max(r.wavesCleared > 0 ? 1 : 0, Math.round((perWave + victory) * STAR_MULT[r.difficulty] * (1 + r.starGain)));
 }
@@ -217,8 +223,9 @@ export function applyRunResult(p: Profile, r: RunResult): RewardSummary {
   const stars = computeStars(r, alreadyCleared);
   p.stars += stars;
   p.starsEarned += stars;
-  mp.bestWave = Math.max(mp.bestWave, r.wavesCleared);
-  if (r.victory) mp.cleared[r.difficulty] = true;
+  if (r.endless) mp.bestEndless = Math.max(mp.bestEndless ?? 0, r.wavesCleared);
+  else mp.bestWave = Math.max(mp.bestWave, r.wavesCleared);
+  if (r.victory || (r.endless && r.wavesCleared >= 30)) mp.cleared[r.difficulty] = true;
   p.stats.runs++;
   if (r.victory) p.stats.wins++;
   p.stats.kills += r.kills;

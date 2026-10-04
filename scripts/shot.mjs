@@ -2,7 +2,7 @@
 import { chromium } from 'playwright-core';
 const [url, out, w = '1600', h = '900', wait = '1500'] = process.argv.slice(2);
 const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium', args: ['--use-gl=swiftshader', '--enable-unsafe-swiftshader'] });
-const page = await browser.newPage({ viewport: { width: +w, height: +h }, deviceScaleFactor: 1 });
+const page = await browser.newPage({ ignoreHTTPSErrors: true, viewport: { width: +w, height: +h }, deviceScaleFactor: 1 });
 const errors = [];
 page.on('pageerror', (e) => errors.push(e.message));
 page.on('console', (m) => {

@@ -7,13 +7,19 @@ const parseCache = new Map<string, RGB>();
 export function parse(hex: string): RGB {
   let c = parseCache.get(hex);
   if (c) return c;
-  let h = hex.replace('#', '');
-  if (h.length === 3)
-    h = h
-      .split('')
-      .map((x) => x + x)
-      .join('');
-  c = [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)];
+  if (hex.startsWith('rgb')) {
+    // rgb()/rgba() strings: alpha is ignored by the shading helpers.
+    const n = hex.match(/[\d.]+/g)?.map(Number) ?? [0, 0, 0];
+    c = [n[0] ?? 0, n[1] ?? 0, n[2] ?? 0];
+  } else {
+    let h = hex.replace('#', '');
+    if (h.length === 3)
+      h = h
+        .split('')
+        .map((x) => x + x)
+        .join('');
+    c = [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)];
+  }
   parseCache.set(hex, c);
   return c;
 }

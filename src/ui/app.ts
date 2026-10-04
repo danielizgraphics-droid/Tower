@@ -1,8 +1,9 @@
-import { MAPS } from '../data/maps';
+import type { Biome } from '../data/biomes';
 import type { Difficulty } from '../data/types';
 import { AudioEngine } from '../engine/audio';
 import { AutoPlayer, ALL_TOWERS } from '../game/autoplay';
 import { Game } from '../game/game';
+import { generateMap } from '../game/mapgen';
 import { ModifierSet } from '../game/modifiers';
 import { loadProfile, saveProfile, type Profile, type Storage } from '../meta/profile';
 import { Renderer } from '../render/renderer';
@@ -20,7 +21,11 @@ export interface Screen {
 }
 
 export type Route =
-  { name: 'menu' } | { name: 'maps' } | { name: 'talents'; tab?: string } | { name: 'codex' } | { name: 'game'; map: string; difficulty: Difficulty };
+  | { name: 'menu' }
+  | { name: 'maps' }
+  | { name: 'talents'; tab?: string }
+  | { name: 'codex' }
+  | { name: 'game'; biome: Biome; seed: number; difficulty: Difficulty; endless: boolean };
 
 type ScreenFactory = (app: App, route: Route) => Screen;
 
@@ -98,7 +103,13 @@ export class App {
     this.stage.style.display = 'block';
     this.stage.style.filter = 'blur(1.5px) saturate(1.05)';
     if (this.backdrop) return;
-    const game = new Game({ map: MAPS[0], difficulty: 'easy', mods: new ModifierSet(), unlockedTowers: ALL_TOWERS, seed: 7 });
+    const game = new Game({
+      map: generateMap({ biome: 'meadow', seed: (Math.random() * 1e9) | 0 }),
+      difficulty: 'easy',
+      mods: new ModifierSet(),
+      unlockedTowers: ALL_TOWERS,
+      seed: 7,
+    });
     const bot = new AutoPlayer(game, ALL_TOWERS, 7);
     // Fast-forward a little so the scene is lively from the first frame.
     for (let i = 0; i < 60 * 40; i++) {

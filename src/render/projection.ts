@@ -1,59 +1,57 @@
 /**
- * Cavalier (oblique) projection.
+ * Isometric projection.
  *
- * World axes (in tiles): x → right, y → towards the viewer (rows), z → up.
- * Front faces (x/z plane) keep their true shape; depth recedes up and to the
- * right at ANGLE with DEPTH_SCALE foreshortening.
+ * World axes (in tiles): x → down-right on screen, y → down-left, z → up.
+ * The visible vertical faces of any solid are the ones facing +x and +y.
  */
-export const ANGLE = (58 * Math.PI) / 180;
-export const DEPTH_SCALE = 0.8;
-export const HEIGHT_SCALE = 0.92;
+export const ISO_X = Math.cos(Math.PI / 6); // 0.866
+export const ISO_Y = 0.5;
+export const HEIGHT_SCALE = 1;
 
-/** Screen offset produced by moving one tile towards the BACK (−y). */
-export const DX = Math.cos(ANGLE) * DEPTH_SCALE;
-export const DY = Math.sin(ANGLE) * DEPTH_SCALE;
+/** Screen radii (per world unit) of a horizontal circle: exact for isometric. */
+export const CIRCLE_RX = Math.SQRT2 * ISO_X; // 1.2247
+export const CIRCLE_RY = Math.SQRT2 * ISO_Y; // 0.7071
 
-/** Direction pointing from the scene towards the viewer (for back-face culling and sorting). */
-export const VIEW = { x: DX, y: 1, z: DY / HEIGHT_SCALE };
+/** Direction pointing from the scene towards the viewer (for back-face culling). */
+export const VIEW = (() => {
+  const v = { x: 1, y: 1, z: (2 * ISO_Y) / HEIGHT_SCALE };
+  const l = Math.hypot(v.x, v.y, v.z);
+  return { x: v.x / l, y: v.y / l, z: v.z / l };
+})();
 
 export class Camera {
-  /** Pixels per tile. */
+  /** Pixels per world unit along an axis. */
   scale = 48;
   /** Screen position of world origin (0, 0, 0). */
   ox = 0;
   oy = 0;
-  /** Number of rows of the board, used so the back rows shift right. */
-  rows = 12;
+  /** Kept for API compatibility; isometric needs no board size. */
+  rows = 0;
 
-  /** World → screen (CSS pixels). */
+  sx(x: number, y: number): number {
+    return this.ox + (x - y) * ISO_X * this.scale;
+  }
+
+  sy(x: number, y: number, z: number): number {
+    return this.oy + ((x + y) * ISO_Y - z * HEIGHT_SCALE) * this.scale;
+  }
+
   project(x: number, y: number, z: number): { x: number; y: number } {
-    const back = this.rows - y;
-    return {
-      x: this.ox + (x + back * DX) * this.scale,
-      y: this.oy + (y * DY - z * HEIGHT_SCALE) * this.scale,
-    };
-  }
-
-  px(x: number, y: number): number {
-    return this.ox + (x + (this.rows - y) * DX) * this.scale;
-  }
-
-  py(y: number, z: number): number {
-    return this.oy + (y * DY - z * HEIGHT_SCALE) * this.scale;
+    return { x: this.sx(x, y), y: this.sy(x, y, z) };
   }
 
   /** Screen → world on the horizontal plane at height z. */
   unproject(sx: number, sy: number, z = 0): { x: number; y: number } {
-    const y = ((sy - this.oy) / this.scale + z * HEIGHT_SCALE) / DY;
-    const x = (sx - this.ox) / this.scale - (this.rows - y) * DX;
-    return { x, y };
+    const u = (sx - this.ox) / (ISO_X * this.scale); // x - y
+    const v = ((sy - this.oy) / this.scale + z * HEIGHT_SCALE) / ISO_Y; // x + y
+    return { x: (u + v) / 2, y: (v - u) / 2 };
   }
 
-  /** Projected size of the board (without heights) in tiles. */
-  static boardExtent(cols: number, rows: number): { w: number; h: number } {
-    return { w: cols + rows * DX, h: rows * DY };
+  /** Screen-space bounds (world units, origin-relative) of a W×H board's ground. */
+  static boardBounds(cols: number, rows: number): { left: number; right: number; top: number; bottom: number } {
+    return { left: -rows * ISO_X, right: cols * ISO_X, top: 0, bottom: (cols + rows) * ISO_Y };
   }
 }
 
 /** Painter's-algorithm depth for a world point (bigger = closer to viewer). */
-export const depthOf = (x: number, y: number): number => y + x * DX;
+export const depthOf = (x: number, y: number): number => x + y;

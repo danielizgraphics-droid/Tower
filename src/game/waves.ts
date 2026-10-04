@@ -22,10 +22,18 @@ export interface WaveDef {
 /** Health multiplier for enemies in a wave. */
 export function waveHpMultiplier(wave: number): number {
   const w = wave - 1;
-  return 1 + 0.12 * w + 0.006 * w * w;
+  const base = 1 + 0.12 * w + 0.006 * w * w;
+  // Endless mode: beyond the campaign, enemies keep getting tougher exponentially.
+  return wave > 30 ? base * Math.pow(1.06, wave - 30) : base;
 }
 
-export const BOSS_WAVES: Record<number, EnemyId> = { 10: 'warlord', 20: 'lich', 30: 'dragon' };
+const BOSS_CYCLE: EnemyId[] = ['warlord', 'lich', 'dragon'];
+
+/** Boss of a wave (every 10th wave), cycling forever in endless mode. */
+export function bossFor(wave: number): EnemyId | undefined {
+  if (wave % 10 !== 0) return undefined;
+  return BOSS_CYCLE[(wave / 10 - 1) % BOSS_CYCLE.length];
+}
 
 function threatBudget(wave: number): number {
   return 7 + 2.4 * wave + 0.07 * wave * wave;
@@ -39,7 +47,7 @@ export function generateWave(map: MapDef, wave: number): WaveDef {
   const rng = new Rng(hashString(map.id) * 31 + wave * 7919);
   const groups: SpawnGroup[] = [];
   let budget = threatBudget(wave);
-  const boss = BOSS_WAVES[wave];
+  const boss = bossFor(wave);
   let t = 0;
 
   if (boss) {
@@ -77,7 +85,9 @@ export function generateWave(map: MapDef, wave: number): WaveDef {
   });
 
   if (boss) {
-    groups.push({ enemy: boss, count: 1, interval: 1, start: t + 2 });
+    // Endless: extra copies of the boss every 30 waves past the campaign.
+    const count = 1 + Math.max(0, Math.floor((wave - 31) / 30) + (wave > 30 ? 1 : 0));
+    groups.push({ enemy: boss, count, interval: 4, start: t + 2 });
   }
 
   return { index: wave, groups, boss, reward: 30 + Math.round(wave * 3) };

@@ -199,13 +199,13 @@ export class Fx {
           const u = k / n;
           const j = k === 0 ? 0 : b.jitter[(i * 6 + k) % b.jitter.length];
           pts.push([
-            p.cam.px(a.x + (c.x - a.x) * u, a.y + (c.y - a.y) * u) + j * s,
-            p.cam.py(a.y + (c.y - a.y) * u, a.z + (c.z - a.z) * u) + j * s * 0.7,
+            p.cam.sx(a.x + (c.x - a.x) * u, a.y + (c.y - a.y) * u) + j * s,
+            p.cam.sy(a.x + (c.x - a.x) * u, a.y + (c.y - a.y) * u, a.z + (c.z - a.z) * u) + j * s * 0.7,
           ]);
         }
       }
       const last = b.points[b.points.length - 1];
-      pts.push([p.cam.px(last.x, last.y), p.cam.py(last.y, last.z)]);
+      pts.push([p.cam.sx(last.x, last.y), p.cam.sy(last.x, last.y, last.z)]);
       for (const [w, col] of [
         [b.width * 3, rgba(b.color, 0.25 * (1 - t))],
         [b.width, rgba('#ffffff', 1 - t)],
@@ -219,8 +219,8 @@ export class Fx {
     }
     for (const pt of this.particles) {
       const t = pt.life / pt.max;
-      const x = p.cam.px(pt.x, pt.y);
-      const y = p.cam.py(pt.y, pt.z);
+      const x = p.cam.sx(pt.x, pt.y);
+      const y = p.cam.sy(pt.x, pt.y, pt.z);
       let r = pt.size * s;
       let alpha = 1 - t;
       let color = pt.color;
@@ -262,8 +262,8 @@ export class Fx {
       const pop = k < 0.15 ? 0.7 + (k / 0.15) * 0.5 : k < 0.3 ? 1.2 - ((k - 0.15) / 0.15) * 0.2 : 1;
       const size = Math.max(9, s * 0.24 * t.size * pop);
       ctx.font = `700 ${size}px ${font}`;
-      const x = p.cam.px(t.x, t.y);
-      const y = p.cam.py(t.y, t.z);
+      const x = p.cam.sx(t.x, t.y);
+      const y = p.cam.sy(t.x, t.y, t.z);
       ctx.globalAlpha = k > 0.7 ? (1 - k) / 0.3 : 1;
       ctx.lineWidth = Math.max(2, size * 0.22);
       ctx.strokeStyle = 'rgba(30,22,50,0.75)';

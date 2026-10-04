@@ -24,11 +24,11 @@ export function towerPortrait(id: TowerId, tier = 1, branch = -1, size = 64): st
   const { canvas, ctx } = canvasFor(size);
   const cam = new Camera();
   cam.rows = 0;
-  cam.scale = size / 1.95;
+  cam.scale = size / 2.25;
   // Place the tower base near the bottom centre.
   const base = cam.project(0.5, 0.5, 0);
-  cam.ox = size * 0.47 - (base.x - cam.ox);
-  cam.oy = size * 0.84 - (base.y - cam.oy);
+  cam.ox = size * 0.5 - (base.x - cam.ox);
+  cam.oy = size * 0.86 - (base.y - cam.oy);
   const p = new Painter(cam);
   p.ctx = ctx;
   drawTowerModel(p, { id, tier, branch, angle: Math.PI * 0.25, fireAnim: 1, time: 0.6 }, 0.5, 0.5, 0);

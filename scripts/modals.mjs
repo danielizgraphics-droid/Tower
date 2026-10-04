@@ -1,6 +1,6 @@
 import { chromium } from 'playwright-core';
 const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' });
-const page = await browser.newPage({ viewport: { width: 1400, height: 860 } });
+const page = await browser.newPage({ ignoreHTTPSErrors: true, viewport: { width: 1400, height: 860 } });
 const errors = [];
 page.on('pageerror', (e) => errors.push(e.message));
 await page.goto('http://localhost:5173/?screen=game&map=meadow');
@@ -32,7 +32,7 @@ await page.click('.node.available');
 await page.waitForTimeout(300);
 await page.screenshot({ path: 'screenshots/talents-archer.png' });
 // Pause modal
-await page.evaluate(() => window.__app.go({ name: 'game', map: 'autumn', difficulty: 'hard' }));
+await page.evaluate(() => window.__app.go({ name: 'game', biome: 'autumn', seed: 77, difficulty: 'hard', endless: true }));
 await page.waitForTimeout(900);
 await page.keyboard.press('p');
 await page.waitForTimeout(400);

@@ -119,8 +119,8 @@ export function drawEnemyModel(p: Painter, e: EnemyLook): void {
       const squash = 1 + Math.sin(e.age * 8) * 0.08;
       const r = 0.26 * d.size;
       const ctx = p.ctx;
-      const sx = p.cam.px(x, y);
-      const sy = p.cam.py(y, r * squash * 0.9);
+      const sx = p.cam.sx(x, y);
+      const sy = p.cam.sy(x, y, r * squash * 0.9);
       const R = r * p.cam.scale;
       const g = ctx.createRadialGradient(sx - R * 0.3, sy - R * 0.4, R * 0.1, sx, sy, R * 1.1);
       g.addColorStop(0, shade(body, 0.5));
@@ -187,8 +187,8 @@ export function drawEnemyModel(p: Painter, e: EnemyLook): void {
       if (Math.cos(a) * 0.6 + Math.sin(a) > -0.2) {
         const ex = x + ca * 0.12 * g;
         const ey = y + sa * 0.12 * g;
-        const sx = p.cam.px(ex, ey);
-        const sy = p.cam.py(ey, hz2 + 0.1 * g);
+        const sx = p.cam.sx(ex, ey);
+        const sy = p.cam.sy(ex, ey, hz2 + 0.1 * g);
         const R = Math.max(1, p.cam.scale * 0.022 * g);
         p.ctx.fillStyle = d.id === 'golem' ? '#ffcf6a' : '#2a1f2f';
         p.ctx.beginPath();
@@ -221,8 +221,8 @@ export function drawEnemyModel(p: Painter, e: EnemyLook): void {
       p.cone(x, y, hz + 0.75 * d.size, 0.2 * d.size, -0.7 * d.size, body);
       p.sphere(x, y, hz + 0.78 * d.size, 0.16 * d.size, shade(body, 0.1));
       ctx.globalAlpha = 1;
-      const ex = p.cam.px(x, y);
-      const ey = p.cam.py(y, hz + 0.8 * d.size);
+      const ex = p.cam.sx(x, y);
+      const ey = p.cam.sy(x, y, hz + 0.8 * d.size);
       const R = p.cam.scale * 0.04 * d.size;
       ctx.fillStyle = accent;
       ctx.beginPath();
@@ -276,8 +276,8 @@ export function drawEnemyModel(p: Painter, e: EnemyLook): void {
   const cz = enemyHeight(d);
   if (e.shield > 0) {
     const ctx = p.ctx;
-    const sx = p.cam.px(x, y);
-    const sy = p.cam.py(y, cz);
+    const sx = p.cam.sx(x, y);
+    const sy = p.cam.sy(x, y, cz);
     const R = p.cam.scale * 0.36 * Math.max(0.8, d.size);
     const g = ctx.createRadialGradient(sx, sy, R * 0.5, sx, sy, R);
     g.addColorStop(0, 'rgba(120,190,255,0)');

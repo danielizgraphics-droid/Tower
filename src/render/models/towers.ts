@@ -37,7 +37,7 @@ function crenels(p: Painter, cx: number, cy: number, z: number, r: number, n: nu
     const a = (i / n) * Math.PI * 2 + 0.3;
     items.push({ x: cx + Math.cos(a) * r, y: cy + Math.sin(a) * r });
   }
-  items.sort((a, b) => a.y + a.x * 0.6 - (b.y + b.x * 0.6));
+  items.sort((a, b) => a.y + a.x - (b.y + b.x));
   for (const it of items) p.cbox(it.x, it.y, z, size, size, size * 1.1, color);
 }
 
@@ -96,6 +96,7 @@ const MODELS: Record<TowerId, ModelFn> = {
     const r = l.branch === 1 ? 0.3 : 0.26;
     p.cylinder(cx, cy, z, r + 0.03, 0.08, shade(stone, -0.06));
     p.cylinder(cx, cy, z + 0.08, r, h, stone);
+    p.cylinderBricks(cx, cy, z + 0.08, r, h, stone, 0.1, 7);
     // Arrow slit
     p.box(cx - 0.03, cy + r * 0.92, z + h * 0.5, 0.06, 0.02, 0.14, shade(stone, -0.45), null, false);
     const top = z + 0.08 + h;
@@ -139,7 +140,7 @@ const MODELS: Record<TowerId, ModelFn> = {
           [-1, 1],
         ])
           p.cylinder(cx + dx * (r - 0.02), cy + dy * (r - 0.02), top + 0.07, 0.012, 0.23, DARKWOOD);
-        p.cone(cx, cy, top + 0.3, r + 0.1, l.branch === 0 ? 0.42 : 0.3, v.accent);
+        p.roofCone(cx, cy, top + 0.3, r + 0.1, l.branch === 0 ? 0.46 : 0.34, v.accent, 4);
       });
     }
   },
@@ -150,6 +151,7 @@ const MODELS: Record<TowerId, ModelFn> = {
     z = plinth(p, cx, cy, z, stone);
     const h = 0.22 + l.tier * 0.04;
     p.cbox(cx, cy, z, 0.66, 0.66, h, stone);
+    p.boxBricks(cx - 0.33, cy - 0.33, z, 0.66, 0.66, h, stone, 0.09, 0.17);
     if (l.tier >= 2) {
       for (const [dx, dy] of [
         [-0.28, -0.28],
@@ -202,6 +204,7 @@ const MODELS: Record<TowerId, ModelFn> = {
     z = plinth(p, cx, cy, z, stone);
     const h = 0.26 + l.tier * 0.05;
     p.cylinder(cx, cy, z, 0.36, h, stone);
+    p.cylinderBricks(cx, cy, z, 0.36, h, stone, 0.1, 9);
     if (l.tier >= 2) crenels(p, cx, cy, z + h, 0.32, 8, shade(stone, 0.04), 0.08);
     const top = z + h;
     p.cylinder(cx, cy, top, 0.2, 0.05, DARKWOOD);
@@ -245,11 +248,12 @@ const MODELS: Record<TowerId, ModelFn> = {
     const h = 0.55 + l.tier * 0.08;
     p.cylinder(cx, cy, z, 0.25, 0.1, shade(stone, -0.05));
     p.cylinder(cx, cy, z + 0.1, 0.2, h, stone, null, 0.17);
+    p.cylinderBricks(cx, cy, z + 0.1, 0.185, h, stone, 0.12, 6);
     // Window glow
     p.box(cx - 0.03, cy + 0.18, z + 0.1 + h * 0.55, 0.06, 0.02, 0.12, v.fx, null, false);
     const top = z + 0.1 + h;
     p.cylinder(cx, cy, top, 0.24, 0.05, shade(v.accent, -0.1));
-    p.cone(cx, cy, top + 0.05, 0.24, 0.32 + l.tier * 0.03, v.accent);
+    p.roofCone(cx, cy, top + 0.05, 0.24, 0.34 + l.tier * 0.03, v.accent, 3);
     const oz = top + 0.55;
     dyn(p, () => {
       if (l.branch === 1) {
@@ -356,6 +360,7 @@ const MODELS: Record<TowerId, ModelFn> = {
     z = plinth(p, cx, cy, z, stone);
     const h = 0.4 + l.tier * 0.06;
     p.cylinder(cx, cy, z, 0.26, h, stone);
+    p.cylinderBricks(cx, cy, z, 0.26, h, stone, 0.1, 7);
     if (l.tier >= 2) p.cylinder(cx, cy, z + h * 0.45, 0.275, 0.05, METAL);
     if (l.tier >= 3) p.cylinder(cx, cy, z + h * 0.8, 0.275, 0.04, '#c98a4a');
     const top = z + h;
@@ -388,6 +393,10 @@ const MODELS: Record<TowerId, ModelFn> = {
     z = plinth(p, cx, cy, z, '#a89f8a');
     const h = 0.3 + l.tier * 0.04;
     p.box(cx - 0.3, cy - 0.28, z, 0.48, 0.42, h, wall);
+    // Timber framing
+    p.line([cx - 0.3, cy + 0.14, z + h * 0.55], [cx + 0.18, cy + 0.14, z + h * 0.55], DARKWOOD, 0.018);
+    p.line([cx + 0.18, cy + 0.14, z + h * 0.55], [cx + 0.18, cy - 0.28, z + h * 0.55], DARKWOOD, 0.018);
+    p.line([cx + 0.18, cy + 0.14, z], [cx + 0.18, cy + 0.14, z + h], DARKWOOD, 0.02);
     p.gable(cx - 0.34, cy - 0.32, z + h, 0.56, 0.5, 0.26, v.accent);
     // Chimney
     p.box(cx + 0.03, cy - 0.22, z + h + 0.05, 0.08, 0.08, 0.3, '#8a7f72');

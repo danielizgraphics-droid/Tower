@@ -1,4 +1,5 @@
-import { MAPS } from '../src/data/maps';
+import { generateMap } from '../src/game/mapgen';
+const MAPS = (['meadow', 'autumn', 'snow', 'dusk'] as const).map((b) => generateMap({ biome: b, seed: 777 }));
 import { AutoPlayer, ALL_TOWERS, simulate } from '../src/game/autoplay';
 import { Game } from '../src/game/game';
 import { ModifierSet } from '../src/game/modifiers';
@@ -25,7 +26,7 @@ function modsFor(level: string, pool: TowerId[]): ModifierSet {
   return profileModifiers(p);
 }
 
-const maps = mapArg === 'all' ? MAPS.map((m) => m.id) : [mapArg];
+const maps = mapArg === 'all' ? MAPS.map((m) => m.theme) : [mapArg];
 for (const mapId of maps) {
   for (const [poolName, pool] of [
     ['starter', STARTER],
@@ -33,7 +34,7 @@ for (const mapId of maps) {
   ] as const) {
     const results: string[] = [];
     for (let seed = 1; seed <= Number(seedsArg); seed++) {
-      const map = MAPS.find((m) => m.id === mapId)!;
+      const map = MAPS.find((m) => m.theme === mapId)!;
       const g = new Game({ map, difficulty: diffArg as Difficulty, mods: modsFor(talentArg, [...pool]), unlockedTowers: [...pool], seed });
       simulate(g, new AutoPlayer(g, [...pool], seed));
       results.push(`${g.phase === 'victory' ? 'WIN' : 'w' + g.wavesCleared}(${g.lives})`);

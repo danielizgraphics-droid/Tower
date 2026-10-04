@@ -4,7 +4,7 @@ for (const [name, vp] of [
   ['portrait', { width: 390, height: 844 }],
   ['landscape', { width: 844, height: 390 }],
 ]) {
-  const ctx = await browser.newContext({ viewport: vp, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
+  const ctx = await browser.newContext({ ignoreHTTPSErrors: true, viewport: vp, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
   const page = await ctx.newPage();
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));

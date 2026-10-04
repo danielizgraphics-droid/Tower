@@ -36,13 +36,18 @@ export function menuScreen(app: App): Screen {
     'div.screen.dim',
     h(
       'div.menu-wrap',
-      h('div.logo', h('div.kicker', 'Tower Defense'), h('h1', 'Bastión ', h('span', 'Arcano'))),
       h(
-        'div.menu-buttons',
+        'div.logo',
+        h('div.kicker', 'Tower Defense'),
+        h('h1', 'Bastión Arcano'),
+        h('div.tagline', 'Defiende el reino. Cada batalla, un campo distinto.'),
+      ),
+      h(
+        'div.menu-buttons.panel.ornate',
         h('button.btn.big.primary', { onclick: click(() => app.go({ name: 'maps' })) }, icon('play', 22), 'Jugar'),
         talentsBtn,
         h('button.btn.big', { onclick: click(() => app.go({ name: 'codex' })) }, icon('book', 22), 'Códice'),
-        h('button.btn.big.ghost', { onclick: click(() => openSettings(app, el)) }, icon('gear', 22), 'Ajustes'),
+        h('button.btn.big.wood', { onclick: click(() => openSettings(app, el)) }, icon('gear', 22), 'Ajustes'),
       ),
       h(
         'div.menu-footer',

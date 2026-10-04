@@ -201,12 +201,7 @@ export function talentsScreen(app: App, route: Route): Screen {
             h('div.xpbar', h('div', { style: `width:${Math.round(frac * 100)}%` })),
             h('span.muted.tiny', 'Gana experiencia infligiendo daño con esta torre. Cada nivel otorga 1 punto de talento.'),
           ),
-          h(
-            'div.star-badge',
-            { style: 'align-self:flex-start;color:#4b3596' },
-            icon('sparkle', 18),
-            `${currencyAvailable(p, tree)} puntos disponibles`,
-          ),
+          h('div.star-badge', { style: 'align-self:flex-start' }, icon('sparkle', 18), `${currencyAvailable(p, tree)} puntos disponibles`),
         );
       }
       side.append(
@@ -302,7 +297,7 @@ export function talentsScreen(app: App, route: Route): Screen {
       h(
         'div.window-head',
         h(
-          'button.btn.small.icon-only.ghost',
+          'button.btn.small.icon-only.wood',
           { onclick: () => (app.sfx('click'), app.go({ name: 'menu' })), 'aria-label': 'Volver' },
           icon('undo', 18),
         ),

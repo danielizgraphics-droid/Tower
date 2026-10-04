@@ -2,10 +2,10 @@
 import { chromium } from 'playwright-core';
 const [out = 'screenshots/battle.png', zoom = '2', fx = '0.5', fy = '0.5', wave = '12'] = process.argv.slice(2);
 const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' });
-const page = await browser.newPage({ viewport: { width: 1600, height: 900 } });
+const page = await browser.newPage({ ignoreHTTPSErrors: true, viewport: { width: 1600, height: 900 } });
 const errors = [];
 page.on('pageerror', (e) => errors.push(e.message));
-await page.goto('http://localhost:5173/?screen=game&map=meadow&t=' + (process.argv[7] ?? '22'));
+await page.goto('http://localhost:5173/?screen=game&biome=' + (process.argv[8] ?? 'meadow') + '&seed=4242&t=' + (process.argv[7] ?? '22'));
 await page.waitForTimeout(600);
 await page.evaluate(
   ([zoom, fx, fy, wave]) => {

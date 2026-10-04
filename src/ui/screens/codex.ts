@@ -182,7 +182,7 @@ export function codexScreen(app: App): Screen {
       h(
         'div.window-head',
         h(
-          'button.btn.small.icon-only.ghost',
+          'button.btn.small.icon-only.wood',
           { onclick: () => (app.sfx('click'), app.go({ name: 'menu' })), 'aria-label': 'Volver' },
           icon('undo', 18),
         ),

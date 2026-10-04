@@ -1,6 +1,6 @@
 import { chromium } from 'playwright-core';
 const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' });
-const page = await browser.newPage({ viewport: { width: 1600, height: 900 }, deviceScaleFactor: 1 });
+const page = await browser.newPage({ ignoreHTTPSErrors: true, viewport: { width: 1600, height: 900 }, deviceScaleFactor: 1 });
 await page.goto('http://localhost:5173/?screen=game&map=meadow');
 await page.waitForTimeout(600);
 const res = await page.evaluate(() => {
@@ -60,7 +60,9 @@ const res = await page.evaluate(() => {
 });
 console.log(res);
 await browser.close();
-const page2 = await (await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' })).newPage({ viewport: { width: 1600, height: 900 } });
+const page2 = await (
+  await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' })
+).newPage({ ignoreHTTPSErrors: true, viewport: { width: 1600, height: 900 } });
 await page2.goto('http://localhost:5173/?screen=game&map=meadow');
 await page2.waitForTimeout(600);
 console.log(

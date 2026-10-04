@@ -1,6 +1,6 @@
 # Bastión Arcano
 
-Tower defense medieval con magia, en **perspectiva caballera** y con un estilo limpio y minimalista.
+Tower defense medieval con magia, en **vista isométrica** y con un estilo limpio e ilustrado.
 Funciona en el navegador (escritorio y móvil) sin recursos externos: todos los gráficos, efectos y la
 música se generan por código.
 
@@ -17,7 +17,12 @@ música se generan por código.
     maestría da un punto de talento (incluye potenciadores por especialización y una habilidad definitiva).
   - Desbloqueo de torres con estrellas.
 - **3 hechizos** con maná (Lluvia de Meteoros, Nova de Escarcha, Bendición de Batalla).
-- **4 mapas** temáticos (prado, bosque otoñal, paso nevado, ruinas al crepúsculo) y 3 dificultades.
+- **Mapas procedurales**: cada partida genera un campo distinto (camino sinuoso, estanques, bosques y rocas)
+  en 4 regiones (prados, bosque otoñal, montañas heladas, ruinas del crepúsculo). Cada mapa tiene un código
+  que lo identifica y puedes pedir otro antes de empezar.
+- **Modo campaña** (30 oleadas) o **modo infinito**: las oleadas no acaban nunca, cada 10 llega un jefe y los
+  enemigos crecen exponencialmente. Se guarda tu récord por región.
+- 3 dificultades.
 - Códice (bestiario, torres, tabla de daño), ajustes, guardado automático y tutorial integrado.
 
 ## Controles
@@ -49,9 +54,9 @@ npm run balance -- meadow normal none 3   # simulación de equilibrio con el jug
 ```
 src/
   data/      Contenido puro: torres, enemigos, mapas, mejoras de ronda, hechizos, tipos de daño
-  game/      Simulación determinista sin DOM (oleadas, combate, modificadores, jugador automático)
+  game/      Simulación determinista sin DOM (oleadas, combate, modificadores, generador de mapas, jugador automático)
   meta/      Progresión persistente: perfil, árboles de talentos, recompensas
-  render/    Proyección caballera, primitivas sombreadas, modelos, sprites cacheados, efectos
+  render/    Proyección isométrica, primitivas sombreadas, modelos, sprites cacheados, efectos
   ui/        Pantallas y HUD en DOM, iconos SVG, estilos
   engine/    Utilidades: audio procedural, RNG, eventos, matemáticas
 ```

@@ -16,7 +16,11 @@ import { drawSprite, makeSprite, type Sprite } from './sprites';
 import { GRASS_H, GroundCache, SLAB } from './terrain';
 import { THEMES, type Theme } from './theme';
 
-export const UI_FONT = '"Fredoka", "Nunito", system-ui, sans-serif';
+/** Towers are drawn a bit larger than their tile footprint so they read well in isometric view. */
+const TOWER_SCALE = 1.22;
+
+export const UI_FONT = '"Nunito", system-ui, sans-serif';
+export const DISPLAY_FONT = '"Cinzel", Georgia, serif';
 
 export interface ViewState {
   hover: { x: number; y: number } | null;
@@ -92,37 +96,39 @@ export class Renderer {
   }
 
   /** Computes the base scale so the whole board fits between the UI insets. */
+  /** Vertical room (world units) for tall things above the back corner and the slab below. */
+  private static readonly EXTRA_TOP = 1.6;
+  private static readonly EXTRA_BOTTOM = SLAB * HEIGHT_SCALE + 0.3;
+
+  /** Computes the base scale so the whole board fits between the UI insets. */
   fit(): void {
     const b = this.game.board;
-    const ext = Camera.boardExtent(b.width, b.height);
+    const bb = Camera.boardBounds(b.width, b.height);
     const availW = Math.max(100, this.width - this.insets.left - this.insets.right);
     const availH = Math.max(100, this.height - this.insets.top - this.insets.bottom);
-    const extraTop = 1.3; // tall things on the back row
-    const extraBottom = SLAB * HEIGHT_SCALE + 0.2;
-    const sW = availW / (ext.w + 0.4);
-    const sH = availH / (ext.h + extraTop + extraBottom);
-    this.baseScale = Math.max(14, Math.min(sW, sH, 110));
+    const sW = availW / (bb.right - bb.left + 0.4);
+    const sH = availH / (bb.bottom - bb.top + Renderer.EXTRA_TOP + Renderer.EXTRA_BOTTOM);
+    this.baseScale = Math.max(14, Math.min(sW, sH, 120));
     this.applyCamera();
   }
 
   private applyCamera(): void {
     const b = this.game.board;
-    const ext = Camera.boardExtent(b.width, b.height);
-    this.zoom = clamp(this.zoom, 1, 2.6);
+    const bb = Camera.boardBounds(b.width, b.height);
+    this.zoom = clamp(this.zoom, 1, 2.8);
     const scale = this.baseScale * this.zoom;
     this.cam.scale = scale;
     const availW = this.width - this.insets.left - this.insets.right;
     const availH = this.height - this.insets.top - this.insets.bottom;
-    const boardW = ext.w * scale;
-    const boardH = (ext.h + 1.3 + SLAB * HEIGHT_SCALE + 0.2) * scale;
+    const boardW = (bb.right - bb.left) * scale;
+    const boardH = (bb.bottom - bb.top + Renderer.EXTRA_TOP + Renderer.EXTRA_BOTTOM) * scale;
     // Clamp pan so the board never leaves the screen.
     const maxPanX = Math.max(0, (boardW - availW) / 2 + scale);
     const maxPanY = Math.max(0, (boardH - availH) / 2 + scale);
     this.panX = clamp(this.panX, -maxPanX, maxPanX);
     this.panY = clamp(this.panY, -maxPanY, maxPanY);
-    this.cam.ox = this.insets.left + (availW - boardW) / 2 + this.panX;
-    // origin y: top of back row sits below the "extra top" area.
-    this.cam.oy = this.insets.top + (availH - boardH) / 2 + 1.3 * scale + this.panY;
+    this.cam.ox = this.insets.left + (availW - boardW) / 2 - bb.left * scale + this.panX;
+    this.cam.oy = this.insets.top + (availH - boardH) / 2 + Renderer.EXTRA_TOP * scale + this.panY;
   }
 
   setZoom(z: number, anchorX = this.width / 2, anchorY = this.height / 2): void {
@@ -427,7 +433,12 @@ export class Renderer {
       active: t.coneTime > 0 || !!t.beamTarget,
     };
     drawSprite(ctx, this.towerSprite(t.def.id, t.tier, t.branch), base.x, base.y, this.cam.scale / this.cacheScale);
+    ctx.save();
+    ctx.translate(base.x, base.y);
+    ctx.scale(TOWER_SCALE, TOWER_SCALE);
+    ctx.translate(-base.x, -base.y);
     drawTowerModel(p, { ...look, layer: 'dynamic' }, t.x, t.y, GRASS_H);
+    ctx.restore();
     if (scale !== 1) ctx.restore();
 
     // Beam
@@ -460,7 +471,7 @@ export class Renderer {
     const key = `${id}:${tier}:${branch}`;
     let s = this.towerSprites.get(key);
     if (!s) {
-      s = makeSprite(this.cacheScale, this.dpr, this.cam.rows, 1.7, 3.1, 0.45, 0.84, { x: 0.5, y: 0.5, z: GRASS_H }, (sp) =>
+      s = makeSprite(this.cacheScale * TOWER_SCALE, this.dpr, 2, 3.2, 0.5, 0.84, { x: 0.5, y: 0.5, z: GRASS_H }, (sp) =>
         drawTowerModel(sp, { id, tier, branch, angle: 0, fireAnim: 1, time: 0, layer: 'static' }, 0.5, 0.5, GRASS_H),
       );
       this.towerSprites.set(key, s);
@@ -571,7 +582,7 @@ export class Renderer {
         p.shadow(x, y, 0.001, 0.06, 0.2);
         p.sphere(x, y, z, 0.07, pr.color, 0.2);
         ctx.fillStyle = '#c9b38a';
-        ctx.fillRect(p.cam.px(x, y) - s * 0.015, p.cam.py(y, z + 0.1), s * 0.03, s * 0.05);
+        ctx.fillRect(p.cam.sx(x, y) - s * 0.015, p.cam.sy(x, y, z + 0.1), s * 0.03, s * 0.05);
         break;
       case 'voidOrb':
         p.shadow(x, y, 0.001, pr.splash * 0.6, 0.2);
@@ -620,9 +631,7 @@ export class Renderer {
     const cx = b.castle.x + 0.5;
     const cy = b.castle.y + 0.5;
     if (!this.castleSprite) {
-      this.castleSprite = makeSprite(this.cacheScale, this.dpr, this.cam.rows, 2.2, 2.6, 0.45, 0.78, { x: cx, y: cy, z: 0 }, (sp) =>
-        drawCastleModel(sp, cx, cy),
-      );
+      this.castleSprite = makeSprite(this.cacheScale, this.dpr, 2.8, 3, 0.5, 0.75, { x: cx, y: cy, z: 0 }, (sp) => drawCastleModel(sp, cx, cy));
     }
     const pos = this.cam.project(cx, cy, 0);
     const ctx = this.ctx;
@@ -785,7 +794,7 @@ export class Renderer {
       seg(Math.max(0, e.armor), '#c3c8d4');
       seg(Math.max(0, e.shield), '#58b7ff');
       if (e.def.boss) {
-        ctx.font = `700 ${Math.max(10, s * 0.2)}px ${UI_FONT}`;
+        ctx.font = `700 ${Math.max(11, s * 0.22)}px ${DISPLAY_FONT}`;
         ctx.textAlign = 'center';
         ctx.fillStyle = '#fff3c4';
         ctx.strokeStyle = 'rgba(30,22,50,0.8)';
@@ -804,6 +813,7 @@ function drawCastleModel(p: Painter, cx: number, cy: number): void {
   p.cbox(cx, cy, 0, 0.95, 0.9, 0.12, '#b9b0a2');
   // Keep
   p.cbox(cx, cy - 0.05, 0.12, 0.62, 0.55, 0.62, wall);
+  p.boxBricks(cx - 0.31, cy - 0.325, 0.12, 0.62, 0.55, 0.62, wall, 0.1, 0.16);
   crenelRow(p, cx - 0.31, cy - 0.33, 0.74, 0.62, 0.55, shade(wall, 0.05));
   // Corner towers
   for (const [dx, dy] of [
@@ -813,7 +823,8 @@ function drawCastleModel(p: Painter, cx: number, cy: number): void {
     [0.36, 0.3],
   ]) {
     p.cylinder(cx + dx, cy + dy, 0.12, 0.14, 0.78, wall);
-    p.cone(cx + dx, cy + dy, 0.9, 0.17, 0.32, '#5a6fc4');
+    p.cylinderBricks(cx + dx, cy + dy, 0.12, 0.14, 0.78, wall, 0.1, 5);
+    p.roofCone(cx + dx, cy + dy, 0.9, 0.17, 0.36, '#4f64bd', 3);
   }
   // Gate
   p.box(cx - 0.1, cy + 0.225, 0.12, 0.2, 0.005, 0.26, '#6e4a33', null, false);
