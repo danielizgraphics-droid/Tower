@@ -1,0 +1,52 @@
+import { TOWER_LIST } from '../../data/towers';
+import { GENERAL_TREE, TOWER_TREES } from '../../meta/talentTrees';
+import { nodeState } from '../../meta/profile';
+import type { App, Screen } from '../app';
+import { h } from '../dom';
+import { icon } from '../icons';
+import { openSettings } from './settings';
+
+/** True when the player can buy at least one talent somewhere. */
+export function hasAffordableTalent(app: App): boolean {
+  const p = app.profile;
+  if (GENERAL_TREE.nodes.some((n) => nodeState(p, GENERAL_TREE, n) === 'available')) return true;
+  for (const t of TOWER_LIST) {
+    if (!p.towers[t.id].unlocked) {
+      if (p.stars >= t.unlockCost) return true;
+      continue;
+    }
+    const tree = TOWER_TREES[t.id];
+    if (tree.nodes.some((n) => nodeState(p, tree, n) === 'available')) return true;
+  }
+  return false;
+}
+
+export function menuScreen(app: App): Screen {
+  const p = app.profile;
+  const click = (fn: () => void) => () => {
+    app.sfx('click');
+    fn();
+  };
+  const talentsBtn = h('button.btn.big.purple', { onclick: click(() => app.go({ name: 'talents' })) }, icon('star', 22), 'Talentos');
+  if (hasAffordableTalent(app)) talentsBtn.append(h('span', { style: 'position:absolute;top:-6px;right:-6px;width:16px;height:16px;border-radius:50%;background:#e5484d;border:3px solid #fff' }));
+  const el = h(
+    'div.screen.dim',
+    h(
+      'div.menu-wrap',
+      h('div.logo', h('div.kicker', 'Tower Defense'), h('h1', 'Bastión ', h('span', 'Arcano'))),
+      h(
+        'div.menu-buttons',
+        h('button.btn.big.primary', { onclick: click(() => app.go({ name: 'maps' })) }, icon('play', 22), 'Jugar'),
+        talentsBtn,
+        h('button.btn.big', { onclick: click(() => app.go({ name: 'codex' })) }, icon('book', 22), 'Códice'),
+        h('button.btn.big.ghost', { onclick: click(() => openSettings(app, el)) }, icon('gear', 22), 'Ajustes'),
+      ),
+      h(
+        'div.menu-footer',
+        h('span.star-badge', icon('star', 18), `${p.stars} estrellas`),
+        p.stats.runs > 0 ? h('span', `${p.stats.wins} victorias · ${p.stats.kills.toLocaleString('es')} enemigos abatidos`) : null,
+      ),
+    ),
+  );
+  return { el };
+}

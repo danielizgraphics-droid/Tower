@@ -1,0 +1,867 @@
+import { RARITY_INFO } from '../../data/augments';
+import { DAMAGE_TYPES } from '../../data/damage';
+import { ENEMIES } from '../../data/enemies';
+import { DIFFICULTY, MAP_BY_ID } from '../../data/maps';
+import { SPELLS, SPELL_LIST } from '../../data/spells';
+import { BRANCH_TIER, MAX_TIER, TOWERS, TOWER_LIST } from '../../data/towers';
+import type { AugmentDef, Difficulty, SpellId, TargetMode, TowerId } from '../../data/types';
+import type { SfxName } from '../../engine/audio';
+import { formatNumber } from '../../engine/math';
+import type { Tower } from '../../game/entities';
+import { Game } from '../../game/game';
+import { effectiveAttack, effectiveDamageType, effectiveTargetsAir } from '../../game/modifiers';
+import { wavePreview } from '../../game/waves';
+import { applyRunResult, profileModifiers, towerLevel, type RewardSummary } from '../../meta/profile';
+import { enemyPortrait, towerPortrait } from '../../render/portraits';
+import { Renderer } from '../../render/renderer';
+import type { App, Route, Screen } from '../app';
+import { h, setText, toggleClass } from '../dom';
+import { statLines, TARGET_LABELS } from '../format';
+import { icon } from '../icons';
+import { hideTip, tip } from '../tooltip';
+import { openSettings } from './settings';
+
+const SPELL_ICON: Record<SpellId, string> = { meteor: 'flame', frostNova: 'snow', blessing: 'sparkle' };
+const SPELL_KEYS: Record<SpellId, string> = { meteor: 'Q', frostNova: 'W', blessing: 'E' };
+
+export function gameScreen(app: App, route: Route): Screen {
+  if (route.name !== 'game') throw new Error('bad route');
+  const mapDef = MAP_BY_ID[route.map];
+  const difficulty: Difficulty = route.difficulty;
+  const profile = app.profile;
+  const unlocked = TOWER_LIST.filter((t) => profile.towers[t.id].unlocked).map((t) => t.id);
+
+  const game = new Game({ map: mapDef, difficulty, mods: profileModifiers(profile), unlockedTowers: unlocked });
+  const canvas = h('canvas.stage');
+  const renderer = new Renderer(canvas, game);
+  renderer.view.showDamage = profile.settings.showDamageNumbers;
+  renderer.view.shakeEnabled = profile.settings.screenShake;
+
+  // ------------------------------------------------------------ state
+  let buildId: TowerId | null = null;
+  let spellId: SpellId | null = null;
+  let selected: Tower | null = null;
+  let finished = false;
+  let autoWave = false;
+  let tutorialStep = profile.tutorialDone ? -1 : 0;
+  let panelSig = '';
+  let panelTimer = 0;
+  let lastGold = -1;
+  let lastLives = game.lives;
+
+  // ------------------------------------------------------------ HUD elements
+  const livesVal = h('div.val');
+  const livesBar = h('div');
+  const goldVal = h('div.val');
+  const manaVal = h('div.val');
+  const manaBar = h('div');
+  const waveVal = h('div.val');
+  const waveBtn = h('button.btn.small.primary', icon('play', 16), h('span.label', 'Iniciar oleada'));
+  const autoBtn = h('button.btn.small.icon-only.ghost', { title: 'Oleadas automáticas', 'aria-label': 'Oleadas automáticas' }, icon('refresh', 16));
+  const livesStat = h('div.stat.lives.panel', h('div.badge', icon('heart', 18)), h('div', livesVal, h('div.bar', livesBar)));
+  const goldStat = h('div.stat.gold.panel', h('div.badge', icon('coin', 18)), h('div', goldVal, h('div.sub', 'Oro')));
+  const manaStat = h('div.stat.mana.panel', h('div.badge', icon('drop', 18)), h('div', manaVal, h('div.bar', manaBar)));
+  const waveStat = h('div.wave-box.panel', h('div.stat.wave', { style: 'padding:0;min-height:0' }, h('div.badge', icon('wave', 18)), h('div', waveVal, h('div.sub', 'Oleada'))), waveBtn, autoBtn);
+  const topBar = h('div.top-bar', livesStat, waveStat, goldStat, manaStat);
+  const preview = h('div.next-preview');
+
+  const pauseBtn = h('button.btn.icon-only.ghost', { 'aria-label': 'Pausa' }, icon('pause', 20));
+  const speedBtns = [1, 2, 3].map((s) => h('button.btn.small', { 'data-speed': String(s) }, `×${s}`));
+  const cornerLeft = h('div.corner-left', pauseBtn, h('div.speed', speedBtns));
+  const augsEl = h('div.augs');
+  const cornerRight = h('div.corner-right', augsEl);
+
+  const buildBar = h('div.build-bar.panel');
+  const cards = new Map<TowerId, HTMLElement>();
+  const costEls = new Map<TowerId, HTMLElement>();
+  TOWER_LIST.forEach((t, i) => {
+    const costEl = h('span.cost', icon('coin', 12), String(t.cost));
+    const card = h(
+      'button.tcard',
+      { 'aria-label': t.name },
+      h('span.key', String((i + 1) % 10)),
+      h('img', { src: towerPortrait(t.id, 1, -1, 64), alt: '' }),
+      h('span.name', t.name.replace('Torre de ', '').replace('Torre ', '')),
+      costEl,
+    );
+    if (!unlocked.includes(t.id)) card.classList.add('locked');
+    card.onclick = () => selectBuild(buildId === t.id ? null : t.id);
+    tip(card, () =>
+      h(
+        'div',
+        h('h4', t.name),
+        h('div', t.description),
+        h('div.muted', { style: 'margin-top:4px' }, `${DAMAGE_TYPES[t.damageType].name} · ${t.targetsAir ? 'tierra y aire' : 'solo tierra'} · ${t.role}`),
+      ),
+    );
+    cards.set(t.id, card);
+    costEls.set(t.id, costEl);
+    buildBar.append(card);
+  });
+
+  const spellsEl = h('div.spells');
+  const spellBtns = new Map<SpellId, HTMLElement>();
+  for (const s of SPELL_LIST) {
+    if (!game.unlockedSpells.has(s.id)) continue;
+    const btn = h(`button.spell.${s.id}`, { 'aria-label': s.name }, h('div.cd'), icon(SPELL_ICON[s.id], 26), h('span.key', SPELL_KEYS[s.id]), h('span.mana-cost', String(s.mana)));
+    btn.onclick = () => toggleSpell(s.id);
+    tip(btn, () => h('div', h('h4', s.name), h('div', s.description), h('div.muted', { style: 'margin-top:4px' }, `${s.mana} de maná · ${s.cooldown}s de recarga`)));
+    spellBtns.set(s.id, btn);
+    spellsEl.append(btn);
+  }
+
+  const panel = h('div.tower-panel.panel');
+  panel.style.display = 'none';
+  const hud = h('div.hud', topBar, preview, cornerLeft, cornerRight, buildBar, spellsEl, panel);
+  const el = h('div', { style: 'position:absolute;inset:0' }, canvas, hud);
+
+  // ------------------------------------------------------------ helpers
+  const sfx = (n: SfxName) => app.sfx(n);
+
+  function banner(big: string, small = '', boss = false) {
+    const b = h(`div.banner${boss ? '.boss' : ''}`, h('div.big', big), small ? h('div.small', small) : null);
+    hud.append(b);
+    setTimeout(() => b.remove(), 2300);
+  }
+
+  function toast(text: string) {
+    hud.querySelectorAll('.toast').forEach((t) => t.remove());
+    const t = h('div.toast', text);
+    hud.append(t);
+    setTimeout(() => t.remove(), 1900);
+  }
+
+  let hintEl: HTMLElement | null = null;
+  function hint(text: string | null) {
+    hintEl?.remove();
+    hintEl = null;
+    if (!text) return;
+    hintEl = h('div.hint.panel', icon('info', 20), h('span', text));
+    hud.append(hintEl);
+  }
+
+  function selectBuild(id: TowerId | null) {
+    if (id && !unlocked.includes(id)) return;
+    sfx('click');
+    buildId = id;
+    spellId = null;
+    renderer.view.spell = null;
+    if (id) select(null);
+    if (!id) renderer.view.ghost = null;
+    for (const [tid, c] of cards) toggleClass(c, 'on', tid === id);
+    for (const [, b] of spellBtns) toggleClass(b, 'on', false);
+  }
+
+  function toggleSpell(id: SpellId) {
+    if (!game.spellReady(id)) {
+      sfx('error');
+      toast(game.mana < SPELLS[id].mana ? 'Maná insuficiente' : 'Hechizo en recarga');
+      return;
+    }
+    if (!SPELLS[id].targeted) {
+      game.castSpell(id);
+      return;
+    }
+    sfx('click');
+    spellId = spellId === id ? null : id;
+    if (spellId) {
+      selectBuild(null);
+      spellId = id;
+    }
+    renderer.view.spell = null;
+    for (const [sid, b] of spellBtns) toggleClass(b, 'on', sid === spellId);
+  }
+
+  function select(t: Tower | null) {
+    selected = t;
+    renderer.view.selected = t;
+    panelSig = '';
+    if (!t) {
+      panel.style.display = 'none';
+      return;
+    }
+    panel.style.display = '';
+    renderPanel(true);
+  }
+
+  // ------------------------------------------------------------ tower panel
+  function renderPanel(force = false) {
+    const t = selected;
+    if (!t) return;
+    const nextCost = t.tier >= MAX_TIER ? null : t.tier === BRANCH_TIER ? null : game.upgradeCost(t);
+    const branchCosts = t.tier === BRANCH_TIER ? [0, 1, 2].map((b) => game.upgradeCost(t, b) ?? 0) : [];
+    const afford = [nextCost, ...branchCosts].map((c) => (c !== null && game.gold >= c ? 1 : 0)).join('');
+    const sig = `${t.uid}:${t.tier}:${t.branch}:${t.targetMode}:${afford}:${t.kills}:${game.sellValue(t)}:${Math.round(t.damageDealt / 50)}`;
+    if (!force && sig === panelSig) return;
+    panelSig = sig;
+    const def = t.def;
+    const kind = effectiveAttack(def, t.branch);
+    const branch = t.branch >= 0 ? def.branches[t.branch] : null;
+    const stats = game.liveStats(t);
+    const dmgType = effectiveDamageType(def, t.branch);
+    let nextStats = undefined;
+    let nextKind = undefined;
+    if (t.tier < BRANCH_TIER || (t.tier > BRANCH_TIER && t.tier < MAX_TIER)) {
+      nextStats = game.previewStats(def.id, t.tier + 1, t.branch);
+      nextKind = kind;
+    }
+    const lines = statLines(stats, kind, nextStats, nextKind);
+    const tierDots = h(
+      'div.tier-dots',
+      [1, 2, 3, 4, 5].map((i) => h(`span${i <= t.tier ? '.on' : ''}${i > BRANCH_TIER ? '.br' : ''}`)),
+    );
+    const modes: TargetMode[] = ['first', 'last', 'strong', 'close'];
+    const targeting =
+      kind === 'pulse' || kind === 'aura'
+        ? null
+        : h(
+            'div.targeting',
+            modes.map((m) => {
+              const b = h('button', TARGET_LABELS[m]);
+              toggleClass(b, 'on', t.targetMode === m);
+              b.onclick = () => {
+                sfx('click');
+                game.setTargetMode(t, m);
+                renderPanel(true);
+              };
+              return b;
+            }),
+          );
+
+    let upgrade: HTMLElement;
+    if (t.tier >= MAX_TIER) {
+      upgrade = h('div.pill', { style: 'justify-content:center;width:100%;padding:8px' }, icon('crown', 16), 'Nivel máximo');
+    } else if (t.tier === BRANCH_TIER) {
+      upgrade = h(
+        'div.branches',
+        h('b.tiny', 'Elige una especialización'),
+        def.branches.map((b, i) => {
+          const cost = branchCosts[i];
+          const btn = h(
+            'button.branch',
+            { disabled: game.gold < cost },
+            h('img', { src: towerPortrait(def.id, 4, i, 64), alt: '' }),
+            h('div', h('h4', b.name), h('p', b.description), h('span', { class: `cost${game.gold < cost ? ' bad' : ''}` }, icon('coin', 12), String(cost))),
+          );
+          btn.onclick = () => doUpgrade(i);
+          return btn;
+        }),
+      );
+    } else {
+      const label = t.tier < BRANCH_TIER ? `Mejorar a nivel ${t.tier + 1}` : `Maestría: ${branch?.name}`;
+      upgrade = h(
+        'button.btn.green',
+        { style: 'width:100%', disabled: nextCost === null || game.gold < nextCost, onclick: () => doUpgrade() },
+        icon('up', 18),
+        label,
+        h('span.cost', { style: 'color:#fff' }, icon('coin', 14), String(nextCost)),
+      );
+      upgrade.title = 'Atajo: U';
+    }
+    const targets = `${def.targetsGround ? 'Tierra' : ''}${def.targetsGround && effectiveTargetsAir(def, t.branch) ? ' y aire' : effectiveTargetsAir(def, t.branch) ? 'Aire' : ''}`;
+    panel.replaceChildren(
+      ...[
+      h(
+        'div.tp-head',
+        h('img', { src: towerPortrait(def.id, t.tier, t.branch, 64), alt: '' }),
+        h(
+          'div',
+          { style: 'flex:1' },
+          h('h3', branch ? branch.name : def.name),
+          h('div', { style: 'margin-top:3px' }, h('span.tag', { style: `background:${DAMAGE_TYPES[dmgType].color};color:#2f2748` }, DAMAGE_TYPES[dmgType].name), h('span.muted.tiny', targets)),
+          tierDots,
+        ),
+        h('button.btn.small.icon-only.ghost', { onclick: () => select(null), 'aria-label': 'Cerrar' }, icon('close', 16)),
+      ),
+      h(
+        'div.stats',
+        lines.map((l) => h('div.row', h('span.muted', l.label), h('span', h('b', l.value), l.delta ? h('span.delta', l.delta) : null))),
+      ),
+      targeting,
+      upgrade,
+      h(
+        'div.tp-actions',
+        h('button.btn.small.red', { onclick: () => doSell(), title: 'Atajo: S' }, icon('trash', 16), 'Vender', h('span.cost', { style: 'color:#fff' }, icon('coin', 12), String(game.sellValue(t)))),
+      ),
+      h('div.muted.tiny', { style: 'margin-top:8px;text-align:center' }, `${t.kills} bajas · ${formatNumber(t.damageDealt)} de daño`),
+      ].filter((x): x is HTMLElement => !!x),
+    );
+  }
+
+  function doUpgrade(branch?: number) {
+    const t = selected;
+    if (!t) return;
+    if (t.tier === BRANCH_TIER && branch === undefined) {
+      toast('Elige una especialización');
+      return;
+    }
+    if (game.upgrade(t, branch)) {
+      if (t.tier === BRANCH_TIER + 1) banner(t.def.branches[t.branch].name, 'Especialización desbloqueada');
+      renderPanel(true);
+      if (tutorialStep === 2) {
+        tutorialStep = 3;
+        hint(null);
+      }
+    } else {
+      sfx('error');
+      toast('Oro insuficiente');
+    }
+  }
+
+  function doSell() {
+    const t = selected;
+    if (!t) return;
+    game.sell(t);
+    select(null);
+  }
+
+  // ------------------------------------------------------------ input
+  const pointers = new Map<number, { x: number; y: number; sx: number; sy: number; moved: boolean; type: string }>();
+  let pinchDist = 0;
+  let pinchZoom = 1;
+  let touchGhost: { x: number; y: number } | null = null;
+
+  function updateHover(x: number, y: number) {
+    const tile = renderer.pickTile(x, y);
+    renderer.view.hover = tile;
+    if (buildId && tile) {
+      renderer.view.ghost = { id: buildId, x: tile.x, y: tile.y, valid: game.canBuildAt(tile.x, tile.y) };
+    } else if (buildId) renderer.view.ghost = null;
+    if (spellId) {
+      const g = renderer.pickGround(x, y);
+      renderer.view.spell = { id: spellId, x: g.x, y: g.y };
+    }
+    canvas.style.cursor = buildId || spellId ? 'crosshair' : tile && game.towerAt(tile.x, tile.y) ? 'pointer' : 'default';
+  }
+
+  function tap(x: number, y: number, pointerType: string, shift: boolean) {
+    if (finished || game.phase === 'augment') return;
+    if (spellId) {
+      const g = renderer.pickGround(x, y);
+      const id = spellId;
+      if (pointerType === 'touch' && (!renderer.view.spell || Math.hypot(renderer.view.spell.x - g.x, renderer.view.spell.y - g.y) > 0.6)) {
+        renderer.view.spell = { id, x: g.x, y: g.y };
+        return;
+      }
+      if (game.castSpell(id, g.x, g.y)) {
+        spellId = null;
+        renderer.view.spell = null;
+        for (const [, b] of spellBtns) toggleClass(b, 'on', false);
+      }
+      return;
+    }
+    const tile = renderer.pickTile(x, y);
+    if (!tile) {
+      select(null);
+      return;
+    }
+    if (buildId) {
+      if (!game.canBuildAt(tile.x, tile.y)) {
+        const existing = game.towerAt(tile.x, tile.y);
+        if (existing) {
+          selectBuild(null);
+          select(existing);
+          sfx('click');
+        } else {
+          sfx('error');
+          toast(game.board.isWalkable(tile.x, tile.y) ? 'No se puede construir sobre el camino' : 'Casilla no disponible');
+        }
+        return;
+      }
+      if (pointerType === 'touch' && (!touchGhost || touchGhost.x !== tile.x || touchGhost.y !== tile.y)) {
+        // First tap previews, second tap confirms.
+        touchGhost = tile;
+        renderer.view.ghost = { id: buildId, x: tile.x, y: tile.y, valid: true };
+        toast('Toca de nuevo para construir');
+        return;
+      }
+      const cost = game.buildCost(buildId);
+      if (game.gold < cost) {
+        sfx('error');
+        toast('Oro insuficiente');
+        return;
+      }
+      const t = game.build(buildId, tile.x, tile.y);
+      touchGhost = null;
+      if (t) {
+        if (tutorialStep === 0) {
+          tutorialStep = 1;
+          hint('¡Bien! Pulsa «Iniciar oleada» cuando estés listo. Puedes seguir construyendo durante la batalla.');
+        }
+        if (!shift || game.gold < game.buildCost(buildId)) {
+          selectBuild(null);
+          renderer.view.ghost = null;
+        }
+      }
+      return;
+    }
+    const t = game.towerAt(tile.x, tile.y);
+    if (t) {
+      sfx('click');
+      select(selected === t ? null : t);
+    } else select(null);
+  }
+
+  canvas.addEventListener('pointerdown', (e) => {
+    canvas.setPointerCapture(e.pointerId);
+    pointers.set(e.pointerId, { x: e.clientX, y: e.clientY, sx: e.clientX, sy: e.clientY, moved: false, type: e.pointerType });
+    if (pointers.size === 2) {
+      const [a, b] = [...pointers.values()];
+      pinchDist = Math.hypot(a.x - b.x, a.y - b.y);
+      pinchZoom = renderer.zoom;
+    }
+    if (e.button === 2) {
+      selectBuild(null);
+      select(null);
+    }
+  });
+  canvas.addEventListener('pointermove', (e) => {
+    const p = pointers.get(e.pointerId);
+    if (!p) {
+      if (e.pointerType === 'mouse') updateHover(e.clientX, e.clientY);
+      return;
+    }
+    const dx = e.clientX - p.x;
+    const dy = e.clientY - p.y;
+    p.x = e.clientX;
+    p.y = e.clientY;
+    if (Math.hypot(p.x - p.sx, p.y - p.sy) > 8) p.moved = true;
+    if (pointers.size === 2) {
+      const [a, b] = [...pointers.values()];
+      const d = Math.hypot(a.x - b.x, a.y - b.y);
+      if (pinchDist > 0) renderer.setZoom(pinchZoom * (d / pinchDist), (a.x + b.x) / 2, (a.y + b.y) / 2);
+      for (const q of pointers.values()) q.moved = true;
+      return;
+    }
+    if (p.moved) renderer.pan(dx, dy);
+    else if (e.pointerType === 'mouse') updateHover(e.clientX, e.clientY);
+  });
+  const endPointer = (e: PointerEvent) => {
+    const p = pointers.get(e.pointerId);
+    pointers.delete(e.pointerId);
+    if (pointers.size < 2) pinchDist = 0;
+    if (p && !p.moved && e.type === 'pointerup' && e.button !== 2) tap(e.clientX, e.clientY, p.type, e.shiftKey);
+  };
+  canvas.addEventListener('pointerup', endPointer);
+  canvas.addEventListener('pointercancel', endPointer);
+  canvas.addEventListener('pointerleave', () => {
+    renderer.view.hover = null;
+    if (buildId) renderer.view.ghost = null;
+  });
+  canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+  canvas.addEventListener(
+    'wheel',
+    (e) => {
+      e.preventDefault();
+      renderer.setZoom(renderer.zoom * Math.exp(-e.deltaY * 0.0015), e.clientX, e.clientY);
+    },
+    { passive: false },
+  );
+
+  // ------------------------------------------------------------ controls
+  waveBtn.onclick = () => startWave();
+  autoBtn.onclick = () => {
+    autoWave = !autoWave;
+    sfx('click');
+    toggleClass(autoBtn, 'on', autoWave);
+    autoBtn.style.color = autoWave ? '#7a5cd6' : '';
+    toast(autoWave ? 'Oleadas automáticas activadas' : 'Oleadas automáticas desactivadas');
+    if (autoWave && game.phase === 'build') startWave();
+  };
+  pauseBtn.onclick = () => openPause();
+  for (const b of speedBtns) {
+    b.onclick = () => {
+      sfx('click');
+      game.speed = Number(b.dataset.speed);
+      for (const x of speedBtns) toggleClass(x, 'on', x === b);
+    };
+  }
+  toggleClass(speedBtns[0], 'on', true);
+
+  function startWave() {
+    if (!game.canStartWave()) return;
+    const bonus = game.startNextWave();
+    if (bonus > 0) toast(`¡Llamada anticipada! +${bonus} de oro`);
+    if (tutorialStep === 1) {
+      tutorialStep = 2;
+      hint(null);
+    }
+  }
+
+  function cycleSpeed() {
+    const next = game.speed >= 3 ? 1 : game.speed + 1;
+    game.speed = next;
+    for (const x of speedBtns) toggleClass(x, 'on', Number(x.dataset.speed) === next);
+  }
+
+  let pauseModal: HTMLElement | null = null;
+  function openPause() {
+    if (finished || pauseModal || game.phase === 'augment') return;
+    sfx('click');
+    game.paused = true;
+    const close = () => {
+      pauseModal?.remove();
+      pauseModal = null;
+      game.paused = false;
+    };
+    pauseModal = h(
+      'div.modal',
+      h(
+        'div.modal-card.panel',
+        h('h2', 'Pausa'),
+        h('p.muted', `${mapDef.name} · ${DIFFICULTY[difficulty].name} · Oleada ${game.wave}/${game.totalWaves}`),
+        game.augments.length
+          ? h(
+              'div',
+              { style: 'display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin:8px 0' },
+              game.augments.map((a) => h('span.pill', { style: `color:${RARITY_INFO[a.rarity].color}` }, icon(a.icon, 14), a.name)),
+            )
+          : null,
+        h(
+          'div.actions',
+          { style: 'flex-direction:column;align-items:stretch' },
+          h('button.btn.primary.big', { onclick: () => (sfx('click'), close()) }, icon('play', 20), 'Continuar'),
+          h(
+            'button.btn',
+            {
+              onclick: () => {
+                pauseModal!.style.display = 'none';
+                openSettings(app, hud, () => {
+                  if (pauseModal) pauseModal.style.display = '';
+                  renderer.view.showDamage = profile.settings.showDamageNumbers;
+                  renderer.view.shakeEnabled = profile.settings.screenShake;
+                }, []);
+              },
+            },
+            icon('gear', 18),
+            'Ajustes',
+          ),
+          h('button.btn', { onclick: () => (sfx('click'), app.go({ name: 'game', map: mapDef.id, difficulty })) }, icon('refresh', 18), 'Reiniciar'),
+          h('button.btn.red', { onclick: () => abandon() }, icon('home', 18), 'Abandonar'),
+        ),
+      ),
+    );
+    hud.append(pauseModal);
+  }
+
+  function abandon() {
+    sfx('click');
+    pauseModal?.remove();
+    pauseModal = null;
+    finishRun(false, true);
+  }
+
+  // ------------------------------------------------------------ augments
+  let augModal: HTMLElement | null = null;
+  function showAugments(options: AugmentDef[]) {
+    augModal?.remove();
+    sfx('augment');
+    selectBuild(null);
+    const cardsEl = options.map((a, i) => {
+      const r = RARITY_INFO[a.rarity];
+      const c = h(
+        'button.aug-card',
+        { style: `--rc:${r.color};animation-delay:${i * 0.08}s` },
+        h('div.aug-icon', icon(a.icon, 40)),
+        h('div.txt', h('span.rarity', r.name), h('h3', a.name), h('p', a.description)),
+      );
+      c.onclick = () => {
+        if (game.pickAugment(a.id)) {
+          sfx('upgrade');
+          augModal?.remove();
+          augModal = null;
+          renderAugs();
+          toast(`${a.name} obtenida`);
+        }
+      };
+      return c;
+    });
+    augModal = h(
+      'div.modal',
+      h(
+        'div.aug-wrap',
+        h('div.aug-title', h('h2', 'Elige una bendición'), h('div', `Oleada ${game.wavesCleared} superada · dura toda la partida`)),
+        h('div.aug-cards', cardsEl),
+        game.rerollsLeft > 0
+          ? h('button.btn.ghost', { onclick: () => (sfx('click'), game.rerollAugments()) }, icon('refresh', 18), `Renovar opciones (${game.rerollsLeft})`)
+          : null,
+      ),
+    );
+    hud.append(augModal);
+    if (tutorialStep >= 0 && tutorialStep < 4) {
+      tutorialStep = 4;
+      hint(null);
+    }
+  }
+
+  function renderAugs() {
+    augsEl.replaceChildren(
+      ...game.augments.map((a) => {
+        const chip = h(`div.aug-chip.${a.rarity}`, icon(a.icon, 18));
+        tip(chip, () => h('div', h('h4', a.name), h('div', a.description), h('div.muted', RARITY_INFO[a.rarity].name)));
+        return chip;
+      }),
+    );
+  }
+
+  // ------------------------------------------------------------ game events
+  const ev = game.events;
+  ev.on('fire', ({ tower }) => {
+    const kind = effectiveAttack(tower.def, tower.branch);
+    const type = effectiveDamageType(tower.def, tower.branch);
+    if (kind === 'beam' || kind === 'pulse') return;
+    if (tower.def.id === 'ballista') sfx('bolt');
+    else if (type === 'physical') sfx(kind === 'lob' || kind === 'cone' ? 'cannon' : 'arrow');
+    else if (type === 'lightning') sfx('zap');
+    else if (type === 'fire') sfx('fire');
+    else if (type === 'frost') sfx('frost');
+    else if (type === 'holy') sfx('holy');
+    else if (type === 'shadow') sfx('shadow');
+    else if (type === 'poison') sfx('poison');
+    else sfx('magic');
+  });
+  ev.on('explosion', ({ style }) => style !== 'small' && style !== 'poison' && sfx('explosion'));
+  ev.on('strike', ({ style }) => sfx(style === 'thunder' ? 'zap' : style === 'smite' ? 'holy' : 'explosion'));
+  ev.on('kill', ({ enemy }) => {
+    sfx(enemy.def.boss ? 'victory' : 'kill');
+    if (enemy.def.boss) banner(`¡${enemy.def.name} derrotado!`, '', false);
+  });
+  ev.on('leak', () => {
+    sfx('leak');
+    livesStat.classList.remove('flash-red');
+    void livesStat.offsetWidth;
+    livesStat.classList.add('flash-red');
+  });
+  ev.on('build', () => sfx('build'));
+  ev.on('upgrade', () => sfx('upgrade'));
+  ev.on('sell', () => sfx('sell'));
+  ev.on('gold', () => sfx('coin'));
+  ev.on('shieldBreak', () => sfx('shield'));
+  ev.on('spell', () => sfx('spell'));
+  ev.on('spawn', ({ enemy }) => {
+    if (!profile.seenEnemies.includes(enemy.def.id)) profile.seenEnemies.push(enemy.def.id);
+  });
+  ev.on('waveStart', ({ wave, boss }) => {
+    if (boss) {
+      sfx('boss');
+      banner(`Oleada ${wave}`, `¡Se acerca ${ENEMIES[boss].name}!`, true);
+    } else {
+      sfx('waveStart');
+      banner(`Oleada ${wave}`, wave === game.totalWaves ? '¡La batalla final!' : '');
+    }
+  });
+  ev.on('waveCleared', ({ wave, reward, interest }) => {
+    sfx('coin');
+    toast(`Oleada ${wave} superada · +${reward + interest} de oro${interest ? ` (interés ${interest})` : ''}`);
+    if (tutorialStep === 2) hint('Pulsa una torre para mejorarla. Al llegar al nivel 3 elegirás entre tres especializaciones.');
+    if (wave >= 3 && tutorialStep >= 0) {
+      profile.tutorialDone = true;
+      app.save();
+    }
+  });
+  ev.on('augmentOffer', ({ options }) => showAugments(options));
+  ev.on('phase', ({ phase }) => {
+    if (phase === 'victory') finishRun(true);
+    else if (phase === 'defeat') finishRun(false);
+    else if (phase === 'build' && autoWave) setTimeout(() => game.phase === 'build' && !finished && startWave(), 1200);
+  });
+
+  // ------------------------------------------------------------ end of run
+  function finishRun(victory: boolean, abandoned = false) {
+    if (finished) return;
+    finished = true;
+    game.paused = true;
+    hint(null);
+    const levelBefore = Object.fromEntries(unlocked.map((id) => [id, towerLevel(profile, id)]));
+    void levelBefore;
+    const g = game.global;
+    const reward: RewardSummary = applyRunResult(profile, {
+      mapId: mapDef.id,
+      difficulty,
+      wavesCleared: game.wavesCleared,
+      totalWaves: game.totalWaves,
+      victory,
+      towerXp: game.towerXp,
+      kills: game.kills,
+      bossesKilled: game.bossesKilled,
+      starGain: g.starGain,
+      xpGain: g.xpGain,
+    });
+    profile.tutorialDone = true;
+    app.save();
+    if (abandoned) {
+      app.go({ name: 'menu' });
+      return;
+    }
+    setTimeout(() => {
+      sfx(victory ? 'victory' : 'defeat');
+      const modal = h(
+        'div.modal',
+        h(
+          'div.modal-card.panel',
+          h('div', { style: `color:${victory ? '#e2a01e' : '#a3362a'};display:flex;justify-content:center` }, icon(victory ? 'crown' : 'skull', 56)),
+          h('h2', victory ? '¡Victoria!' : 'Derrota'),
+          h('p.muted', victory ? `Has defendido ${mapDef.name}.` : `El castillo ha caído en la oleada ${game.wave}.`),
+          h(
+            'div.results',
+            h('div.line', h('span', 'Oleadas superadas'), h('span', `${game.wavesCleared}/${game.totalWaves}`)),
+            h('div.line', h('span', 'Enemigos abatidos'), h('span', String(game.kills))),
+            h('div.line', h('span', 'Oro obtenido'), h('span', formatNumber(game.goldEarned))),
+            h('div.line', { style: 'background:#fff3c4' }, h('span', reward.firstClear ? 'Estrellas (¡primera victoria!)' : 'Estrellas'), h('span', { style: 'display:flex;gap:4px;align-items:center;color:#8a5a12' }, `+${reward.stars}`, icon('star', 16))),
+          ),
+          reward.levelUps.length
+            ? h(
+                'div',
+                h('p', { style: 'margin:12px 0 4px;font-weight:800' }, 'Maestría de torres'),
+                h(
+                  'div.levelups',
+                  reward.levelUps.map((l) => h('span.levelup', h('img', { src: towerPortrait(l.tower, 2, -1, 40) }), `${TOWERS[l.tower].name.replace('Torre de ', '')} nv. ${l.to}`)),
+                ),
+              )
+            : null,
+          h(
+            'div.actions',
+            h('button.btn', { onclick: () => (sfx('click'), app.go({ name: 'maps' })) }, icon('map', 18), 'Mapas'),
+            h('button.btn.purple', { onclick: () => (sfx('click'), app.go({ name: 'talents' })) }, icon('star', 18), 'Talentos'),
+            h('button.btn.primary', { onclick: () => (sfx('click'), app.go({ name: 'game', map: mapDef.id, difficulty })) }, icon('refresh', 18), victory ? 'Jugar de nuevo' : 'Reintentar'),
+          ),
+        ),
+      );
+      hud.append(modal);
+    }, victory ? 900 : 1400);
+  }
+
+  // ------------------------------------------------------------ keyboard
+  function onKey(e: KeyboardEvent) {
+    if (e.repeat && e.key !== ' ') return;
+    const k = e.key.toLowerCase();
+    if (k === 'escape') {
+      if (buildId || spellId) {
+        selectBuild(null);
+        spellId = null;
+        renderer.view.spell = null;
+        for (const [, b] of spellBtns) toggleClass(b, 'on', false);
+      } else if (selected) select(null);
+      else if (pauseModal) {
+        pauseModal.remove();
+        pauseModal = null;
+        game.paused = false;
+      } else openPause();
+      return;
+    }
+    if (finished || augModal) return;
+    if (k === 'p') openPause();
+    else if (k === ' ') {
+      e.preventDefault();
+      startWave();
+    } else if (k === 'f') cycleSpeed();
+    else if (k === 'c') renderer.recenter();
+    else if (k === 'h') hud.classList.toggle('hidden');
+    else if (k === 'u' && selected) doUpgrade();
+    else if (k === 's' && selected) doSell();
+    else if (k === 'q') toggleSpell('meteor');
+    else if (k === 'w' && game.unlockedSpells.has('frostNova')) toggleSpell('frostNova');
+    else if (k === 'e' && game.unlockedSpells.has('blessing')) toggleSpell('blessing');
+    else if (/^[0-9]$/.test(k)) {
+      const idx = k === '0' ? 9 : Number(k) - 1;
+      const t = TOWER_LIST[idx];
+      if (t && unlocked.includes(t.id)) selectBuild(buildId === t.id ? null : t.id);
+    }
+  }
+
+  // ------------------------------------------------------------ per frame
+  function updateHud(dt: number) {
+    setText(livesVal, `${game.lives}`);
+    livesBar.style.width = `${Math.max(0, (game.lives / game.maxLives) * 100)}%`;
+    if (game.lives < lastLives) lastLives = game.lives;
+    const gold = Math.floor(game.gold);
+    if (gold !== lastGold) {
+      if (gold > lastGold && lastGold >= 0) {
+        goldStat.classList.remove('bump');
+        void goldStat.offsetWidth;
+        goldStat.classList.add('bump');
+      }
+      lastGold = gold;
+      setText(goldVal, formatNumber(gold));
+      for (const t of TOWER_LIST) {
+        const card = cards.get(t.id);
+        const costEl = costEls.get(t.id);
+        if (!card || !costEl || !unlocked.includes(t.id)) continue;
+        const cost = game.buildCost(t.id);
+        const txt = costEl.lastChild!;
+        const label = cost === 0 ? 'GRATIS' : String(cost);
+        if (txt.textContent !== label) txt.textContent = label;
+        toggleClass(card, 'disabled', game.gold < cost);
+        toggleClass(costEl, 'bad', game.gold < cost);
+      }
+    }
+    setText(manaVal, `${Math.floor(game.mana)}`);
+    manaBar.style.width = `${(game.mana / game.global.maxMana) * 100}%`;
+    setText(waveVal, `${game.wave}/${game.totalWaves}`);
+    const canStart = game.canStartWave() && !finished;
+    waveBtn.disabled = !canStart;
+    const label = waveBtn.querySelector('.label') as HTMLElement;
+    setText(label, game.phase === 'wave' ? `Llamar (+${10 + game.wave * 2})` : game.wave === 0 ? 'Iniciar oleada' : 'Siguiente oleada');
+    toggleClass(waveBtn, 'green', game.phase === 'wave');
+    toggleClass(waveBtn, 'primary', game.phase !== 'wave');
+    for (const [id, btn] of spellBtns) {
+      const def = SPELLS[id];
+      const cd = game.spellCooldowns[id];
+      const total = def.cooldown * Math.max(0.3, 1 + game.global.spellCooldown);
+      const p = cd > 0 ? (cd / total) * 100 : game.mana < def.mana ? 100 - (game.mana / def.mana) * 100 : 0;
+      (btn.firstChild as HTMLElement).style.setProperty('--p', `${p}%`);
+      toggleClass(btn, 'disabled', !game.spellReady(id));
+    }
+    // Next wave preview
+    const next = game.nextWaveDef();
+    const sigPrev = next ? `${next.index}` : 'none';
+    if (preview.dataset.sig !== sigPrev) {
+      preview.dataset.sig = sigPrev;
+      if (next) {
+        preview.style.display = '';
+        preview.replaceChildren(
+          h('span', 'Siguiente:'),
+          ...wavePreview(next).map((p) => h('span.e', h('img', { src: enemyPortrait(p.enemy, 48), alt: ENEMIES[p.enemy].name, title: ENEMIES[p.enemy].name }), `×${p.count}`)),
+        );
+      } else preview.style.display = 'none';
+    }
+    panelTimer -= dt;
+    if (selected && panelTimer <= 0) {
+      panelTimer = 0.25;
+      if (!game.towers.includes(selected)) select(null);
+      else renderPanel();
+    }
+  }
+
+  // Debug/test hook (used by automated screenshot tests).
+  (window as unknown as { __game?: unknown }).__game = { game, renderer, tap };
+
+  // Initial UI state
+  renderer.insets = { top: 120, bottom: 120, left: 10, right: 10 };
+  if (tutorialStep === 0) hint('Elige una torre en la barra inferior y colócala en la hierba junto al camino. Los enemigos salen del portal violeta.');
+  renderAugs();
+
+  return {
+    el,
+    ownsStage: true,
+    update(dt: number) {
+      game.update(dt);
+      renderer.render(dt);
+      updateHud(dt);
+    },
+    resize() {
+      const w = innerWidth;
+      const hgt = innerHeight;
+      const narrow = w < 640;
+      renderer.insets = { top: narrow ? 140 : hgt < 520 ? 60 : 110, bottom: narrow ? 100 : 112, left: 10, right: 10 };
+      renderer.resize(w, hgt, window.devicePixelRatio || 1);
+    },
+    destroy() {
+      hideTip();
+      renderer.destroy();
+      game.events.clear();
+      app.save();
+    },
+    onKey,
+  };
+}
