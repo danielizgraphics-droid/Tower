@@ -5,14 +5,15 @@ import type { SpellId, TowerId } from '../data/types';
 import { clamp, easeOutBack } from '../engine/math';
 import type { Enemy, Projectile, Tower } from '../game/entities';
 import type { Game } from '../game/game';
-import { effectiveAttack, effectiveTargetsAir } from '../game/modifiers';
+import { effectiveAttack } from '../game/modifiers';
 import { rgba, shade } from './color';
 import { Fx } from './fx';
 import { drawEnemyModel, enemyHeight } from './models/enemies';
 import { drawTowerModel } from './models/towers';
 import { Painter } from './painter';
-import { Camera, DX, DY, HEIGHT_SCALE, depthOf } from './projection';
-import { GRASS_H, SLAB, TerrainCache } from './terrain';
+import { Camera, HEIGHT_SCALE, depthOf } from './projection';
+import { drawSprite, makeSprite, type Sprite } from './sprites';
+import { GRASS_H, GroundCache, SLAB } from './terrain';
 import { THEMES, type Theme } from './theme';
 
 export const UI_FONT = '"Fredoka", "Nunito", system-ui, sans-serif';
@@ -34,7 +35,15 @@ export class Renderer {
   readonly painter: Painter;
   readonly fx = new Fx();
   readonly theme: Theme;
-  private terrain: TerrainCache;
+  private ground: GroundCache;
+  /** Scale the cached bitmaps (ground, sprites) were rendered at. */
+  private cacheScale = 0;
+  private cacheDpr = 0;
+  private zoomChangedAt = 0;
+  private towerSprites = new Map<string, Sprite>();
+  private castleSprite: Sprite | null = null;
+  /** Paint the sky into the canvas (needed for snapshots); otherwise CSS paints it. */
+  paintBackground = false;
   private ctx: CanvasRenderingContext2D;
   private dpr = 1;
   private width = 0;
@@ -59,8 +68,9 @@ export class Renderer {
     this.painter = new Painter(this.cam);
     this.painter.ctx = this.ctx;
     this.theme = THEMES[game.board.def.theme];
-    this.terrain = new TerrainCache(game.board, this.theme);
+    this.ground = new GroundCache(game.board, this.theme);
     this.cam.rows = game.board.height;
+    canvas.style.background = `linear-gradient(180deg, ${this.theme.bgTop}, ${this.theme.bgBottom})`;
     this.bindEvents();
   }
 
@@ -116,6 +126,7 @@ export class Renderer {
   }
 
   setZoom(z: number, anchorX = this.width / 2, anchorY = this.height / 2): void {
+    this.zoomChangedAt = this.time;
     const before = this.cam.unproject(anchorX, anchorY, 0);
     this.zoom = clamp(z, 1, 2.6);
     this.applyCamera();
@@ -212,7 +223,16 @@ export class Renderer {
           fx.burst('smoke', x, y, 0.3, 10, '#ffffff', 1.2, 0.18, 1.1);
           if (this.view.shakeEnabled) fx.shake = Math.max(fx.shake, 0.5);
         } else if (style === 'thunder') {
-          fx.bolt([{ x, y, z: 4 }, { x: x + 0.1, y, z: 2 }, { x, y, z: 0 }], '#ffe066', 0.3, 0.08);
+          fx.bolt(
+            [
+              { x, y, z: 4 },
+              { x: x + 0.1, y, z: 2 },
+              { x, y, z: 0 },
+            ],
+            '#ffe066',
+            0.3,
+            0.08,
+          );
           fx.ring(x, y, 0.02, 0.1, radius, '#ffe066', 0.4, 0.07, true);
           fx.burst('spark', x, y, 0.2, 14, '#fff3a0', 2.4, 0.05, 0.4);
         } else {
@@ -258,7 +278,13 @@ export class Renderer {
           for (let i = 0; i < 6; i++) {
             const a = tower.angle + (Math.random() - 0.5) * ((tower.stats.coneAngle * Math.PI) / 180) * 2;
             const sp = 6 + Math.random() * 3;
-            fx.emit('spark', tower.x, tower.y, 0.75, { vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, max: tower.stats.range / sp, size: 0.035, color: '#ffd27a' });
+            fx.emit('spark', tower.x, tower.y, 0.75, {
+              vx: Math.cos(a) * sp,
+              vy: Math.sin(a) * sp,
+              max: tower.stats.range / sp,
+              size: 0.035,
+              color: '#ffd27a',
+            });
           }
         }
       }),
@@ -266,6 +292,19 @@ export class Renderer {
   }
 
   // ------------------------------------------------------------ frame
+
+  /** Rebuilds cached bitmaps when the zoom settled on a new scale. */
+  private ensureCaches(): void {
+    const scale = this.cam.scale;
+    const stale = this.cacheScale === 0 || this.cacheDpr !== this.dpr || Math.abs(scale / this.cacheScale - 1) > 0.004;
+    // While the user is actively zooming keep scaling the old bitmaps.
+    if (!stale || (this.cacheScale !== 0 && this.time - this.zoomChangedAt < 0.18 && this.cacheDpr === this.dpr)) return;
+    this.cacheScale = scale;
+    this.cacheDpr = this.dpr;
+    this.ground.build(scale, this.dpr);
+    this.towerSprites.clear();
+    this.castleSprite = null;
+  }
 
   render(dt: number): void {
     this.time += dt;
@@ -275,33 +314,22 @@ export class Renderer {
     const ctx = this.ctx;
     const dpr = this.dpr;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    this.drawBackground();
-    this.terrain.ensure(this.cam.scale, dpr);
+    if (this.paintBackground) this.drawBackground();
+    else ctx.clearRect(0, 0, this.width, this.height);
+    this.ensureCaches();
 
     // Screen shake
-    let sx = 0;
-    let sy = 0;
     if (this.fx.shake > 0 && this.view.shakeEnabled) {
       const m = this.fx.shake * this.fx.shake * 7;
-      sx = (Math.random() - 0.5) * m;
-      sy = (Math.random() - 0.5) * m;
-      ctx.translate(sx, sy);
+      ctx.translate((Math.random() - 0.5) * m, (Math.random() - 0.5) * m);
     }
 
-    this.drawBoardShadow();
-    const buckets = this.buildBuckets();
-    const H = this.game.board.height;
-    for (let r = 0; r < H; r++) {
-      this.terrain.drawRow(ctx, r, this.cam);
-      this.drawDynamicGround(r);
-      const list = buckets[r];
-      if (list) {
-        list.sort((a, b) => a.depth - b.depth);
-        for (const d of list) d.draw();
-      }
-    }
-    // Items in front of the board (rare)
-    if (buckets[H]) for (const d of buckets[H]) d.draw();
+    this.ground.draw(ctx, this.cam);
+    this.drawDynamicGround();
+    this.drawGroundOverlays();
+    const list = this.buildDrawables();
+    list.sort((a, b) => a.depth - b.depth);
+    for (const d of list) d.draw();
 
     this.drawOverlays();
     this.fx.drawWorld(this.painter);
@@ -317,75 +345,58 @@ export class Renderer {
     g.addColorStop(1, this.theme.bgBottom);
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, this.width, this.height);
-    // Soft drifting clouds
-    ctx.fillStyle = 'rgba(255,255,255,0.10)';
-    for (let i = 0; i < 6; i++) {
-      const speed = 6 + i * 2;
-      const x = ((i * 397 + this.time * speed) % (this.width + 400)) - 200;
-      const y = (i * 131) % Math.max(1, this.height * 0.8) + 40;
-      const r = 50 + (i % 3) * 30;
-      ctx.beginPath();
-      ctx.ellipse(x, y, r * 2, r * 0.6, 0, 0, Math.PI * 2);
-      ctx.ellipse(x + r, y - r * 0.3, r * 1.2, r * 0.5, 0, 0, Math.PI * 2);
-      ctx.fill();
-    }
   }
 
-  private drawBoardShadow(): void {
+  /** Animated ground layers (water ripples, rifts). */
+  private drawDynamicGround(): void {
     const b = this.game.board;
     const p = this.painter;
-    const ctx = this.ctx;
-    // Soft shadow under the floating island.
-    const c = this.cam.project(b.width / 2 + 0.4, b.height / 2 + 0.6, -SLAB - 0.6);
-    const w = (b.width + b.height * DX) * this.cam.scale * 0.55;
-    const h = b.height * DY * this.cam.scale * 0.7;
-    const g = ctx.createRadialGradient(c.x, c.y, 0, c.x, c.y, w);
-    g.addColorStop(0, 'rgba(30,25,70,0.28)');
-    g.addColorStop(1, 'rgba(30,25,70,0)');
-    ctx.fillStyle = g;
-    ctx.beginPath();
-    ctx.ellipse(c.x, c.y + h * 0.3, w, h, 0, 0, Math.PI * 2);
-    ctx.fill();
-    void p;
-  }
-
-  /** Animated ground layers drawn right after their row's terrain. */
-  private drawDynamicGround(row: number): void {
-    const b = this.game.board;
-    const p = this.painter;
-    for (let x = 0; x < b.width; x++) {
-      const t = b.tiles[row][x];
-      if (t.kind !== 'water') continue;
-      for (let i = 0; i < 2; i++) {
-        const ph = (this.time * 0.4 + t.seed + i * 0.5) % 1;
-        p.ring(x + 0.3 + i * 0.4, row + 0.35 + i * 0.3, -0.015, 0.05 + ph * 0.2, `rgba(255,255,255,${0.45 * (1 - ph)})`, Math.max(1, this.cam.scale * 0.015));
+    for (const row of b.tiles)
+      for (const t of row) {
+        if (t.kind !== 'water') continue;
+        for (let i = 0; i < 2; i++) {
+          const ph = (this.time * 0.4 + t.seed + i * 0.5) % 1;
+          p.ring(
+            t.x + 0.3 + i * 0.4,
+            t.y + 0.35 + i * 0.3,
+            -0.015,
+            0.05 + ph * 0.2,
+            `rgba(255,255,255,${0.45 * (1 - ph)})`,
+            Math.max(1, this.cam.scale * 0.015),
+          );
+        }
       }
-    }
-    // Rifts sit on the ground.
     for (const r of this.game.rifts) {
-      if (Math.floor(r.y) !== row) continue;
       const k = r.time / r.total;
       p.disc(r.x, r.y, 0.01, r.radius * (0.6 + 0.4 * Math.min(1, (1 - k) * 4)), rgba('#2a1650', 0.55 * Math.min(1, k * 3)), false);
-      for (let i = 0; i < 3; i++) p.ring(r.x, r.y, 0.015, r.radius * (((this.time * 0.8 + i / 3) % 1) * 0.9 + 0.1), rgba('#a68cff', 0.7 * k), Math.max(1, this.cam.scale * 0.03));
+      for (let i = 0; i < 3; i++)
+        p.ring(
+          r.x,
+          r.y,
+          0.015,
+          r.radius * (((this.time * 0.8 + i / 3) % 1) * 0.9 + 0.1),
+          rgba('#a68cff', 0.7 * k),
+          Math.max(1, this.cam.scale * 0.03),
+        );
     }
   }
 
-  private buildBuckets(): Drawable[][] {
-    const buckets: Drawable[][] = [];
-    const H = this.game.board.height;
-    const add = (y: number, depth: number, draw: () => void) => {
-      const r = clamp(Math.floor(y), 0, H);
-      (buckets[r] ??= []).push({ depth, draw });
-    };
+  private buildDrawables(): Drawable[] {
+    const out: Drawable[] = [];
     const g = this.game;
     const b = g.board;
-    add(b.castle.y + 0.5, depthOf(b.castle.x + 0.5, b.castle.y + 0.5), () => this.drawCastle());
-    add(b.spawn.y + 0.5, depthOf(b.spawn.x + 0.5, b.spawn.y + 0.5), () => this.drawPortal());
-    for (const t of g.towers) add(t.y, depthOf(t.x, t.y), () => this.drawTower(t));
-    for (const e of g.enemies) if (e.alive) add(e.y, depthOf(e.x, e.y) + 0.01, () => this.drawEnemy(e));
-    for (const pr of g.projectiles) add(pr.y, depthOf(pr.x, pr.y) + 0.02, () => this.drawProjectile(pr));
-    for (const s of g.strikes) add(s.y, depthOf(s.x, s.y) + 0.03, () => this.drawPendingStrike(s));
-    return buckets;
+    const k = this.cam.scale / this.cacheScale;
+    for (const d of this.ground.decor) {
+      const pos = this.cam.project(d.x, d.y, GRASS_H);
+      out.push({ depth: depthOf(d.x, d.y), draw: () => drawSprite(this.ctx, d.sprite, pos.x, pos.y, k) });
+    }
+    out.push({ depth: depthOf(b.castle.x + 0.5, b.castle.y + 0.5), draw: () => this.drawCastle() });
+    out.push({ depth: depthOf(b.spawn.x + 0.5, b.spawn.y + 0.5), draw: () => this.drawPortal() });
+    for (const t of g.towers) out.push({ depth: depthOf(t.x, t.y), draw: () => this.drawTower(t) });
+    for (const e of g.enemies) if (e.alive) out.push({ depth: depthOf(e.x, e.y) + 0.01, draw: () => this.drawEnemy(e) });
+    for (const pr of g.projectiles) out.push({ depth: depthOf(pr.x, pr.y) + 0.02, draw: () => this.drawProjectile(pr) });
+    for (const s of g.strikes) out.push({ depth: depthOf(s.x, s.y) + 0.03, draw: () => this.drawPendingStrike(s) });
+    return out;
   }
 
   // ------------------------------------------------------------ entities
@@ -406,7 +417,17 @@ export class Renderer {
       ctx.translate(-base.x, -base.y);
     }
     const kind = effectiveAttack(t.def, t.branch);
-    drawTowerModel(p, { id: t.def.id, tier: t.tier, branch: t.branch, angle: t.angle, fireAnim: t.fireAnim, time: this.time + t.uid, active: t.coneTime > 0 || !!t.beamTarget }, t.x, t.y, GRASS_H);
+    const look = {
+      id: t.def.id,
+      tier: t.tier,
+      branch: t.branch,
+      angle: t.angle,
+      fireAnim: t.fireAnim,
+      time: this.time + t.uid,
+      active: t.coneTime > 0 || !!t.beamTarget,
+    };
+    drawSprite(ctx, this.towerSprite(t.def.id, t.tier, t.branch), base.x, base.y, this.cam.scale / this.cacheScale);
+    drawTowerModel(p, { ...look, layer: 'dynamic' }, t.x, t.y, GRASS_H);
     if (scale !== 1) ctx.restore();
 
     // Beam
@@ -433,6 +454,18 @@ export class Renderer {
       const k = (this.time * 0.7 + t.uid * 0.37) % 1;
       p.ring(t.x, t.y, GRASS_H + 0.01, t.stats.range * k, rgba(v.fx, 0.35 * (1 - k)), Math.max(1, this.cam.scale * 0.03));
     }
+  }
+
+  private towerSprite(id: TowerId, tier: number, branch: number): Sprite {
+    const key = `${id}:${tier}:${branch}`;
+    let s = this.towerSprites.get(key);
+    if (!s) {
+      s = makeSprite(this.cacheScale, this.dpr, this.cam.rows, 1.7, 3.1, 0.45, 0.84, { x: 0.5, y: 0.5, z: GRASS_H }, (sp) =>
+        drawTowerModel(sp, { id, tier, branch, angle: 0, fireAnim: 1, time: 0, layer: 'static' }, 0.5, 0.5, GRASS_H),
+      );
+      this.towerSprites.set(key, s);
+    }
+    return s;
   }
 
   private drawEnemy(e: Enemy): void {
@@ -464,8 +497,10 @@ export class Renderer {
     for (const e of this.game.enemies) {
       if (!e.alive) continue;
       const z = enemyHeight(e.def);
-      if (e.burnTime > 0 && Math.random() < dt * 14) fx.emit('flame', e.x + (Math.random() - 0.5) * 0.2, e.y, z * 0.8, { vz: 0.8, max: 0.45, size: 0.07, color: '#ff8a3d' });
-      if (e.poison.length && Math.random() < dt * 6) fx.emit('bubble', e.x + (Math.random() - 0.5) * 0.25, e.y, z, { vz: 0.5, max: 0.8, size: 0.04, color: '#9be15d' });
+      if (e.burnTime > 0 && Math.random() < dt * 14)
+        fx.emit('flame', e.x + (Math.random() - 0.5) * 0.2, e.y, z * 0.8, { vz: 0.8, max: 0.45, size: 0.07, color: '#ff8a3d' });
+      if (e.poison.length && Math.random() < dt * 6)
+        fx.emit('bubble', e.x + (Math.random() - 0.5) * 0.25, e.y, z, { vz: 0.5, max: 0.8, size: 0.04, color: '#9be15d' });
     }
     for (const t of this.game.towers) {
       if (t.coneTime > 0 && effectiveAttack(t.def, t.branch) === 'cone' && t.def.id === 'pyre') {
@@ -552,7 +587,15 @@ export class Renderer {
     const p = this.painter;
     const k = 1 - s.delay / s.total;
     // Target marker
-    p.ring(s.x, s.y, 0.02, s.radius * (0.4 + 0.6 * k), rgba(s.style === 'smite' ? '#fff2b0' : s.style === 'thunder' ? '#ffe066' : '#ff7a2b', 0.5 + 0.4 * k), Math.max(1, this.cam.scale * 0.03), [6, 5]);
+    p.ring(
+      s.x,
+      s.y,
+      0.02,
+      s.radius * (0.4 + 0.6 * k),
+      rgba(s.style === 'smite' ? '#fff2b0' : s.style === 'thunder' ? '#ffe066' : '#ff7a2b', 0.5 + 0.4 * k),
+      Math.max(1, this.cam.scale * 0.03),
+      [6, 5],
+    );
     if (s.style === 'meteor' || s.style === 'spellMeteor') {
       const h = (1 - k) * 5;
       const ox = (1 - k) * 2.2;
@@ -573,28 +616,23 @@ export class Renderer {
   }
 
   private drawCastle(): void {
-    const p = this.painter;
     const b = this.game.board;
     const cx = b.castle.x + 0.5;
     const cy = b.castle.y + 0.5;
-    const stone = '#d7d0c4';
-    const hit = this.castleHit;
-    const wall = hit > 0 ? shade(stone, -0.3 * hit) : stone;
-    p.shadow(cx, cy, 0.001, 0.75, 0.25);
-    p.cbox(cx, cy, 0, 0.95, 0.9, 0.12, '#b9b0a2');
-    // Keep
-    p.cbox(cx, cy - 0.05, 0.12, 0.62, 0.55, 0.62, wall);
-    crenelRow(p, cx - 0.31, cy - 0.33, 0.74, 0.62, 0.55, shade(wall, 0.05));
-    // Corner towers
-    for (const [dx, dy] of [[-0.36, -0.32], [0.36, -0.32], [-0.36, 0.3], [0.36, 0.3]]) {
-      p.cylinder(cx + dx, cy + dy, 0.12, 0.14, 0.78, wall);
-      p.cone(cx + dx, cy + dy, 0.9, 0.17, 0.32, '#5a6fc4');
+    if (!this.castleSprite) {
+      this.castleSprite = makeSprite(this.cacheScale, this.dpr, this.cam.rows, 2.2, 2.6, 0.45, 0.78, { x: cx, y: cy, z: 0 }, (sp) =>
+        drawCastleModel(sp, cx, cy),
+      );
     }
-    // Gate
-    p.box(cx - 0.1, cy + 0.225, 0.12, 0.2, 0.005, 0.26, '#6e4a33', null, false);
-    // Flag
-    p.cylinder(cx, cy - 0.05, 0.86, 0.015, 0.45, '#6e4a33');
-    p.flag(cx, cy - 0.05, 1.3, 0.3, 0.17, '#e0544a', this.time * 3);
+    const pos = this.cam.project(cx, cy, 0);
+    const ctx = this.ctx;
+    if (this.castleHit > 0) {
+      ctx.save();
+      ctx.filter = `brightness(${1 - this.castleHit * 0.35}) sepia(${this.castleHit * 0.6})`;
+    }
+    drawSprite(ctx, this.castleSprite, pos.x, pos.y, this.cam.scale / this.cacheScale);
+    if (this.castleHit > 0) ctx.restore();
+    this.painter.flag(cx, cy - 0.05, 1.3, 0.3, 0.17, '#e0544a', this.time * 3);
   }
 
   private drawPortal(): void {
@@ -642,12 +680,19 @@ export class Renderer {
     }
     ctx.stroke();
     p.cylinder(cx - nx * 0.45, cy - ny * 0.45, 0, 0.08, 0.95, pillar);
-    if (Math.random() < 0.3) this.fx.emit('glow', cx + (Math.random() - 0.5) * 0.4 * nx, cy + (Math.random() - 0.5) * 0.4 * ny, 0.3 + Math.random() * 0.5, { vz: 0.4, max: 0.9, size: 0.035, color: '#c9a6ff' });
+    if (Math.random() < 0.3)
+      this.fx.emit('glow', cx + (Math.random() - 0.5) * 0.4 * nx, cy + (Math.random() - 0.5) * 0.4 * ny, 0.3 + Math.random() * 0.5, {
+        vz: 0.4,
+        max: 0.9,
+        size: 0.035,
+        color: '#c9a6ff',
+      });
   }
 
   // ------------------------------------------------------------ overlays
 
-  private drawOverlays(): void {
+  /** Range indicators drawn on the ground, below towers and enemies. */
+  private drawGroundOverlays(): void {
     const p = this.painter;
     const v = this.view;
     const g = this.game;
@@ -670,16 +715,29 @@ export class Renderer {
       const stats = g.previewStats(id, 1, -1);
       p.disc(cx, cy, GRASS_H + 0.01, stats.range, valid ? 'rgba(255,255,255,0.12)' : 'rgba(255,90,90,0.12)', false);
       p.ring(cx, cy, GRASS_H + 0.01, stats.range, valid ? 'rgba(255,255,255,0.8)' : 'rgba(255,110,110,0.8)', 1.5, [8, 6]);
-      p.flat([[x, y], [x + 1, y], [x + 1, y + 1], [x, y + 1]], GRASS_H + 0.005, valid ? 'rgba(255,255,255,0.35)' : 'rgba(255,80,80,0.35)');
-      this.ctx.globalAlpha = 0.65;
-      drawTowerModel(p, { id, tier: 1, branch: -1, angle: -Math.PI / 4, fireAnim: 1, time: this.time }, cx, cy, GRASS_H);
-      this.ctx.globalAlpha = 1;
-      // Air capability hint is shown in UI.
-      void effectiveTargetsAir;
+      p.flat(
+        [
+          [x, y],
+          [x + 1, y],
+          [x + 1, y + 1],
+          [x, y + 1],
+        ],
+        GRASS_H + 0.005,
+        valid ? 'rgba(255,255,255,0.35)' : 'rgba(255,80,80,0.35)',
+      );
     } else if (v.hover && !v.spell) {
       const { x, y } = v.hover;
       if (g.board.isBuildable(x, y) && !g.towerAt(x, y)) {
-        p.flat([[x, y], [x + 1, y], [x + 1, y + 1], [x, y + 1]], GRASS_H + 0.005, 'rgba(255,255,255,0.22)');
+        p.flat(
+          [
+            [x, y],
+            [x + 1, y],
+            [x + 1, y + 1],
+            [x, y + 1],
+          ],
+          GRASS_H + 0.005,
+          'rgba(255,255,255,0.22)',
+        );
       }
     }
     if (v.spell) {
@@ -687,6 +745,16 @@ export class Renderer {
       p.disc(v.spell.x, v.spell.y, 0.03, def.radius, rgba(def.color, 0.18), false);
       p.ring(v.spell.x, v.spell.y, 0.03, def.radius, rgba(def.color, 0.9), 2, [6, 4]);
     }
+  }
+
+  /** Overlays drawn above the scene (placement ghost). */
+  private drawOverlays(): void {
+    const ghost = this.view.ghost;
+    if (!ghost) return;
+    const pos = this.cam.project(ghost.x + 0.5, ghost.y + 0.5, GRASS_H);
+    this.ctx.globalAlpha = ghost.valid ? 0.7 : 0.4;
+    drawSprite(this.ctx, this.towerSprite(ghost.id, 1, -1), pos.x, pos.y, this.cam.scale / this.cacheScale);
+    this.ctx.globalAlpha = 1;
   }
 
   private drawHealthBars(): void {
@@ -727,6 +795,30 @@ export class Renderer {
       }
     }
   }
+}
+
+/** Static part of the castle (flag is animated separately). */
+function drawCastleModel(p: Painter, cx: number, cy: number): void {
+  const wall = '#d7d0c4';
+  p.shadow(cx, cy, 0.001, 0.75, 0.25);
+  p.cbox(cx, cy, 0, 0.95, 0.9, 0.12, '#b9b0a2');
+  // Keep
+  p.cbox(cx, cy - 0.05, 0.12, 0.62, 0.55, 0.62, wall);
+  crenelRow(p, cx - 0.31, cy - 0.33, 0.74, 0.62, 0.55, shade(wall, 0.05));
+  // Corner towers
+  for (const [dx, dy] of [
+    [-0.36, -0.32],
+    [0.36, -0.32],
+    [-0.36, 0.3],
+    [0.36, 0.3],
+  ]) {
+    p.cylinder(cx + dx, cy + dy, 0.12, 0.14, 0.78, wall);
+    p.cone(cx + dx, cy + dy, 0.9, 0.17, 0.32, '#5a6fc4');
+  }
+  // Gate
+  p.box(cx - 0.1, cy + 0.225, 0.12, 0.2, 0.005, 0.26, '#6e4a33', null, false);
+  // Flag pole
+  p.cylinder(cx, cy - 0.05, 0.86, 0.015, 0.45, '#6e4a33');
 }
 
 function crenelRow(p: Painter, x: number, y: number, z: number, w: number, d: number, color: string): void {

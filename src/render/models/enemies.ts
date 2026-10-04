@@ -97,7 +97,12 @@ export function drawEnemyModel(p: Painter, e: EnemyLook): void {
     case 'beast': {
       p.shadow(x, y, 0.001, 0.25 * d.size, 0.25);
       const lz = 0.14 * d.size;
-      for (const [fx, side] of [[0.12, 1], [0.12, -1], [-0.12, 1], [-0.12, -1]] as const) {
+      for (const [fx, side] of [
+        [0.12, 1],
+        [0.12, -1],
+        [-0.12, 1],
+        [-0.12, -1],
+      ] as const) {
         const ph = side * (fx > 0 ? 1 : -1) * step * 0.05;
         p.rbox(x + ca * (fx + ph) - sa * side * 0.07, y + sa * (fx + ph) + ca * side * 0.07, 0, 0.05, 0.05, lz, a, shade(body, -0.25));
       }
@@ -140,9 +145,27 @@ export function drawEnemyModel(p: Painter, e: EnemyLook): void {
       const wing = 0.32 * d.size;
       const nx = -sa;
       const ny = ca;
-      p.face([[x, y, hz], [x + nx * wing, y + ny * wing, hz + 0.15 * flap], [x + nx * wing * 0.6 - ca * 0.1, y + ny * wing * 0.6 - sa * 0.1, hz - 0.05]], shade(accent, -0.1), [0, 0, 1], false);
+      p.face(
+        [
+          [x, y, hz],
+          [x + nx * wing, y + ny * wing, hz + 0.15 * flap],
+          [x + nx * wing * 0.6 - ca * 0.1, y + ny * wing * 0.6 - sa * 0.1, hz - 0.05],
+        ],
+        shade(accent, -0.1),
+        [0, 0, 1],
+        false,
+      );
       p.sphere(x, y, hz, 0.12 * d.size, body);
-      p.face([[x, y, hz], [x - nx * wing, y - ny * wing, hz + 0.15 * flap], [x - nx * wing * 0.6 - ca * 0.1, y - ny * wing * 0.6 - sa * 0.1, hz - 0.05]], shade(accent, -0.1), [0, 0, 1], false);
+      p.face(
+        [
+          [x, y, hz],
+          [x - nx * wing, y - ny * wing, hz + 0.15 * flap],
+          [x - nx * wing * 0.6 - ca * 0.1, y - ny * wing * 0.6 - sa * 0.1, hz - 0.05],
+        ],
+        shade(accent, -0.1),
+        [0, 0, 1],
+        false,
+      );
       if (d.id === 'wyvern') p.sphere(x + ca * 0.14, y + sa * 0.14, hz + 0.06, 0.07, shade(body, 0.1));
       break;
     }
@@ -158,7 +181,30 @@ export function drawEnemyModel(p: Painter, e: EnemyLook): void {
       // Arms
       p.rbox(x + sa * 0.25 * g, y - ca * 0.25 * g, bz + 0.02, 0.1 * g, 0.1 * g, 0.3 * g, a, shade(body, -0.08));
       p.rbox(x - sa * 0.25 * g, y + ca * 0.25 * g, bz + 0.02, 0.1 * g, 0.1 * g, 0.3 * g, a, shade(body, -0.08));
-      p.rbox(x + ca * 0.03, y + sa * 0.03, bz + 0.36 * g, 0.18 * g, 0.18 * g, 0.16 * g, a, shade(body, 0.08));
+      const hz2 = bz + 0.36 * g;
+      p.rbox(x + ca * 0.03, y + sa * 0.03, hz2, 0.18 * g, 0.18 * g, 0.16 * g, a, shade(body, 0.08));
+      // Eyes on the side facing the viewer when walking towards the camera/right.
+      if (Math.cos(a) * 0.6 + Math.sin(a) > -0.2) {
+        const ex = x + ca * 0.12 * g;
+        const ey = y + sa * 0.12 * g;
+        const sx = p.cam.px(ex, ey);
+        const sy = p.cam.py(ey, hz2 + 0.1 * g);
+        const R = Math.max(1, p.cam.scale * 0.022 * g);
+        p.ctx.fillStyle = d.id === 'golem' ? '#ffcf6a' : '#2a1f2f';
+        p.ctx.beginPath();
+        p.ctx.arc(sx - R * 1.8, sy, R, 0, Math.PI * 2);
+        p.ctx.arc(sx + R * 1.8, sy, R, 0, Math.PI * 2);
+        p.ctx.fill();
+      }
+      if (d.id === 'troll') {
+        // Club
+        p.line(
+          [x + sa * 0.3 * g, y - ca * 0.3 * g, bz + 0.05],
+          [x + sa * 0.3 * g + ca * 0.3, y - ca * 0.3 * g + sa * 0.3, bz + 0.3 * g],
+          '#7a5a3a',
+          0.07 * g,
+        );
+      }
       if (d.id === 'golem') p.sphere(x + ca * 0.12 * g, y + sa * 0.12 * g, bz + 0.2 * g, 0.05 * g, accent, 0.5);
       if (d.id === 'warlord') {
         p.rbox(x + ca * 0.03, y + sa * 0.03, bz + 0.52 * g, 0.2 * g, 0.2 * g, 0.04, a, accent);
@@ -198,12 +244,30 @@ export function drawEnemyModel(p: Painter, e: EnemyLook): void {
       const wing = 0.55 * g;
       const nx = -sa;
       const ny = ca;
-      p.face([[x - ca * 0.1, y - sa * 0.1, hz], [x + nx * wing, y + ny * wing, hz + 0.35 * flap], [x + nx * wing * 0.7 - ca * 0.35, y + ny * wing * 0.7 - sa * 0.35, hz]], shade(accent, -0.25), [0, 0, 1], false);
+      p.face(
+        [
+          [x - ca * 0.1, y - sa * 0.1, hz],
+          [x + nx * wing, y + ny * wing, hz + 0.35 * flap],
+          [x + nx * wing * 0.7 - ca * 0.35, y + ny * wing * 0.7 - sa * 0.35, hz],
+        ],
+        shade(accent, -0.25),
+        [0, 0, 1],
+        false,
+      );
       p.rbox(x, y, hz - 0.12, 0.6 * g * 0.6, 0.3 * g * 0.6, 0.24 * g * 0.6, a, body);
       p.line([x - ca * 0.2 * g, y - sa * 0.2 * g, hz], [x - ca * 0.55 * g, y - sa * 0.55 * g, hz - 0.1], body, 0.06 * g);
       p.line([x + ca * 0.15 * g, y + sa * 0.15 * g, hz], [x + ca * 0.32 * g, y + sa * 0.32 * g, hz + 0.2], body, 0.07 * g);
       p.rbox(x + ca * 0.38 * g, y + sa * 0.38 * g, hz + 0.16, 0.2 * g, 0.13 * g, 0.12 * g, a, shade(body, 0.08));
-      p.face([[x - ca * 0.1, y - sa * 0.1, hz], [x - nx * wing, y - ny * wing, hz + 0.35 * flap], [x - nx * wing * 0.7 - ca * 0.35, y - ny * wing * 0.7 - sa * 0.35, hz]], shade(accent, -0.1), [0, 0, 1], false);
+      p.face(
+        [
+          [x - ca * 0.1, y - sa * 0.1, hz],
+          [x - nx * wing, y - ny * wing, hz + 0.35 * flap],
+          [x - nx * wing * 0.7 - ca * 0.35, y - ny * wing * 0.7 - sa * 0.35, hz],
+        ],
+        shade(accent, -0.1),
+        [0, 0, 1],
+        false,
+      );
       break;
     }
   }

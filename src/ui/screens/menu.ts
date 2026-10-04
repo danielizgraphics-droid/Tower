@@ -28,7 +28,10 @@ export function menuScreen(app: App): Screen {
     fn();
   };
   const talentsBtn = h('button.btn.big.purple', { onclick: click(() => app.go({ name: 'talents' })) }, icon('star', 22), 'Talentos');
-  if (hasAffordableTalent(app)) talentsBtn.append(h('span', { style: 'position:absolute;top:-6px;right:-6px;width:16px;height:16px;border-radius:50%;background:#e5484d;border:3px solid #fff' }));
+  if (hasAffordableTalent(app))
+    talentsBtn.append(
+      h('span', { style: 'position:absolute;top:-6px;right:-6px;width:16px;height:16px;border-radius:50%;background:#e5484d;border:3px solid #fff' }),
+    );
   const el = h(
     'div.screen.dim',
     h(

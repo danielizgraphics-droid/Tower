@@ -61,13 +61,19 @@ export function gameScreen(app: App, route: Route): Screen {
   const livesStat = h('div.stat.lives.panel', h('div.badge', icon('heart', 18)), h('div', livesVal, h('div.bar', livesBar)));
   const goldStat = h('div.stat.gold.panel', h('div.badge', icon('coin', 18)), h('div', goldVal, h('div.sub', 'Oro')));
   const manaStat = h('div.stat.mana.panel', h('div.badge', icon('drop', 18)), h('div', manaVal, h('div.bar', manaBar)));
-  const waveStat = h('div.wave-box.panel', h('div.stat.wave', { style: 'padding:0;min-height:0' }, h('div.badge', icon('wave', 18)), h('div', waveVal, h('div.sub', 'Oleada'))), waveBtn, autoBtn);
+  const waveStat = h(
+    'div.wave-box.panel',
+    h('div.stat.wave', { style: 'padding:0;min-height:0' }, h('div.badge', icon('wave', 18)), h('div', waveVal, h('div.sub', 'Oleada'))),
+    waveBtn,
+    autoBtn,
+  );
   const topBar = h('div.top-bar', livesStat, waveStat, goldStat, manaStat);
   const preview = h('div.next-preview');
 
   const pauseBtn = h('button.btn.icon-only.ghost', { 'aria-label': 'Pausa' }, icon('pause', 20));
-  const speedBtns = [1, 2, 3].map((s) => h('button.btn.small', { 'data-speed': String(s) }, `×${s}`));
-  const cornerLeft = h('div.corner-left', pauseBtn, h('div.speed', speedBtns));
+  const speedLabel = h('span', '×1');
+  const speedBtn = h('button.btn.icon-only.ghost.speed-btn', { 'aria-label': 'Velocidad', title: 'Velocidad (F)' }, icon('fast', 16), speedLabel);
+  const cornerLeft = h('div.corner-left', pauseBtn, speedBtn);
   const augsEl = h('div.augs');
   const cornerRight = h('div.corner-right', augsEl);
 
@@ -91,7 +97,11 @@ export function gameScreen(app: App, route: Route): Screen {
         'div',
         h('h4', t.name),
         h('div', t.description),
-        h('div.muted', { style: 'margin-top:4px' }, `${DAMAGE_TYPES[t.damageType].name} · ${t.targetsAir ? 'tierra y aire' : 'solo tierra'} · ${t.role}`),
+        h(
+          'div.muted',
+          { style: 'margin-top:4px' },
+          `${DAMAGE_TYPES[t.damageType].name} · ${t.targetsAir ? 'tierra y aire' : 'solo tierra'} · ${t.role}`,
+        ),
       ),
     );
     cards.set(t.id, card);
@@ -103,16 +113,32 @@ export function gameScreen(app: App, route: Route): Screen {
   const spellBtns = new Map<SpellId, HTMLElement>();
   for (const s of SPELL_LIST) {
     if (!game.unlockedSpells.has(s.id)) continue;
-    const btn = h(`button.spell.${s.id}`, { 'aria-label': s.name }, h('div.cd'), icon(SPELL_ICON[s.id], 26), h('span.key', SPELL_KEYS[s.id]), h('span.mana-cost', String(s.mana)));
+    const btn = h(
+      `button.spell.${s.id}`,
+      { 'aria-label': s.name },
+      h('div.cd'),
+      icon(SPELL_ICON[s.id], 26),
+      h('span.key', SPELL_KEYS[s.id]),
+      h('span.mana-cost', String(s.mana)),
+    );
     btn.onclick = () => toggleSpell(s.id);
-    tip(btn, () => h('div', h('h4', s.name), h('div', s.description), h('div.muted', { style: 'margin-top:4px' }, `${s.mana} de maná · ${s.cooldown}s de recarga`)));
+    tip(btn, () =>
+      h(
+        'div',
+        h('h4', s.name),
+        h('div', s.description),
+        h('div.muted', { style: 'margin-top:4px' }, `${s.mana} de maná · ${s.cooldown}s de recarga`),
+      ),
+    );
     spellBtns.set(s.id, btn);
     spellsEl.append(btn);
   }
 
   const panel = h('div.tower-panel.panel');
   panel.style.display = 'none';
-  const hud = h('div.hud', topBar, preview, cornerLeft, cornerRight, buildBar, spellsEl, panel);
+  const rotateHint = h('div.rotate-hint', icon('refresh', 16), 'Gira el dispositivo para ver mejor el campo de batalla');
+  setTimeout(() => rotateHint.classList.add('fade'), 6000);
+  const hud = h('div.hud', topBar, preview, cornerLeft, cornerRight, buildBar, spellsEl, panel, rotateHint);
   const el = h('div', { style: 'position:absolute;inset:0' }, canvas, hud);
 
   // ------------------------------------------------------------ helpers
@@ -241,7 +267,12 @@ export function gameScreen(app: App, route: Route): Screen {
             'button.branch',
             { disabled: game.gold < cost },
             h('img', { src: towerPortrait(def.id, 4, i, 64), alt: '' }),
-            h('div', h('h4', b.name), h('p', b.description), h('span', { class: `cost${game.gold < cost ? ' bad' : ''}` }, icon('coin', 12), String(cost))),
+            h(
+              'div',
+              h('h4', b.name),
+              h('p', b.description),
+              h('span', { class: `cost${game.gold < cost ? ' bad' : ''}` }, icon('coin', 12), String(cost)),
+            ),
           );
           btn.onclick = () => doUpgrade(i);
           return btn;
@@ -261,29 +292,40 @@ export function gameScreen(app: App, route: Route): Screen {
     const targets = `${def.targetsGround ? 'Tierra' : ''}${def.targetsGround && effectiveTargetsAir(def, t.branch) ? ' y aire' : effectiveTargetsAir(def, t.branch) ? 'Aire' : ''}`;
     panel.replaceChildren(
       ...[
-      h(
-        'div.tp-head',
-        h('img', { src: towerPortrait(def.id, t.tier, t.branch, 64), alt: '' }),
         h(
-          'div',
-          { style: 'flex:1' },
-          h('h3', branch ? branch.name : def.name),
-          h('div', { style: 'margin-top:3px' }, h('span.tag', { style: `background:${DAMAGE_TYPES[dmgType].color};color:#2f2748` }, DAMAGE_TYPES[dmgType].name), h('span.muted.tiny', targets)),
-          tierDots,
+          'div.tp-head',
+          h('img', { src: towerPortrait(def.id, t.tier, t.branch, 64), alt: '' }),
+          h(
+            'div',
+            { style: 'flex:1' },
+            h('h3', branch ? branch.name : def.name),
+            h(
+              'div',
+              { style: 'margin-top:3px' },
+              h('span.tag', { style: `background:${DAMAGE_TYPES[dmgType].color};color:#2f2748` }, DAMAGE_TYPES[dmgType].name),
+              h('span.muted.tiny', targets),
+            ),
+            tierDots,
+          ),
+          h('button.btn.small.icon-only.ghost', { onclick: () => select(null), 'aria-label': 'Cerrar' }, icon('close', 16)),
         ),
-        h('button.btn.small.icon-only.ghost', { onclick: () => select(null), 'aria-label': 'Cerrar' }, icon('close', 16)),
-      ),
-      h(
-        'div.stats',
-        lines.map((l) => h('div.row', h('span.muted', l.label), h('span', h('b', l.value), l.delta ? h('span.delta', l.delta) : null))),
-      ),
-      targeting,
-      upgrade,
-      h(
-        'div.tp-actions',
-        h('button.btn.small.red', { onclick: () => doSell(), title: 'Atajo: S' }, icon('trash', 16), 'Vender', h('span.cost', { style: 'color:#fff' }, icon('coin', 12), String(game.sellValue(t)))),
-      ),
-      h('div.muted.tiny', { style: 'margin-top:8px;text-align:center' }, `${t.kills} bajas · ${formatNumber(t.damageDealt)} de daño`),
+        h(
+          'div.stats',
+          lines.map((l) => h('div.row', h('span.muted', l.label), h('span', h('b', l.value), l.delta ? h('span.delta', l.delta) : null))),
+        ),
+        targeting,
+        upgrade,
+        h(
+          'div.tp-actions',
+          h(
+            'button.btn.small.red',
+            { onclick: () => doSell(), title: 'Atajo: S' },
+            icon('trash', 16),
+            'Vender',
+            h('span.cost', { style: 'color:#fff' }, icon('coin', 12), String(game.sellValue(t))),
+          ),
+        ),
+        h('div.muted.tiny', { style: 'margin-top:8px;text-align:center' }, `${t.kills} bajas · ${formatNumber(t.damageDealt)} de daño`),
       ].filter((x): x is HTMLElement => !!x),
     );
   }
@@ -469,14 +511,10 @@ export function gameScreen(app: App, route: Route): Screen {
     if (autoWave && game.phase === 'build') startWave();
   };
   pauseBtn.onclick = () => openPause();
-  for (const b of speedBtns) {
-    b.onclick = () => {
-      sfx('click');
-      game.speed = Number(b.dataset.speed);
-      for (const x of speedBtns) toggleClass(x, 'on', x === b);
-    };
-  }
-  toggleClass(speedBtns[0], 'on', true);
+  speedBtn.onclick = () => {
+    sfx('click');
+    cycleSpeed();
+  };
 
   function startWave() {
     if (!game.canStartWave()) return;
@@ -491,7 +529,8 @@ export function gameScreen(app: App, route: Route): Screen {
   function cycleSpeed() {
     const next = game.speed >= 3 ? 1 : game.speed + 1;
     game.speed = next;
-    for (const x of speedBtns) toggleClass(x, 'on', Number(x.dataset.speed) === next);
+    speedLabel.textContent = `×${next}`;
+    toggleClass(speedBtn, 'on', next > 1);
   }
 
   let pauseModal: HTMLElement | null = null;
@@ -526,11 +565,16 @@ export function gameScreen(app: App, route: Route): Screen {
             {
               onclick: () => {
                 pauseModal!.style.display = 'none';
-                openSettings(app, hud, () => {
-                  if (pauseModal) pauseModal.style.display = '';
-                  renderer.view.showDamage = profile.settings.showDamageNumbers;
-                  renderer.view.shakeEnabled = profile.settings.screenShake;
-                }, []);
+                openSettings(
+                  app,
+                  hud,
+                  () => {
+                    if (pauseModal) pauseModal.style.display = '';
+                    renderer.view.showDamage = profile.settings.showDamageNumbers;
+                    renderer.view.shakeEnabled = profile.settings.screenShake;
+                  },
+                  [],
+                );
               },
             },
             icon('gear', 18),
@@ -583,7 +627,12 @@ export function gameScreen(app: App, route: Route): Screen {
         h('div.aug-title', h('h2', 'Elige una bendición'), h('div', `Oleada ${game.wavesCleared} superada · dura toda la partida`)),
         h('div.aug-cards', cardsEl),
         game.rerollsLeft > 0
-          ? h('button.btn.ghost', { onclick: () => (sfx('click'), game.rerollAugments()) }, icon('refresh', 18), `Renovar opciones (${game.rerollsLeft})`)
+          ? h(
+              'button.btn.ghost',
+              { onclick: () => (sfx('click'), game.rerollAugments()) },
+              icon('refresh', 18),
+              `Renovar opciones (${game.rerollsLeft})`,
+            )
           : null,
       ),
     );
@@ -693,42 +742,65 @@ export function gameScreen(app: App, route: Route): Screen {
       app.go({ name: 'menu' });
       return;
     }
-    setTimeout(() => {
-      sfx(victory ? 'victory' : 'defeat');
-      const modal = h(
-        'div.modal',
-        h(
-          'div.modal-card.panel',
-          h('div', { style: `color:${victory ? '#e2a01e' : '#a3362a'};display:flex;justify-content:center` }, icon(victory ? 'crown' : 'skull', 56)),
-          h('h2', victory ? '¡Victoria!' : 'Derrota'),
-          h('p.muted', victory ? `Has defendido ${mapDef.name}.` : `El castillo ha caído en la oleada ${game.wave}.`),
+    setTimeout(
+      () => {
+        sfx(victory ? 'victory' : 'defeat');
+        const modal = h(
+          'div.modal',
           h(
-            'div.results',
-            h('div.line', h('span', 'Oleadas superadas'), h('span', `${game.wavesCleared}/${game.totalWaves}`)),
-            h('div.line', h('span', 'Enemigos abatidos'), h('span', String(game.kills))),
-            h('div.line', h('span', 'Oro obtenido'), h('span', formatNumber(game.goldEarned))),
-            h('div.line', { style: 'background:#fff3c4' }, h('span', reward.firstClear ? 'Estrellas (¡primera victoria!)' : 'Estrellas'), h('span', { style: 'display:flex;gap:4px;align-items:center;color:#8a5a12' }, `+${reward.stars}`, icon('star', 16))),
+            'div.modal-card.panel',
+            h(
+              'div',
+              { style: `color:${victory ? '#e2a01e' : '#a3362a'};display:flex;justify-content:center` },
+              icon(victory ? 'crown' : 'skull', 56),
+            ),
+            h('h2', victory ? '¡Victoria!' : 'Derrota'),
+            h('p.muted', victory ? `Has defendido ${mapDef.name}.` : `El castillo ha caído en la oleada ${game.wave}.`),
+            h(
+              'div.results',
+              h('div.line', h('span', 'Oleadas superadas'), h('span', `${game.wavesCleared}/${game.totalWaves}`)),
+              h('div.line', h('span', 'Enemigos abatidos'), h('span', String(game.kills))),
+              h('div.line', h('span', 'Oro obtenido'), h('span', formatNumber(game.goldEarned))),
+              h(
+                'div.line',
+                { style: 'background:#fff3c4' },
+                h('span', reward.firstClear ? 'Estrellas (¡primera victoria!)' : 'Estrellas'),
+                h('span', { style: 'display:flex;gap:4px;align-items:center;color:#8a5a12' }, `+${reward.stars}`, icon('star', 16)),
+              ),
+            ),
+            reward.levelUps.length
+              ? h(
+                  'div',
+                  h('p', { style: 'margin:12px 0 4px;font-weight:800' }, 'Maestría de torres'),
+                  h(
+                    'div.levelups',
+                    reward.levelUps.map((l) =>
+                      h(
+                        'span.levelup',
+                        h('img', { src: towerPortrait(l.tower, 2, -1, 40) }),
+                        `${TOWERS[l.tower].name.replace('Torre de ', '')} nv. ${l.to}`,
+                      ),
+                    ),
+                  ),
+                )
+              : null,
+            h(
+              'div.actions',
+              h('button.btn', { onclick: () => (sfx('click'), app.go({ name: 'maps' })) }, icon('map', 18), 'Mapas'),
+              h('button.btn.purple', { onclick: () => (sfx('click'), app.go({ name: 'talents' })) }, icon('star', 18), 'Talentos'),
+              h(
+                'button.btn.primary',
+                { onclick: () => (sfx('click'), app.go({ name: 'game', map: mapDef.id, difficulty })) },
+                icon('refresh', 18),
+                victory ? 'Jugar de nuevo' : 'Reintentar',
+              ),
+            ),
           ),
-          reward.levelUps.length
-            ? h(
-                'div',
-                h('p', { style: 'margin:12px 0 4px;font-weight:800' }, 'Maestría de torres'),
-                h(
-                  'div.levelups',
-                  reward.levelUps.map((l) => h('span.levelup', h('img', { src: towerPortrait(l.tower, 2, -1, 40) }), `${TOWERS[l.tower].name.replace('Torre de ', '')} nv. ${l.to}`)),
-                ),
-              )
-            : null,
-          h(
-            'div.actions',
-            h('button.btn', { onclick: () => (sfx('click'), app.go({ name: 'maps' })) }, icon('map', 18), 'Mapas'),
-            h('button.btn.purple', { onclick: () => (sfx('click'), app.go({ name: 'talents' })) }, icon('star', 18), 'Talentos'),
-            h('button.btn.primary', { onclick: () => (sfx('click'), app.go({ name: 'game', map: mapDef.id, difficulty })) }, icon('refresh', 18), victory ? 'Jugar de nuevo' : 'Reintentar'),
-          ),
-        ),
-      );
-      hud.append(modal);
-    }, victory ? 900 : 1400);
+        );
+        hud.append(modal);
+      },
+      victory ? 900 : 1400,
+    );
   }
 
   // ------------------------------------------------------------ keyboard
@@ -821,7 +893,9 @@ export function gameScreen(app: App, route: Route): Screen {
         preview.style.display = '';
         preview.replaceChildren(
           h('span', 'Siguiente:'),
-          ...wavePreview(next).map((p) => h('span.e', h('img', { src: enemyPortrait(p.enemy, 48), alt: ENEMIES[p.enemy].name, title: ENEMIES[p.enemy].name }), `×${p.count}`)),
+          ...wavePreview(next).map((p) =>
+            h('span.e', h('img', { src: enemyPortrait(p.enemy, 48), alt: ENEMIES[p.enemy].name, title: ENEMIES[p.enemy].name }), `×${p.count}`),
+          ),
         );
       } else preview.style.display = 'none';
     }
@@ -836,9 +910,12 @@ export function gameScreen(app: App, route: Route): Screen {
   // Debug/test hook (used by automated screenshot tests).
   (window as unknown as { __game?: unknown }).__game = { game, renderer, tap };
 
+  let zoomedForPortrait = false;
+
   // Initial UI state
   renderer.insets = { top: 120, bottom: 120, left: 10, right: 10 };
-  if (tutorialStep === 0) hint('Elige una torre en la barra inferior y colócala en la hierba junto al camino. Los enemigos salen del portal violeta.');
+  if (tutorialStep === 0)
+    hint('Elige una torre en la barra inferior y colócala en la hierba junto al camino. Los enemigos salen del portal violeta.');
   renderAugs();
 
   return {
@@ -853,8 +930,20 @@ export function gameScreen(app: App, route: Route): Screen {
       const w = innerWidth;
       const hgt = innerHeight;
       const narrow = w < 640;
-      renderer.insets = { top: narrow ? 140 : hgt < 520 ? 60 : 110, bottom: narrow ? 100 : 112, left: 10, right: 10 };
+      const short = hgt < 520;
+      renderer.insets = short
+        ? { top: 44, bottom: 64, left: 6, right: 6 }
+        : narrow
+          ? { top: 130, bottom: 100, left: 6, right: 6 }
+          : { top: 100, bottom: 104, left: 10, right: 10 };
       renderer.resize(w, hgt, window.devicePixelRatio || 1);
+      const portrait = narrow && hgt > w * 1.2;
+      rotateHint.style.display = portrait ? '' : 'none';
+      // On tall phones the wide board would be tiny: start zoomed in (players can pinch/pan).
+      if (portrait && !zoomedForPortrait) {
+        zoomedForPortrait = true;
+        renderer.setZoom(1.9);
+      }
     },
     destroy() {
       hideTip();

@@ -2,27 +2,9 @@ import { AUGMENTS, AUGMENT_MAP, RARITY_WEIGHT } from '../data/augments';
 import { DAMAGE_TYPES, UNDEAD_HOLY_BONUS } from '../data/damage';
 import { ENEMIES } from '../data/enemies';
 import { DIFFICULTY } from '../data/maps';
-import {
-  BLESSING_DURATION,
-  BLESSING_RATE,
-  FROST_NOVA_DURATION,
-  METEOR_BURN,
-  METEOR_DAMAGE,
-  SPELLS,
-} from '../data/spells';
+import { BLESSING_DURATION, BLESSING_RATE, FROST_NOVA_DURATION, METEOR_BURN, METEOR_DAMAGE, SPELLS } from '../data/spells';
 import { BRANCH_TIER, MAX_TIER, TOWERS } from '../data/towers';
-import type {
-  AugmentDef,
-  DamageType,
-  Difficulty,
-  EnemyId,
-  GlobalStats,
-  MapDef,
-  SpellId,
-  TargetMode,
-  TowerId,
-  TowerStats,
-} from '../data/types';
+import type { AugmentDef, DamageType, Difficulty, EnemyId, GlobalStats, MapDef, SpellId, TargetMode, TowerId, TowerStats } from '../data/types';
 import { Emitter } from '../engine/events';
 import { dist2 } from '../engine/math';
 import { Rng } from '../engine/rng';
@@ -331,9 +313,7 @@ export class Game {
 
   rollAugments(): AugmentDef[] {
     const taken = new Set(this.augments.map((a) => a.id));
-    const pool = AUGMENTS.filter(
-      (a) => (a.stackable || !taken.has(a.id)) && (!a.requiresTower || this.unlockedTowers.includes(a.requiresTower)),
-    );
+    const pool = AUGMENTS.filter((a) => (a.stackable || !taken.has(a.id)) && (!a.requiresTower || this.unlockedTowers.includes(a.requiresTower)));
     const luck = this.global.augmentLuck;
     const weights = pool.map((a) => RARITY_WEIGHT[a.rarity] * (a.rarity === 'rare' ? 1 + luck : a.rarity === 'epic' ? 1 + luck * 2 : 1));
     const count = Math.min(pool.length, Math.round(this.global.augmentChoices));
@@ -434,7 +414,7 @@ export class Game {
 
   upgrade(t: Tower, branch?: number): boolean {
     if (t.tier >= MAX_TIER) return false;
-    const b = t.tier >= BRANCH_TIER ? (t.branch >= 0 ? t.branch : branch ?? -1) : t.branch;
+    const b = t.tier >= BRANCH_TIER ? (t.branch >= 0 ? t.branch : (branch ?? -1)) : t.branch;
     if (t.tier >= BRANCH_TIER && b < 0) return false;
     const cost = this.upgradeCost(t, b);
     if (cost === null || this.gold < cost) return false;
@@ -472,7 +452,13 @@ export class Game {
   // ------------------------------------------------------------ spells
 
   spellReady(id: SpellId): boolean {
-    return this.unlockedSpells.has(id) && this.spellCooldowns[id] <= 0 && this.mana >= SPELLS[id].mana && this.phase !== 'victory' && this.phase !== 'defeat';
+    return (
+      this.unlockedSpells.has(id) &&
+      this.spellCooldowns[id] <= 0 &&
+      this.mana >= SPELLS[id].mana &&
+      this.phase !== 'victory' &&
+      this.phase !== 'defeat'
+    );
   }
 
   castSpell(id: SpellId, x = 0, y = 0): boolean {
@@ -548,7 +534,8 @@ export class Game {
       // Regeneration (fire stops it)
       const def = e.def;
       if (def.regen && e.burnTime <= 0) e.hp = Math.min(e.maxHp, e.hp + e.maxHp * def.regen * dt);
-      if (def.shieldRegen && e.shieldIdle > 2 && e.maxShield > 0) e.shield = Math.min(e.maxShield, e.shield + def.shieldRegen * dt * (e.maxShield / Math.max(1, def.shield)));
+      if (def.shieldRegen && e.shieldIdle > 2 && e.maxShield > 0)
+        e.shield = Math.min(e.maxShield, e.shield + def.shieldRegen * dt * (e.maxShield / Math.max(1, def.shield)));
       if (def.heal) {
         e.healTimer += dt;
         if (e.healTimer >= 0.5) {
@@ -882,11 +869,26 @@ export class Game {
       const r = this.rng.range(0.6, 1.3) * Math.max(1, p.splash);
       this.spawnProjectile({
         kind: 'bomblet',
-        x: p.x, y: p.y, z: 0.1, sx: p.x, sy: p.y, sz: 0.1,
-        tx: p.x + Math.cos(a) * r, ty: p.y + Math.sin(a) * r,
-        target: null, vx: 0, vy: 0, speed: 0, duration: 0.45, arc: 0.6, maxTravel: 0, pierceLeft: 0,
+        x: p.x,
+        y: p.y,
+        z: 0.1,
+        sx: p.x,
+        sy: p.y,
+        sz: 0.1,
+        tx: p.x + Math.cos(a) * r,
+        ty: p.y + Math.sin(a) * r,
+        target: null,
+        vx: 0,
+        vy: 0,
+        speed: 0,
+        duration: 0.45,
+        arc: 0.6,
+        maxTravel: 0,
+        pierceLeft: 0,
         payload: { ...p.payload, damage: p.payload.damage * 0.4, stats: { ...p.payload.stats, bomblets: 0 } },
-        splash: 0.55, color: p.color, style: 'bomb',
+        splash: 0.55,
+        color: p.color,
+        style: 'bomb',
       });
     }
   }

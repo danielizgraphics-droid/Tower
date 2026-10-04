@@ -2,6 +2,7 @@ import type { Board, Tile } from '../game/board';
 import { shade } from './color';
 import { Painter } from './painter';
 import { Camera, DX, DY, HEIGHT_SCALE } from './projection';
+import { makeSprite, type Sprite } from './sprites';
 import type { Theme } from './theme';
 
 export const GRASS_H = 0.22;
@@ -16,8 +17,8 @@ const rnd = (seed: number, i: number) => {
   return v - Math.floor(v);
 };
 
-/** Draws everything static belonging to one board row. */
-export function drawTerrainRow(p: Painter, board: Board, theme: Theme, row: number): void {
+/** Draws the flat/static ground of one board row (no tall decorations). */
+export function drawGroundRow(p: Painter, board: Board, theme: Theme, row: number): void {
   const W = board.width;
   const H = board.height;
   for (let x = 0; x < W; x++) {
@@ -103,13 +104,15 @@ export function drawTerrainRow(p: Painter, board: Board, theme: Theme, row: numb
       }
     }
   }
-  // Tall decorations last so they overlap the row's ground.
-  for (let x = 0; x < W; x++) {
-    const t = board.tiles[row][x];
-    if (t.kind === 'tree') drawTrees(p, theme, t);
-    else if (t.kind === 'rock') drawRocks(p, theme, t);
-  }
 }
+
+/** Tall decoration of a tile (trees, rocks), drawn as a depth-sorted sprite. */
+export function drawDecor(p: Painter, theme: Theme, t: Tile): void {
+  if (t.kind === 'tree') drawTrees(p, theme, t);
+  else if (t.kind === 'rock') drawRocks(p, theme, t);
+}
+
+export const hasDecor = (t: Tile): boolean => t.kind === 'tree' || t.kind === 'rock';
 
 function drawSlabFront(p: Painter, theme: Theme, x: number, row: number): void {
   // Two bands: soil on top, stone below.
@@ -228,60 +231,87 @@ function drawRocks(p: Painter, theme: Theme, t: Tile): void {
   }
 }
 
+/** Max backing-store size for the ground bitmap (keeps memory sane when zoomed in). */
+const MAX_GROUND_PX = 4096;
+
 /**
- * Pre-rendered terrain, one bitmap per board row so moving entities can be
- * interleaved between rows (correct occlusion by trees and walls).
+ * Pre-rendered ground: a single bitmap with every tile, wall and the island
+ * slab, plus one sprite per decorated tile (trees, rocks) that the renderer
+ * depth-sorts together with towers and enemies.
  */
-export class TerrainCache {
-  rows: { canvas: HTMLCanvasElement; ox: number; oy: number }[] = [];
-  private key = '';
+export class GroundCache {
+  canvas: HTMLCanvasElement | null = null;
+  /** Offset of the bitmap's top-left from the world origin, at `scale` (CSS px). */
+  ox = 0;
+  oy = 0;
+  w = 0;
+  h = 0;
+  scale = 0;
+  decor: { x: number; y: number; sprite: Sprite }[] = [];
 
   constructor(
     private board: Board,
     private theme: Theme,
   ) {}
 
-  /** Rebuilds when scale/dpr changed. Returns true if rebuilt. */
-  ensure(scale: number, dpr: number): boolean {
-    const key = `${scale.toFixed(2)}@${dpr}`;
-    if (key === this.key) return false;
-    this.key = key;
+  build(scale: number, dpr: number): void {
+    this.scale = scale;
+    const board = this.board;
     const cam = new Camera();
     cam.scale = scale;
-    cam.rows = this.board.height;
+    cam.rows = board.height;
+    const W = board.width;
+    const H = board.height;
+    const left = cam.px(0, H) - scale * 1.2;
+    const right = cam.px(W, 0) + scale * 1.2;
+    const top = cam.py(0, 0.6);
+    const bottom = cam.py(H, -SLAB) + scale * 1.6;
+    this.w = right - left;
+    this.h = bottom - top;
+    this.ox = left;
+    this.oy = top;
+    const res = Math.min(dpr, MAX_GROUND_PX / this.w, MAX_GROUND_PX / this.h);
+    const canvas = this.canvas ?? document.createElement('canvas');
+    canvas.width = Math.max(1, Math.ceil(this.w * res));
+    canvas.height = Math.max(1, Math.ceil(this.h * res));
+    const ctx = canvas.getContext('2d')!;
+    ctx.setTransform(res, 0, 0, res, -left * res, -top * res);
+    ctx.clearRect(left, top, this.w, this.h);
     const p = new Painter(cam);
-    this.rows = [];
-    const W = this.board.width;
-    for (let r = 0; r < this.board.height; r++) {
-      // Bounds of the strip relative to world origin (camera ox = oy = 0).
-      const left = cam.px(0, r + 1) - scale * 0.6;
-      const right = cam.px(W, r) + scale * (DX + 0.6);
-      const topY = cam.py(r, 2.2);
-      const bottomY = cam.py(r + 1, -SLAB) + scale * 0.1;
-      const w = Math.ceil((right - left) * dpr);
-      const h = Math.ceil((bottomY - topY) * dpr);
-      const canvas = document.createElement('canvas');
-      canvas.width = Math.max(1, w);
-      canvas.height = Math.max(1, h);
-      const ctx = canvas.getContext('2d')!;
-      ctx.setTransform(dpr, 0, 0, dpr, -left * dpr, -topY * dpr);
-      p.ctx = ctx;
-      drawTerrainRow(p, this.board, this.theme, r);
-      this.rows.push({ canvas, ox: left, oy: topY });
-    }
-    return true;
+    p.ctx = ctx;
+    drawIslandShadow(ctx, cam, board);
+    for (let r = 0; r < H; r++) drawGroundRow(p, board, this.theme, r);
+    this.canvas = canvas;
+
+    this.decor = [];
+    for (const row of board.tiles)
+      for (const t of row) {
+        if (!hasDecor(t)) continue;
+        const sprite = makeSprite(scale, dpr, H, 1.8, 2.3, 0.45, 0.75, { x: t.x + 0.5, y: t.y + 0.5, z: GRASS_H }, (sp) =>
+          drawDecor(sp, this.theme, t),
+        );
+        this.decor.push({ x: t.x + 0.5, y: t.y + 0.5, sprite });
+      }
   }
 
-  drawRow(ctx: CanvasRenderingContext2D, r: number, cam: Camera): void {
-    const row = this.rows[r];
-    if (!row) return;
-    const k = cam.scale / parseFloat(this.key);
-    ctx.drawImage(row.canvas, cam.ox + row.ox * k, cam.oy + row.oy * k, (row.canvas.width / this.dpr) * k, (row.canvas.height / this.dpr) * k);
+  draw(ctx: CanvasRenderingContext2D, cam: Camera): void {
+    if (!this.canvas) return;
+    const k = cam.scale / this.scale;
+    ctx.drawImage(this.canvas, cam.ox + this.ox * k, cam.oy + this.oy * k, this.w * k, this.h * k);
   }
+}
 
-  private get dpr(): number {
-    return parseFloat(this.key.split('@')[1]);
-  }
+function drawIslandShadow(ctx: CanvasRenderingContext2D, cam: Camera, b: Board): void {
+  const c = cam.project(b.width / 2 + 0.4, b.height / 2 + 0.6, -SLAB - 0.6);
+  const w = (b.width + b.height * DX) * cam.scale * 0.55;
+  const h = b.height * DY * cam.scale * 0.7;
+  const g = ctx.createRadialGradient(c.x, c.y, 0, c.x, c.y, w);
+  g.addColorStop(0, 'rgba(30,25,70,0.28)');
+  g.addColorStop(1, 'rgba(30,25,70,0)');
+  ctx.fillStyle = g;
+  ctx.beginPath();
+  ctx.ellipse(c.x, c.y + h * 0.3, w, h, 0, 0, Math.PI * 2);
+  ctx.fill();
 }
 
 /** Height of the walkable surface at a world point. */

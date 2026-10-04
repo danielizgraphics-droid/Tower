@@ -14,7 +14,16 @@ describe('maps', () => {
       let buildableNearPath = 0;
       for (let y = 0; y < b.height; y++)
         for (let x = 0; x < b.width; x++)
-          if (b.isBuildable(x, y) && [[1,0],[-1,0],[0,1],[0,-1]].some(([dx, dy]) => b.isWalkable(x + dx, y + dy))) buildableNearPath++;
+          if (
+            b.isBuildable(x, y) &&
+            [
+              [1, 0],
+              [-1, 0],
+              [0, 1],
+              [0, -1],
+            ].some(([dx, dy]) => b.isWalkable(x + dx, y + dy))
+          )
+            buildableNearPath++;
       expect(buildableNearPath).toBeGreaterThan(30);
     });
   }

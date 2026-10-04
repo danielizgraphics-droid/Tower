@@ -35,6 +35,8 @@ for (let i = 0; i < SEG; i++) {
 export class Painter {
   ctx!: CanvasRenderingContext2D;
   outline = 'rgba(40,32,60,0.18)';
+  /** When false every primitive is skipped (used to split models into static/dynamic layers). */
+  enabled = true;
 
   constructor(public cam: Camera) {}
 
@@ -47,6 +49,7 @@ export class Painter {
 
   /** Generic convex prism from a footprint polygon (world x/y). */
   prism(foot: P2[], z: number, h: number, color: string, top: string | null = null, outline = true): void {
+    if (!this.enabled) return;
     const ctx = this.ctx;
     const n = foot.length;
     // Orientation of footprint (signed area) to compute outward normals.
@@ -137,6 +140,7 @@ export class Painter {
    * as level instead of sheared.
    */
   cylinder(cx: number, cy: number, z: number, r: number, h: number, color: string, top: string | null = null, rTop = r): void {
+    if (!this.enabled) return;
     const ctx = this.ctx;
     const cam = this.cam;
     const S = cam.scale;
@@ -164,6 +168,7 @@ export class Painter {
 
   /** Screen-aligned flat ellipse (lid of a round object). */
   cap(cx: number, cy: number, z: number, r: number, fill: string, stroke = true): void {
+    if (!this.enabled) return;
     const ctx = this.ctx;
     const S = this.cam.scale;
     ctx.beginPath();
@@ -175,6 +180,7 @@ export class Painter {
 
   /** Screen-aligned ring on a round object (halos, coils). */
   capRing(cx: number, cy: number, z: number, r: number, stroke: string, width: number): void {
+    if (!this.enabled) return;
     const ctx = this.ctx;
     const S = this.cam.scale;
     ctx.beginPath();
@@ -186,6 +192,7 @@ export class Painter {
 
   /** Flat circle on a horizontal plane. */
   disc(cx: number, cy: number, z: number, r: number, fill: string, stroke = true): void {
+    if (!this.enabled) return;
     const ctx = this.ctx;
     ctx.beginPath();
     for (let i = 0; i < SEG; i++) {
@@ -202,6 +209,7 @@ export class Painter {
 
   /** Ring outline on a horizontal plane. */
   ring(cx: number, cy: number, z: number, r: number, stroke: string, width: number, dash?: number[]): void {
+    if (!this.enabled) return;
     const ctx = this.ctx;
     ctx.beginPath();
     const n = Math.max(24, Math.round(r * 16));
@@ -221,6 +229,7 @@ export class Painter {
 
   /** Cone with apex at (cx, cy, z+h). Negative h points the apex down. */
   cone(cx: number, cy: number, z: number, r: number, h: number, color: string): void {
+    if (!this.enabled) return;
     const ctx = this.ctx;
     const cam = this.cam;
     const S = cam.scale;
@@ -244,6 +253,7 @@ export class Painter {
 
   /** Four-sided pyramid roof over a rectangle. */
   pyramid(x: number, y: number, z: number, w: number, d: number, h: number, color: string): void {
+    if (!this.enabled) return;
     const ctx = this.ctx;
     const ax = x + w / 2;
     const ay = y + d / 2;
@@ -271,7 +281,14 @@ export class Painter {
       const slope = h / run;
       const nz = 1 / Math.sqrt(1 + slope * slope);
       const k = slope * nz;
-      faces.push({ pts: [[a[0], a[1], z], [b[0], b[1], z], [ax, ay, az]], n: [nx * k, ny * k, nz] });
+      faces.push({
+        pts: [
+          [a[0], a[1], z],
+          [b[0], b[1], z],
+          [ax, ay, az],
+        ],
+        n: [nx * k, ny * k, nz],
+      });
     }
     for (const f of faces) {
       const [nx, ny, nz] = f.n;
@@ -287,30 +304,120 @@ export class Painter {
 
   /** Square frustum (tapered box) centred on (cx, cy). */
   frustum(cx: number, cy: number, z: number, w0: number, w1: number, h: number, color: string, top: string | null = null): void {
+    if (!this.enabled) return;
     const a = w0 / 2;
     const b = w1 / 2;
     const z1 = z + h;
     const slope = (a - b) / h;
     // Back, right, front faces (left is never visible).
-    this.face([[cx - a, cy - a, z], [cx + a, cy - a, z], [cx + b, cy - b, z1], [cx - b, cy - b, z1]], color, [0, -1, slope]);
-    this.face([[cx + a, cy - a, z], [cx + a, cy + a, z], [cx + b, cy + b, z1], [cx + b, cy - b, z1]], color, [1, 0, slope]);
-    this.face([[cx - a, cy + a, z], [cx + a, cy + a, z], [cx + b, cy + b, z1], [cx - b, cy + b, z1]], color, [0, 1, slope]);
-    this.flat([[cx - b, cy - b], [cx + b, cy - b], [cx + b, cy + b], [cx - b, cy + b]], z1, top ?? shade(color, faceShade(0, 0, 1)));
+    this.face(
+      [
+        [cx - a, cy - a, z],
+        [cx + a, cy - a, z],
+        [cx + b, cy - b, z1],
+        [cx - b, cy - b, z1],
+      ],
+      color,
+      [0, -1, slope],
+    );
+    this.face(
+      [
+        [cx + a, cy - a, z],
+        [cx + a, cy + a, z],
+        [cx + b, cy + b, z1],
+        [cx + b, cy - b, z1],
+      ],
+      color,
+      [1, 0, slope],
+    );
+    this.face(
+      [
+        [cx - a, cy + a, z],
+        [cx + a, cy + a, z],
+        [cx + b, cy + b, z1],
+        [cx - b, cy + b, z1],
+      ],
+      color,
+      [0, 1, slope],
+    );
+    this.flat(
+      [
+        [cx - b, cy - b],
+        [cx + b, cy - b],
+        [cx + b, cy + b],
+        [cx - b, cy + b],
+      ],
+      z1,
+      top ?? shade(color, faceShade(0, 0, 1)),
+    );
   }
 
   /** Two-sided gable roof along the x axis. */
   gable(x: number, y: number, z: number, w: number, d: number, h: number, color: string, alongY = false): void {
+    if (!this.enabled) return;
     if (alongY) {
       // Ridge along y: slopes face −x and +x, gables face ±y.
       const rx = x + w / 2;
-      this.quad([[x, y, z], [rx, y, z + h], [rx, y + d, z + h], [x, y + d, z]], color, [-h, 0, w / 2]);
-      this.quad([[rx, y, z + h], [x + w, y, z], [x + w, y + d, z], [rx, y + d, z + h]], color, [h, 0, w / 2]);
-      this.tri([[x, y + d, z], [x + w, y + d, z], [rx, y + d, z + h]], color, [0, 1, 0]);
+      this.quad(
+        [
+          [x, y, z],
+          [rx, y, z + h],
+          [rx, y + d, z + h],
+          [x, y + d, z],
+        ],
+        color,
+        [-h, 0, w / 2],
+      );
+      this.quad(
+        [
+          [rx, y, z + h],
+          [x + w, y, z],
+          [x + w, y + d, z],
+          [rx, y + d, z + h],
+        ],
+        color,
+        [h, 0, w / 2],
+      );
+      this.tri(
+        [
+          [x, y + d, z],
+          [x + w, y + d, z],
+          [rx, y + d, z + h],
+        ],
+        color,
+        [0, 1, 0],
+      );
     } else {
       const ry = y + d / 2;
-      this.quad([[x, y, z], [x + w, y, z], [x + w, ry, z + h], [x, ry, z + h]], color, [0, -h, d / 2]);
-      this.quad([[x, ry, z + h], [x + w, ry, z + h], [x + w, y + d, z], [x, y + d, z]], color, [0, h, d / 2]);
-      this.tri([[x + w, y, z], [x + w, y + d, z], [x + w, ry, z + h]], color, [1, 0, 0]);
+      this.quad(
+        [
+          [x, y, z],
+          [x + w, y, z],
+          [x + w, ry, z + h],
+          [x, ry, z + h],
+        ],
+        color,
+        [0, -h, d / 2],
+      );
+      this.quad(
+        [
+          [x, ry, z + h],
+          [x + w, ry, z + h],
+          [x + w, y + d, z],
+          [x, y + d, z],
+        ],
+        color,
+        [0, h, d / 2],
+      );
+      this.tri(
+        [
+          [x + w, y, z],
+          [x + w, y + d, z],
+          [x + w, ry, z + h],
+        ],
+        color,
+        [1, 0, 0],
+      );
     }
   }
 
@@ -323,6 +430,7 @@ export class Painter {
 
   /** Arbitrary planar face with a normal (culled when facing away). */
   face(pts: [number, number, number][], color: string, n: [number, number, number], cull = true): void {
+    if (!this.enabled) return;
     const l = Math.hypot(n[0], n[1], n[2]) || 1;
     const nx = n[0] / l;
     const ny = n[1] / l;
@@ -337,8 +445,41 @@ export class Painter {
     this.strokeThin();
   }
 
+  /** Stylised flame (teardrop) standing on (cx, cy, z). `t` animates the flicker. */
+  flame(cx: number, cy: number, z: number, w: number, h: number, t: number, outer = '#ff7a2b', inner = '#ffd25a'): void {
+    if (!this.enabled) return;
+    const ctx = this.ctx;
+    const S = this.cam.scale;
+    const x = this.cam.px(cx, cy);
+    const y = this.cam.py(cy, z);
+    const draw = (ww: number, hh: number, color: string, phase: number) => {
+      const W = ww * S;
+      const H = hh * S * (0.9 + Math.sin(t * 11 + phase) * 0.08 + Math.sin(t * 17 + phase * 2) * 0.05);
+      const sway = Math.sin(t * 7 + phase) * W * 0.25;
+      ctx.beginPath();
+      ctx.moveTo(x - W, y);
+      ctx.bezierCurveTo(x - W * 1.05, y - H * 0.45, x - W * 0.35 + sway, y - H * 0.6, x + sway, y - H);
+      ctx.bezierCurveTo(x + W * 0.35 + sway, y - H * 0.6, x + W * 1.05, y - H * 0.45, x + W, y);
+      ctx.quadraticCurveTo(x, y + W * 0.45, x - W, y);
+      ctx.closePath();
+      ctx.fillStyle = color;
+      ctx.fill();
+    };
+    const g = ctx.createRadialGradient(x, y - h * S * 0.3, 1, x, y - h * S * 0.3, h * S * 1.4);
+    g.addColorStop(0, 'rgba(255,160,60,0.35)');
+    g.addColorStop(1, 'rgba(255,120,40,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(x, y - h * S * 0.3, h * S * 1.4, 0, Math.PI * 2);
+    ctx.fill();
+    draw(w, h, outer, 0);
+    draw(w * 0.62, h * 0.72, inner, 1.7);
+    draw(w * 0.3, h * 0.4, '#fff6d0', 3.1);
+  }
+
   /** Shaded sphere. */
   sphere(cx: number, cy: number, z: number, r: number, color: string, glow = 0): void {
+    if (!this.enabled) return;
     const ctx = this.ctx;
     const x = this.cam.px(cx, cy);
     const y = this.cam.py(cy, z);
@@ -364,6 +505,7 @@ export class Painter {
 
   /** Soft ground shadow (ellipse on the ground plane). */
   shadow(cx: number, cy: number, z: number, r: number, alpha = 0.22): void {
+    if (!this.enabled) return;
     const ctx = this.ctx;
     ctx.beginPath();
     for (let i = 0; i < SEG; i++) {
@@ -378,6 +520,7 @@ export class Painter {
   }
 
   line(a: [number, number, number], b: [number, number, number], color: string, width: number): void {
+    if (!this.enabled) return;
     const ctx = this.ctx;
     ctx.beginPath();
     this.moveTo(a[0], a[1], a[2]);
@@ -390,6 +533,7 @@ export class Painter {
 
   /** Flat polygon on a horizontal plane. */
   flat(pts: P2[], z: number, fill: string): void {
+    if (!this.enabled) return;
     const ctx = this.ctx;
     ctx.beginPath();
     pts.forEach(([x, y], i) => (i === 0 ? this.moveTo(x, y, z) : this.lineTo(x, y, z)));
@@ -400,6 +544,7 @@ export class Painter {
 
   /** Vertical flat banner/flag facing the viewer. */
   flag(x: number, y: number, z: number, w: number, h: number, color: string, wave: number): void {
+    if (!this.enabled) return;
     const ctx = this.ctx;
     ctx.beginPath();
     this.moveTo(x, y, z);

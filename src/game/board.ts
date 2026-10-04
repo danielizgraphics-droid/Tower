@@ -121,9 +121,7 @@ function tracePath(board: Board, from: { x: number; y: number }, to: { x: number
     [0, -1],
   ];
   while (cur.x !== to.x || cur.y !== to.y) {
-    const next = dirs
-      .map(([dx, dy]) => ({ x: cur.x + dx, y: cur.y + dy }))
-      .filter((p) => board.isWalkable(p.x, p.y) && !seen.has(`${p.x},${p.y}`));
+    const next = dirs.map(([dx, dy]) => ({ x: cur.x + dx, y: cur.y + dy })).filter((p) => board.isWalkable(p.x, p.y) && !seen.has(`${p.x},${p.y}`));
     if (next.length === 0) throw new Error(`Map ${board.def.id}: path dead end at ${cur.x},${cur.y}`);
     if (next.length > 1) throw new Error(`Map ${board.def.id}: path fork at ${cur.x},${cur.y}`);
     cur = next[0];

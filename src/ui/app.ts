@@ -20,11 +20,7 @@ export interface Screen {
 }
 
 export type Route =
-  | { name: 'menu' }
-  | { name: 'maps' }
-  | { name: 'talents'; tab?: string }
-  | { name: 'codex' }
-  | { name: 'game'; map: string; difficulty: Difficulty };
+  { name: 'menu' } | { name: 'maps' } | { name: 'talents'; tab?: string } | { name: 'codex' } | { name: 'game'; map: string; difficulty: Difficulty };
 
 type ScreenFactory = (app: App, route: Route) => Screen;
 

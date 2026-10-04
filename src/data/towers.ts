@@ -108,7 +108,7 @@ const defs: TowerDef[] = [
         visual: { body: '#b9b2a6', accent: '#7a4a2a', fx: '#d9c09a' },
         steps: [
           { cost: 260, add: { damage: 45, pierce: 4, armorDamage: 0.5 } },
-          { cost: 380, add: { damage: 80, knockback: 0.3 } },
+          { cost: 380, add: { damage: 60, knockback: 0.3 } },
         ],
       },
       {
@@ -169,7 +169,7 @@ const defs: TowerDef[] = [
         visual: { body: '#a9a39a', accent: '#5a5f6a', fx: '#ffb347' },
         steps: [
           { cost: 260, add: { range: 2.6, minRange: 1.5, splash: 0.6, damage: 35 }, mul: { rate: 0.85 } },
-          { cost: 380, add: { damage: 60, splash: 0.3, burnDps: 12, burnDuration: 3 } },
+          { cost: 380, add: { damage: 45, splash: 0.3, burnDps: 12, burnDuration: 3 } },
         ],
       },
       {
@@ -217,7 +217,7 @@ const defs: TowerDef[] = [
     damageType: 'arcane',
     targetsGround: true,
     targetsAir: true,
-    base: { damage: 18, range: 3.0, rate: 0.8, projectileSpeed: 8 },
+    base: { damage: 20, range: 3.0, rate: 0.85, projectileSpeed: 8 },
     tiers: [
       { cost: 75, add: { damage: 8 } },
       { cost: 120, add: { damage: 10, range: 0.3, rate: 0.1 } },
@@ -230,8 +230,8 @@ const defs: TowerDef[] = [
         attack: 'chain',
         visual: { body: '#d5d0e6', accent: '#6a4fc9', fx: '#c3a8ff' },
         steps: [
-          { cost: 250, add: { chains: 3, damage: 20, chainFalloff: 0.05 } },
-          { cost: 360, add: { chains: 3, damage: 25 } },
+          { cost: 250, add: { chains: 2, damage: 20, chainFalloff: 0.05 } },
+          { cost: 360, add: { chains: 3, damage: 15 } },
         ],
       },
       {
@@ -241,8 +241,8 @@ const defs: TowerDef[] = [
         attack: 'orb',
         visual: { body: '#cfc8e0', accent: '#3b2a6b', fx: '#9a6bff' },
         steps: [
-          { cost: 270, add: { damage: 30, splash: 0.5, projectileSpeed: -5.5 }, mul: { rate: 0.55 } },
-          { cost: 400, add: { damage: 45, splash: 0.2, slow: 0.25, slowDuration: 1 } },
+          { cost: 270, add: { damage: 45, splash: 0.5, projectileSpeed: -5.5 }, mul: { rate: 0.55 } },
+          { cost: 400, add: { damage: 60, splash: 0.2, slow: 0.25, slowDuration: 1 } },
         ],
       },
       {
@@ -282,15 +282,15 @@ const defs: TowerDef[] = [
     description: 'Lanzallamas de corto alcance. Quema y funde armaduras.',
     role: 'Quemadura',
     tags: ['elemental'],
-    cost: 130,
+    cost: 140,
     attack: 'cone',
     damageType: 'fire',
     targetsGround: true,
     targetsAir: false,
-    base: { damage: 5, range: 2.0, rate: 4, coneAngle: 26, burnDps: 6, burnDuration: 2.5 },
+    base: { damage: 3, range: 2.0, rate: 3.2, coneAngle: 26, burnDps: 5, burnDuration: 2.5 },
     tiers: [
-      { cost: 95, add: { damage: 2, burnDps: 3 } },
-      { cost: 150, add: { damage: 3, range: 0.3, burnDps: 4 } },
+      { cost: 95, add: { damage: 1.5, burnDps: 2 } },
+      { cost: 150, add: { damage: 2, range: 0.3, burnDps: 3 } },
     ],
     branches: [
       {
@@ -300,8 +300,8 @@ const defs: TowerDef[] = [
         attack: 'beam',
         visual: { body: '#b8aca4', accent: '#d9442b', fx: '#ff6a2b' },
         steps: [
-          { cost: 280, add: { damage: 4, range: 0.6, beamRamp: 1, beamRampMax: 4 }, mul: { rate: 1.5 } },
-          { cost: 420, add: { damage: 6, beamRampMax: 3 } },
+          { cost: 280, add: { damage: 4, range: 0.6, beamRamp: 0.8, beamRampMax: 2.5 }, mul: { rate: 1.5 } },
+          { cost: 420, add: { damage: 6, beamRampMax: 2 } },
         ],
       },
       {
@@ -483,10 +483,10 @@ const defs: TowerDef[] = [
     damageType: 'poison',
     targetsGround: true,
     targetsAir: false,
-    base: { damage: 4, range: 2.9, rate: 0.55, projectileSpeed: 5, splash: 0.8, poisonDps: 7, poisonDuration: 4, poisonStacks: 3 },
+    base: { damage: 4, range: 2.9, rate: 0.55, projectileSpeed: 5, splash: 0.8, poisonDps: 5, poisonDuration: 4, poisonStacks: 3 },
     tiers: [
-      { cost: 70, add: { poisonDps: 4 } },
-      { cost: 110, add: { poisonDps: 5, splash: 0.15, poisonStacks: 1 } },
+      { cost: 70, add: { poisonDps: 3 } },
+      { cost: 110, add: { poisonDps: 4, splash: 0.15, poisonStacks: 1 } },
     ],
     branches: [
       {
@@ -505,8 +505,8 @@ const defs: TowerDef[] = [
         description: 'Corroe la armadura y deja a los enemigos expuestos.',
         visual: { body: '#c2c7b0', accent: '#b8c42f', fx: '#e8f25f' },
         steps: [
-          { cost: 210, add: { armorShred: 18, armorDamage: 0.6, vulnerability: 0.1, vulnerabilityDuration: 3 } },
-          { cost: 320, add: { armorShred: 30, vulnerability: 0.1 } },
+          { cost: 210, add: { armorShred: 18, armorDamage: 0.6, vulnerability: 0.1, vulnerabilityDuration: 3, poisonDps: 4 } },
+          { cost: 320, add: { armorShred: 30, vulnerability: 0.1, poisonDps: 6 } },
         ],
       },
       {
@@ -515,8 +515,8 @@ const defs: TowerDef[] = [
         description: 'Convierte a los enemigos en oro. Genera oro extra en cada oleada.',
         visual: { body: '#d2c9a8', accent: '#d9a62b', fx: '#ffd84a' },
         steps: [
-          { cost: 200, add: { goldChance: 0.25, goldAmount: 4, waveGold: 15 } },
-          { cost: 300, add: { goldChance: 0.2, goldAmount: 3, waveGold: 25 } },
+          { cost: 200, add: { goldChance: 0.25, goldAmount: 4, waveGold: 15, poisonDps: 3 } },
+          { cost: 300, add: { goldChance: 0.2, goldAmount: 3, waveGold: 25, poisonDps: 4 } },
         ],
       },
     ],
@@ -594,7 +594,12 @@ const defs: TowerDef[] = [
         talent('Ira sagrada', 'Juicio: +15% daño por rango.', [pct('sanctum', 'damage', 0.15, 1)]),
         talent('Profecía', 'Oráculo: +10 de oro por oleada por rango.', [flat('sanctum', 'waveGold', 10, 2)]),
       ],
-      capstone: talent('Bendición', 'Todos los santuarios: +5% aura de daño y +10% alcance.', [flat('sanctum', 'auraDamage', 0.05), pct('sanctum', 'range', 0.1)], 1),
+      capstone: talent(
+        'Bendición',
+        'Todos los santuarios: +5% aura de daño y +10% alcance.',
+        [flat('sanctum', 'auraDamage', 0.05), pct('sanctum', 'range', 0.1)],
+        1,
+      ),
     },
   },
   // ------------------------------------------------------------------ 10. Obelisk
@@ -604,12 +609,12 @@ const defs: TowerDef[] = [
     description: 'Magia oscura que atraviesa armaduras y ralentiza a sus víctimas.',
     role: 'Oscuridad',
     tags: ['magic', 'dark'],
-    cost: 160,
+    cost: 150,
     attack: 'projectile',
     damageType: 'shadow',
     targetsGround: true,
     targetsAir: true,
-    base: { damage: 26, range: 3.1, rate: 0.7, projectileSpeed: 7, slow: 0.15, slowDuration: 1 },
+    base: { damage: 30, range: 3.1, rate: 0.7, projectileSpeed: 7, slow: 0.15, slowDuration: 1 },
     tiers: [
       { cost: 115, add: { damage: 10 } },
       { cost: 175, add: { damage: 14, range: 0.3 } },
@@ -621,8 +626,8 @@ const defs: TowerDef[] = [
         description: 'Ejecuta a los enemigos debilitados y se fortalece con cada alma.',
         visual: { body: '#5d566b', accent: '#7cf2c8', fx: '#7cf2c8' },
         steps: [
-          { cost: 320, add: { damage: 20, execute: 0.12, soulStacks: 1 } },
-          { cost: 460, add: { execute: 0.06, soulStacks: 1, bossDamage: 0.4 } },
+          { cost: 320, add: { damage: 35, execute: 0.12, soulStacks: 1 } },
+          { cost: 460, add: { damage: 30, execute: 0.06, soulStacks: 1, bossDamage: 0.4 } },
         ],
       },
       {
@@ -643,7 +648,7 @@ const defs: TowerDef[] = [
         visual: { body: '#4f4866', accent: '#6b4fd9', fx: '#a68cff' },
         steps: [
           { cost: 330, add: { pull: 1.5, splash: 0.9, range: 0.5 }, mul: { damage: 0.8, rate: 0.45 } },
-          { cost: 470, add: { pull: 1, damage: 40, splash: 0.3 } },
+          { cost: 470, add: { pull: 1, damage: 60, splash: 0.3 } },
         ],
       },
     ],

@@ -8,7 +8,11 @@ type Attrs = Record<string, unknown> & {
  * Tiny hyperscript helper: h('div.card.big', { onclick }, children).
  * Supports `on*` listeners, `style` objects, data-* and boolean attributes.
  */
-export function h<K extends keyof HTMLElementTagNameMap>(tag: K | `${K}.${string}` | `${K}#${string}`, attrs?: Attrs | Child, ...children: Child[]): HTMLElementTagNameMap[K] {
+export function h<K extends keyof HTMLElementTagNameMap>(
+  tag: K | `${K}.${string}` | `${K}#${string}`,
+  attrs?: Attrs | Child,
+  ...children: Child[]
+): HTMLElementTagNameMap[K] {
   const [name, ...classes] = tag.split('.');
   const [tagName, id] = name.split('#');
   const el = document.createElement(tagName as K);

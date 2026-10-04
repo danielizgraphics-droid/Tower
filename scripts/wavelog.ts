@@ -2,19 +2,21 @@ import { MAPS } from '../src/data/maps';
 import { AutoPlayer, ALL_TOWERS, simulate } from '../src/game/autoplay';
 import { Game } from '../src/game/game';
 import { ModifierSet } from '../src/game/modifiers';
-import { generateWave, waveHpMultiplier } from '../src/game/waves';
-import { ENEMIES } from '../src/data/enemies';
+import type { Difficulty } from '../src/data/types';
 
-const map = MAPS.find((m) => m.id === (process.argv[2] ?? 'meadow'))!;
-const g = new Game({ map, difficulty: 'normal', mods: new ModifierSet(), unlockedTowers: ALL_TOWERS, seed: 1 });
-const p = new AutoPlayer(g, ALL_TOWERS, 1);
+const [mapId = 'meadow', diff = 'normal', seed = '2'] = process.argv.slice(2);
+const map = MAPS.find((m) => m.id === mapId)!;
+const g = new Game({ map, difficulty: diff as Difficulty, mods: new ModifierSet(), unlockedTowers: ALL_TOWERS, seed: +seed });
+const p = new AutoPlayer(g, ALL_TOWERS, +seed);
+let livesBefore = g.lives;
 g.events.on('waveCleared', ({ wave }) => {
-  const w = generateWave(map, wave);
-  const pool = w.groups.reduce((a, gr) => { const d = ENEMIES[gr.enemy]; return a + gr.count * (d.hp + d.armor + d.shield); }, 0) * waveHpMultiplier(wave);
-  console.log(`w${wave} lives ${g.lives} gold ${Math.round(g.gold)} towers ${g.towers.length} tiers ${g.towers.map(t=>t.tier).join('')} pool ${Math.round(pool)} groups ${w.groups.map(gr=>gr.enemy+'x'+gr.count).join(',')}`);
+  console.log(
+    `w${wave} lost ${livesBefore - g.lives} lives=${g.lives} gold=${Math.round(g.gold)} towers=${g.towers.map((t) => t.def.id[0] + t.tier + (t.branch >= 0 ? t.branch : '')).join(',')}`,
+  );
+  livesBefore = g.lives;
+});
+g.events.on('leak', ({ enemy }) => {
+  if (enemy.def.boss || g.lives <= 0) console.log(`  leak ${enemy.def.id} at wave ${g.wave}`);
 });
 simulate(g, p);
-console.log(g.phase, g.augments.map(a=>a.id).join(','));
-const dmg = new Map<string, number>();
-for (const t of g.towers) dmg.set(t.def.id + t.tier + (t.branch>=0?'b'+t.branch:''), Math.round(t.damageDealt));
-console.log([...dmg.entries()].sort((a,b)=>b[1]-a[1]).map(([k,v])=>k+':'+v).join(' '));
+console.log(g.phase, 'wave', g.wave);

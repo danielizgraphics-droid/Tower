@@ -57,8 +57,21 @@ export function enemyPortrait(id: EnemyId, size = 48): string {
   const p = new Painter(cam);
   p.ctx = ctx;
   drawEnemyModel(p, {
-    def, x: 0.5, y: 0.5, angle: def.shape === 'beast' || flying ? 0.15 : Math.PI * 0.3, walk: 0.2, age: 0.4, hitFlash: 1, shield: 0,
-    frozen: false, slowed: false, stunned: false, burning: false, poisoned: false, vulnerable: false, time: 0,
+    def,
+    x: 0.5,
+    y: 0.5,
+    angle: def.shape === 'beast' || flying ? 0.15 : Math.PI * 0.3,
+    walk: 0.2,
+    age: 0.4,
+    hitFlash: 1,
+    shield: 0,
+    frozen: false,
+    slowed: false,
+    stunned: false,
+    burning: false,
+    poisoned: false,
+    vulnerable: false,
+    time: 0,
   });
   const url = canvas.toDataURL();
   cache.set(key, url);

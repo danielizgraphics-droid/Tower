@@ -1,15 +1,6 @@
 import { TOWERS, TOWER_LIST } from '../../data/towers';
 import type { TowerId } from '../../data/types';
-import {
-  buyNode,
-  currencyAvailable,
-  nodeState,
-  resetTree,
-  spentPoints,
-  towerLevel,
-  treeRanks,
-  unlockTower,
-} from '../../meta/profile';
+import { buyNode, currencyAvailable, nodeState, resetTree, spentPoints, towerLevel, treeRanks, unlockTower } from '../../meta/profile';
 import { GENERAL_TREE, MAX_TOWER_LEVEL, TOWER_LEVEL_XP, TOWER_TREES, type TalentNode, type TalentTree } from '../../meta/talentTrees';
 import { towerPortrait } from '../../render/portraits';
 import type { App, Route, Screen } from '../app';
@@ -51,8 +42,14 @@ export function talentsScreen(app: App, route: Route): Screen {
       return b;
     };
     tabsEl.replaceChildren(
-      mk('general', 'Comandante', h('span', { style: 'width:30px;height:30px;display:flex;align-items:center;justify-content:center;color:#7a5cd6' }, icon('crown', 24))),
-      ...TOWER_LIST.map((t) => mk(t.id, t.name.replace('Torre de ', '').replace('Torre ', ''), h('img', { src: towerPortrait(t.id, 1, -1, 60), alt: '' }))),
+      mk(
+        'general',
+        'Comandante',
+        h('span', { style: 'width:30px;height:30px;display:flex;align-items:center;justify-content:center;color:#7a5cd6' }, icon('crown', 24)),
+      ),
+      ...TOWER_LIST.map((t) =>
+        mk(t.id, t.name.replace('Torre de ', '').replace('Torre ', ''), h('img', { src: towerPortrait(t.id, 1, -1, 60), alt: '' })),
+      ),
     );
   }
 
@@ -145,7 +142,12 @@ export function talentsScreen(app: App, route: Route): Screen {
     const side = h('div.tree-side');
     if (tree.currency === 'stars') {
       side.append(
-        h('div', { style: 'display:flex;gap:10px;align-items:center' }, h('span', { style: 'color:#7a5cd6' }, icon('crown', 40)), h('div', h('h3', { style: 'font-size:22px' }, 'Comandante'), h('span.muted.tiny', 'Mejoras permanentes para todas tus partidas.'))),
+        h(
+          'div',
+          { style: 'display:flex;gap:10px;align-items:center' },
+          h('span', { style: 'color:#7a5cd6' }, icon('crown', 40)),
+          h('div', h('h3', { style: 'font-size:22px' }, 'Comandante'), h('span.muted.tiny', 'Mejoras permanentes para todas tus partidas.')),
+        ),
         h('div.star-badge', { style: 'align-self:flex-start' }, icon('star', 18), `${p.stars} estrellas disponibles`),
       );
     } else {
@@ -190,11 +192,21 @@ export function talentsScreen(app: App, route: Route): Screen {
         side.append(
           h(
             'div',
-            h('div', { style: 'display:flex;justify-content:space-between;font-weight:800;font-size:13px' }, h('span', `Maestría nivel ${lvl}`), h('span.muted', lvl >= MAX_TOWER_LEVEL ? 'MÁX' : `${Math.floor(prog.xp)}/${next} XP`)),
+            h(
+              'div',
+              { style: 'display:flex;justify-content:space-between;font-weight:800;font-size:13px' },
+              h('span', `Maestría nivel ${lvl}`),
+              h('span.muted', lvl >= MAX_TOWER_LEVEL ? 'MÁX' : `${Math.floor(prog.xp)}/${next} XP`),
+            ),
             h('div.xpbar', h('div', { style: `width:${Math.round(frac * 100)}%` })),
             h('span.muted.tiny', 'Gana experiencia infligiendo daño con esta torre. Cada nivel otorga 1 punto de talento.'),
           ),
-          h('div.star-badge', { style: 'align-self:flex-start;color:#4b3596' }, icon('sparkle', 18), `${currencyAvailable(p, tree)} puntos disponibles`),
+          h(
+            'div.star-badge',
+            { style: 'align-self:flex-start;color:#4b3596' },
+            icon('sparkle', 18),
+            `${currencyAvailable(p, tree)} puntos disponibles`,
+          ),
         );
       }
       side.append(
@@ -265,9 +277,17 @@ export function talentsScreen(app: App, route: Route): Screen {
     renderTabs();
     starBadge.replaceChildren(icon('star', 16), String(p.stars));
     const tree = treeOf(tab);
-    const treeEl = h('div.tree', { style: `grid-template-columns:repeat(${tree.cols}, 92px);grid-template-rows:repeat(${tree.rows}, 92px)` });
+    const cell = innerWidth < 760 || innerHeight < 520 ? 70 : 92;
+    const treeEl = h('div.tree', { style: `grid-template-columns:repeat(${tree.cols}, ${cell}px);grid-template-rows:repeat(${tree.rows}, ${cell}px)` });
     for (const n of tree.nodes) treeEl.append(nodeEl(tree, n));
-    body.replaceChildren(h('div.tree-layout', sidePanel(tree), h('div', { style: 'overflow:auto' }, treeEl)));
+    const heads = tree.columns
+      ? h(
+          'div.tree-heads',
+          { style: `grid-template-columns:repeat(${tree.cols}, ${cell}px)` },
+          tree.columns.map((c) => h('span', c)),
+        )
+      : null;
+    body.replaceChildren(h('div.tree-layout', sidePanel(tree), h('div', { style: 'overflow:auto' }, heads, treeEl)));
     requestAnimationFrame(() => drawLinks(treeEl, tree));
   }
 
@@ -279,7 +299,11 @@ export function talentsScreen(app: App, route: Route): Screen {
       { style: 'height:min(820px,100%)' },
       h(
         'div.window-head',
-        h('button.btn.small.icon-only.ghost', { onclick: () => (app.sfx('click'), app.go({ name: 'menu' })), 'aria-label': 'Volver' }, icon('undo', 18)),
+        h(
+          'button.btn.small.icon-only.ghost',
+          { onclick: () => (app.sfx('click'), app.go({ name: 'menu' })), 'aria-label': 'Volver' },
+          icon('undo', 18),
+        ),
         h('h2', 'Talentos'),
         starBadge,
       ),

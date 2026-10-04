@@ -2,15 +2,7 @@
 // augments, maps...) is plain data described by these types, so adding content
 // never requires touching engine code.
 
-export type DamageType =
-  | 'physical'
-  | 'fire'
-  | 'frost'
-  | 'lightning'
-  | 'poison'
-  | 'arcane'
-  | 'holy'
-  | 'shadow';
+export type DamageType = 'physical' | 'fire' | 'frost' | 'lightning' | 'poison' | 'arcane' | 'holy' | 'shadow';
 
 /** Numeric tower stats. Every key defaults to 0 when absent. */
 export interface TowerStats {
@@ -115,17 +107,7 @@ export type AttackKind =
 
 export type TargetMode = 'first' | 'last' | 'strong' | 'close';
 
-export type TowerId =
-  | 'archer'
-  | 'ballista'
-  | 'cannon'
-  | 'arcane'
-  | 'pyre'
-  | 'frost'
-  | 'storm'
-  | 'alchemist'
-  | 'sanctum'
-  | 'obelisk';
+export type TowerId = 'archer' | 'ballista' | 'cannon' | 'arcane' | 'pyre' | 'frost' | 'storm' | 'alchemist' | 'sanctum' | 'obelisk';
 
 export type TowerTag = 'physical' | 'magic' | 'siege' | 'elemental' | 'support' | 'dark';
 
@@ -198,10 +180,7 @@ export interface TalentEffectDef {
 // ---------------------------------------------------------------- modifiers
 
 export type ModScope =
-  | { kind: 'all' }
-  | { kind: 'tower'; tower: TowerId; branch?: number }
-  | { kind: 'damageType'; type: DamageType }
-  | { kind: 'tag'; tag: TowerTag };
+  { kind: 'all' } | { kind: 'tower'; tower: TowerId; branch?: number } | { kind: 'damageType'; type: DamageType } | { kind: 'tag'; tag: TowerTag };
 
 /** Global (non-tower) run stats. */
 export interface GlobalStats {

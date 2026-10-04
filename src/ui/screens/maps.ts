@@ -19,6 +19,7 @@ function mapPreview(def: MapDef): string {
   const r = new Renderer(canvas, game);
   r.insets = { top: 0, bottom: 0, left: 4, right: 4 };
   r.view.showDamage = false;
+  r.paintBackground = true;
   r.resize(480, 270, 1.5);
   r.render(0.016);
   const url = canvas.toDataURL('image/jpeg', 0.85);
@@ -50,7 +51,9 @@ export function mapsScreen(app: App): Screen {
           { style: 'display:flex;justify-content:space-between;align-items:center;margin-top:6px' },
           h(
             'div.medals',
-            (['easy', 'normal', 'hard'] as Difficulty[]).map((d) => h(`span.medal.${d}${prog?.cleared[d] ? '.on' : ''}`, { title: DIFFICULTY[d].name })),
+            (['easy', 'normal', 'hard'] as Difficulty[]).map((d) =>
+              h(`span.medal.${d}${prog?.cleared[d] ? '.on' : ''}`, { title: DIFFICULTY[d].name }),
+            ),
           ),
           unlocked
             ? h('span.pill', prog ? `Récord: ${prog.bestWave}/${m.waves}` : `${m.waves} oleadas`)
@@ -105,13 +108,20 @@ export function mapsScreen(app: App): Screen {
       'div.window.panel',
       h(
         'div.window-head',
-        h('button.btn.small.icon-only.ghost', { onclick: () => (app.sfx('click'), app.go({ name: 'menu' })), 'aria-label': 'Volver' }, icon('undo', 18)),
+        h(
+          'button.btn.small.icon-only.ghost',
+          { onclick: () => (app.sfx('click'), app.go({ name: 'menu' })), 'aria-label': 'Volver' },
+          icon('undo', 18),
+        ),
         h('h2', 'Elige tu campo de batalla'),
         h('span.star-badge', icon('star', 16), String(p.stars)),
       ),
       h(
         'div.window-body',
-        h('div.maps', cards.map((c) => c.card)),
+        h(
+          'div.maps',
+          cards.map((c) => c.card),
+        ),
         h('div.difficulty', h('b', 'Dificultad'), diffSeg, diffInfo, h('div', { style: 'flex:1' }), startBtn),
       ),
     ),

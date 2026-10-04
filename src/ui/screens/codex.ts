@@ -60,7 +60,7 @@ export function codexScreen(app: App): Screen {
         h(
           'div.codex-grid',
           ENEMY_LIST.filter((e) => e.id !== 'slimeling').map((e) => {
-            const known = seen.has(e.id) || app.profile.stats.runs > 0 && e.minWave <= 3;
+            const known = seen.has(e.id) || (app.profile.stats.runs > 0 && e.minWave <= 3);
             const card = h(
               'div.codex-card',
               h('img', { src: enemyPortrait(e.id, 64), alt: '' }),
@@ -129,14 +129,25 @@ export function codexScreen(app: App): Screen {
     } else {
       body.replaceChildren(
         h('div.section-title', 'Eficacia por tipo de daño'),
-        h('p.muted', { style: 'margin-top:0' }, 'Cada enemigo tiene hasta tres capas. El daño se aplica primero al escudo, después a la armadura y por último a la vida. Combina tipos de daño para acabar con todas.'),
+        h(
+          'p.muted',
+          { style: 'margin-top:0' },
+          'Cada enemigo tiene hasta tres capas. El daño se aplica primero al escudo, después a la armadura y por último a la vida. Combina tipos de daño para acabar con todas.',
+        ),
         h(
           'table.dmg',
           h('tr', h('th', 'Tipo'), h('th', 'Escudo'), h('th', 'Armadura'), h('th', 'Vida'), h('th', '')),
           (Object.keys(DAMAGE_TYPES) as DamageType[]).map((k) => {
             const d = DAMAGE_TYPES[k];
             const cell = (v: number) => h(`td${v > 1.05 ? '.good' : v < 0.95 ? '.bad' : ''}`, `×${v}`);
-            return h('tr', h('td', typeTag(k)), cell(d.vs[0]), cell(d.vs[1]), cell(d.vs[2]), h('td.muted.tiny', { style: 'text-align:left' }, d.hint));
+            return h(
+              'tr',
+              h('td', typeTag(k)),
+              cell(d.vs[0]),
+              cell(d.vs[1]),
+              cell(d.vs[2]),
+              h('td.muted.tiny', { style: 'text-align:left' }, d.hint),
+            );
           }),
         ),
         h('div.section-title', 'Hechizos'),
@@ -145,8 +156,17 @@ export function codexScreen(app: App): Screen {
           SPELL_LIST.map((s) =>
             h(
               'div.codex-card',
-              h('div', { class: `spell ${s.id}`, style: 'position:relative;width:56px;height:56px;flex:none' }, icon(s.id === 'meteor' ? 'flame' : s.id === 'frostNova' ? 'snow' : 'sparkle', 26)),
-              h('div', h('h4', s.name), h('p', s.description), h('span.muted.tiny', `${s.mana} de maná · ${s.cooldown}s de recarga${s.unlockedByDefault ? '' : ' · se desbloquea con talentos'}`)),
+              h(
+                'div',
+                { class: `spell ${s.id}`, style: 'position:relative;width:56px;height:56px;flex:none' },
+                icon(s.id === 'meteor' ? 'flame' : s.id === 'frostNova' ? 'snow' : 'sparkle', 26),
+              ),
+              h(
+                'div',
+                h('h4', s.name),
+                h('p', s.description),
+                h('span.muted.tiny', `${s.mana} de maná · ${s.cooldown}s de recarga${s.unlockedByDefault ? '' : ' · se desbloquea con talentos'}`),
+              ),
             ),
           ),
         ),
@@ -159,7 +179,15 @@ export function codexScreen(app: App): Screen {
     h(
       'div.window.panel',
       { style: 'height:min(820px,100%)' },
-      h('div.window-head', h('button.btn.small.icon-only.ghost', { onclick: () => (app.sfx('click'), app.go({ name: 'menu' })), 'aria-label': 'Volver' }, icon('undo', 18)), h('h2', 'Códice')),
+      h(
+        'div.window-head',
+        h(
+          'button.btn.small.icon-only.ghost',
+          { onclick: () => (app.sfx('click'), app.go({ name: 'menu' })), 'aria-label': 'Volver' },
+          icon('undo', 18),
+        ),
+        h('h2', 'Códice'),
+      ),
       tabs,
       body,
     ),

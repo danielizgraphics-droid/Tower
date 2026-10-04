@@ -14,25 +14,91 @@ import type {
 } from '../data/types';
 
 export const STAT_DEFAULTS: TowerStats = {
-  damage: 0, range: 0, rate: 0, projectileSpeed: 0, splash: 0, pierce: 0, multishot: 0, chains: 0,
-  chainFalloff: 0.8, critChance: 0, critMult: 2, slow: 0, slowDuration: 0, burnDps: 0, burnDuration: 0,
-  poisonDps: 0, poisonDuration: 0, poisonStacks: 0, stunChance: 0, stunDuration: 0, freezeChance: 0,
-  freezeDuration: 0, vulnerability: 0, vulnerabilityDuration: 0, bonusVsSlowed: 0, armorShred: 0,
-  knockback: 0, goldChance: 0, goldAmount: 0, execute: 0, beamRamp: 0, beamRampMax: 0, coneAngle: 0,
-  bomblets: 0, spreadOnDeath: 0, minRange: 0, auraDamage: 0, auraRate: 0, auraRange: 0, auraCrit: 0,
-  waveGold: 0, pull: 0, soulStacks: 0, bossDamage: 0, airDamage: 0, shieldDamage: 0, armorDamage: 0,
+  damage: 0,
+  range: 0,
+  rate: 0,
+  projectileSpeed: 0,
+  splash: 0,
+  pierce: 0,
+  multishot: 0,
+  chains: 0,
+  chainFalloff: 0.8,
+  critChance: 0,
+  critMult: 2,
+  slow: 0,
+  slowDuration: 0,
+  burnDps: 0,
+  burnDuration: 0,
+  poisonDps: 0,
+  poisonDuration: 0,
+  poisonStacks: 0,
+  stunChance: 0,
+  stunDuration: 0,
+  freezeChance: 0,
+  freezeDuration: 0,
+  vulnerability: 0,
+  vulnerabilityDuration: 0,
+  bonusVsSlowed: 0,
+  armorShred: 0,
+  knockback: 0,
+  goldChance: 0,
+  goldAmount: 0,
+  execute: 0,
+  beamRamp: 0,
+  beamRampMax: 0,
+  coneAngle: 0,
+  bomblets: 0,
+  spreadOnDeath: 0,
+  minRange: 0,
+  auraDamage: 0,
+  auraRate: 0,
+  auraRange: 0,
+  auraCrit: 0,
+  waveGold: 0,
+  pull: 0,
+  soulStacks: 0,
+  bossDamage: 0,
+  airDamage: 0,
+  shieldDamage: 0,
+  armorDamage: 0,
 };
 
 export const GLOBAL_DEFAULTS: GlobalStats = {
-  startGold: 240, lives: 0, interest: 0, interestCap: 60, killGold: 0, waveGold: 0, sellRefund: 0.7,
-  buildCost: 0, upgradeCost: 0, maxMana: 100, manaRegen: 2, spellPower: 0, spellCooldown: 0,
-  augmentChoices: 3, augmentRerolls: 0, augmentLuck: 0, augmentInterval: 5, livesRegen: 0, starGain: 0,
-  xpGain: 0, bossGold: 0, freeTowers: 0, shieldBreak: 0, armorBreak: 0,
+  startGold: 240,
+  lives: 0,
+  interest: 0,
+  interestCap: 60,
+  killGold: 0,
+  waveGold: 0,
+  sellRefund: 0.7,
+  buildCost: 0,
+  upgradeCost: 0,
+  maxMana: 100,
+  manaRegen: 2,
+  spellPower: 0,
+  spellCooldown: 0,
+  augmentChoices: 3,
+  augmentRerolls: 0,
+  augmentLuck: 0,
+  augmentInterval: 5,
+  livesRegen: 0,
+  starGain: 0,
+  xpGain: 0,
+  bossGold: 0,
+  freeTowers: 0,
+  shieldBreak: 0,
+  armorBreak: 0,
 };
 
 /** Hard caps that keep stacked modifiers sane. */
 const CAPS: Partial<Record<StatKey, number>> = {
-  slow: 0.8, critChance: 0.9, stunChance: 0.8, freezeChance: 0.7, execute: 0.35, goldChance: 1, chainFalloff: 1,
+  slow: 0.8,
+  critChance: 0.9,
+  stunChance: 0.8,
+  freezeChance: 0.7,
+  execute: 0.35,
+  goldChance: 1,
+  chainFalloff: 1,
 };
 
 export interface TowerConfig {
@@ -159,9 +225,7 @@ export class ModifierSet {
 }
 
 /** Stats a global "+X" modifier may introduce on a tower that has 0 of it. */
-const UNIVERSAL_ADD = new Set<StatKey>([
-  'critChance', 'execute', 'bossDamage', 'airDamage', 'shieldDamage', 'armorDamage',
-]);
+const UNIVERSAL_ADD = new Set<StatKey>(['critChance', 'execute', 'bossDamage', 'airDamage', 'shieldDamage', 'armorDamage']);
 
 /**
  * Some additive stats only apply when the tower already uses the mechanic:

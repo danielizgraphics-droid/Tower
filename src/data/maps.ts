@@ -13,7 +13,7 @@ export const MAPS: MapDef[] = [
     description: 'Un valle tranquilo con un camino largo y sinuoso. Perfecto para empezar.',
     theme: 'meadow',
     waves: 30,
-    hpScale: 1,
+    hpScale: 0.9,
     tiles: [
       'TT.....F...TT..R..TT',
       'S#######.....T.....T',
@@ -36,7 +36,7 @@ export const MAPS: MapDef[] = [
     description: 'Dos curvas cerradas bajo los arces. Los enemigos llegan antes.',
     theme: 'autumn',
     waves: 30,
-    hpScale: 1.15,
+    hpScale: 1.1,
     requires: 'meadow',
     tiles: [
       'TT..T.....TT...T..TT',
@@ -59,7 +59,7 @@ export const MAPS: MapDef[] = [
     description: 'Un camino estrecho en zigzag a través de la montaña nevada.',
     theme: 'snow',
     waves: 30,
-    hpScale: 1.3,
+    hpScale: 1.25,
     requires: 'autumn',
     tiles: [
       'RRT..T.S..T..RR..TRR',
@@ -82,7 +82,7 @@ export const MAPS: MapDef[] = [
     description: 'El último bastión. Un laberinto de ruinas bajo un cielo violeta.',
     theme: 'dusk',
     waves: 30,
-    hpScale: 1.5,
+    hpScale: 1.4,
     requires: 'snow',
     tiles: [
       'TR..T...R...T...RR.T',

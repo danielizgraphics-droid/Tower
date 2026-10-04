@@ -8,13 +8,20 @@ export function parse(hex: string): RGB {
   let c = parseCache.get(hex);
   if (c) return c;
   let h = hex.replace('#', '');
-  if (h.length === 3) h = h.split('').map((x) => x + x).join('');
+  if (h.length === 3)
+    h = h
+      .split('')
+      .map((x) => x + x)
+      .join('');
   c = [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)];
   parseCache.set(hex, c);
   return c;
 }
 
-const toHex = (v: number) => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, '0');
+const toHex = (v: number) =>
+  Math.max(0, Math.min(255, Math.round(v)))
+    .toString(16)
+    .padStart(2, '0');
 const fmt = (c: RGB) => `#${toHex(c[0])}${toHex(c[1])}${toHex(c[2])}`;
 
 const shadeCache = new Map<string, string>();

@@ -37,11 +37,25 @@ const ATTACKS: Record<AttackKind, AttackFn> = {
     targets.forEach((e, i) => {
       g.spawnProjectile({
         kind: 'homing',
-        x: t.x, y: t.y, z: 1.15, sx: t.x, sy: t.y, sz: 1.15,
-        tx: e.x, ty: e.y, target: e,
-        vx: Math.cos(t.angle), vy: Math.sin(t.angle),
-        speed: s.projectileSpeed * (1 - i * 0.04), duration: 0, arc: 0, maxTravel: 0,
-        pierceLeft: Math.round(s.pierce), payload, splash: s.splash, color: t.def.branches[t.branch]?.visual.fx ?? t.def.visual.fx,
+        x: t.x,
+        y: t.y,
+        z: 1.15,
+        sx: t.x,
+        sy: t.y,
+        sz: 1.15,
+        tx: e.x,
+        ty: e.y,
+        target: e,
+        vx: Math.cos(t.angle),
+        vy: Math.sin(t.angle),
+        speed: s.projectileSpeed * (1 - i * 0.04),
+        duration: 0,
+        arc: 0,
+        maxTravel: 0,
+        pierceLeft: Math.round(s.pierce),
+        payload,
+        splash: s.splash,
+        color: t.def.branches[t.branch]?.visual.fx ?? t.def.visual.fx,
         style,
       });
     });
@@ -58,9 +72,25 @@ const ATTACKS: Record<AttackKind, AttackFn> = {
     aimAt(t, p.x, p.y);
     g.spawnProjectile({
       kind: 'lob',
-      x: t.x, y: t.y, z: 1.1, sx: t.x, sy: t.y, sz: 1.1, tx: p.x, ty: p.y, target: null,
-      vx: 0, vy: 0, speed: 0, duration, arc: 0.8 + d * 0.25, maxTravel: 0, pierceLeft: 0,
-      payload, splash: s.splash, color: t.def.branches[t.branch]?.visual.fx ?? t.def.visual.fx,
+      x: t.x,
+      y: t.y,
+      z: 1.1,
+      sx: t.x,
+      sy: t.y,
+      sz: 1.1,
+      tx: p.x,
+      ty: p.y,
+      target: null,
+      vx: 0,
+      vy: 0,
+      speed: 0,
+      duration,
+      arc: 0.8 + d * 0.25,
+      maxTravel: 0,
+      pierceLeft: 0,
+      payload,
+      splash: s.splash,
+      color: t.def.branches[t.branch]?.visual.fx ?? t.def.visual.fx,
       style: projectileStyle(t),
     });
     g.events.emit('fire', { tower: t, target: e });
@@ -76,10 +106,26 @@ const ATTACKS: Record<AttackKind, AttackFn> = {
       const a = Math.atan2(p.y - t.y, p.x - t.x);
       g.spawnProjectile({
         kind: 'bolt',
-        x: t.x, y: t.y, z: 0.9, sx: t.x, sy: t.y, sz: 0.9, tx: p.x, ty: p.y, target: e,
-        vx: Math.cos(a), vy: Math.sin(a), speed: s.projectileSpeed, duration: 0, arc: 0,
-        maxTravel: s.range + 1.2, pierceLeft: Math.round(s.pierce), payload, splash: 0,
-        color: t.def.branches[t.branch]?.visual.fx ?? t.def.visual.fx, style: projectileStyle(t),
+        x: t.x,
+        y: t.y,
+        z: 0.9,
+        sx: t.x,
+        sy: t.y,
+        sz: 0.9,
+        tx: p.x,
+        ty: p.y,
+        target: e,
+        vx: Math.cos(a),
+        vy: Math.sin(a),
+        speed: s.projectileSpeed,
+        duration: 0,
+        arc: 0,
+        maxTravel: s.range + 1.2,
+        pierceLeft: Math.round(s.pierce),
+        payload,
+        splash: 0,
+        color: t.def.branches[t.branch]?.visual.fx ?? t.def.visual.fx,
+        style: projectileStyle(t),
       });
     });
     aimAt(t, targets[0].x, targets[0].y);
@@ -182,10 +228,27 @@ const ATTACKS: Record<AttackKind, AttackFn> = {
     t.angle = a;
     g.spawnProjectile({
       kind: 'orb',
-      x: t.x, y: t.y, z: 1.2, sx: t.x, sy: t.y, sz: 1.2, tx: p.x, ty: p.y, target: null,
-      vx: Math.cos(a), vy: Math.sin(a), speed: Math.max(0.8, s.projectileSpeed), duration: 0, arc: 0,
-      maxTravel: s.range * 1.7, pierceLeft: 999, payload, splash: s.splash,
-      color: t.def.branches[t.branch]?.visual.fx ?? t.def.visual.fx, style: 'voidOrb', hitCd: new Map(),
+      x: t.x,
+      y: t.y,
+      z: 1.2,
+      sx: t.x,
+      sy: t.y,
+      sz: 1.2,
+      tx: p.x,
+      ty: p.y,
+      target: null,
+      vx: Math.cos(a),
+      vy: Math.sin(a),
+      speed: Math.max(0.8, s.projectileSpeed),
+      duration: 0,
+      arc: 0,
+      maxTravel: s.range * 1.7,
+      pierceLeft: 999,
+      payload,
+      splash: s.splash,
+      color: t.def.branches[t.branch]?.visual.fx ?? t.def.visual.fx,
+      style: 'voidOrb',
+      hitCd: new Map(),
     });
     g.events.emit('fire', { tower: t, target: e });
     return true;
@@ -196,7 +259,16 @@ const ATTACKS: Record<AttackKind, AttackFn> = {
     if (!e) return false;
     aimAt(t, e.x, e.y);
     const total = 1.6;
-    g.rifts.push({ uid: t.uid * 1000 + Math.floor(g.time * 10), x: e.x, y: e.y, radius: Math.max(0.6, s.splash), time: total, total, pull: s.pull, payload });
+    g.rifts.push({
+      uid: t.uid * 1000 + Math.floor(g.time * 10),
+      x: e.x,
+      y: e.y,
+      radius: Math.max(0.6, s.splash),
+      time: total,
+      total,
+      pull: s.pull,
+      payload,
+    });
     g.splash(e.x, e.y, Math.max(0.6, s.splash), payload, null);
     g.events.emit('fire', { tower: t, target: e });
     return true;

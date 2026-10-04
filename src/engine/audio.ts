@@ -32,8 +32,21 @@ export type SfxName =
   | 'shield';
 
 const THROTTLE: Partial<Record<SfxName, number>> = {
-  arrow: 0.05, bolt: 0.06, cannon: 0.08, magic: 0.06, zap: 0.07, fire: 0.12, frost: 0.07, holy: 0.08, shadow: 0.08,
-  poison: 0.09, explosion: 0.07, kill: 0.04, coin: 0.05, hover: 0.04, shield: 0.1,
+  arrow: 0.05,
+  bolt: 0.06,
+  cannon: 0.08,
+  magic: 0.06,
+  zap: 0.07,
+  fire: 0.12,
+  frost: 0.07,
+  holy: 0.08,
+  shadow: 0.08,
+  poison: 0.09,
+  explosion: 0.07,
+  kill: 0.04,
+  coin: 0.05,
+  hover: 0.04,
+  shield: 0.1,
 };
 
 // D dorian-ish scale (MIDI)

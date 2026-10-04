@@ -95,7 +95,7 @@ export class Fx {
       this.emit(kind, x, y, z, {
         vx: Math.cos(a) * s,
         vy: Math.sin(a) * s,
-        vz: (kind === 'debris' || kind === 'coin' ? 2 + Math.random() * 2 : Math.random() * speed),
+        vz: kind === 'debris' || kind === 'coin' ? 2 + Math.random() * 2 : Math.random() * speed,
         max: life * (0.6 + Math.random() * 0.6),
         size: size * (0.6 + Math.random() * 0.8),
         color,
@@ -198,7 +198,10 @@ export class Fx {
         for (let k = 0; k < n; k++) {
           const u = k / n;
           const j = k === 0 ? 0 : b.jitter[(i * 6 + k) % b.jitter.length];
-          pts.push([p.cam.px(a.x + (c.x - a.x) * u, a.y + (c.y - a.y) * u) + j * s, p.cam.py(a.y + (c.y - a.y) * u, a.z + (c.z - a.z) * u) + j * s * 0.7]);
+          pts.push([
+            p.cam.px(a.x + (c.x - a.x) * u, a.y + (c.y - a.y) * u) + j * s,
+            p.cam.py(a.y + (c.y - a.y) * u, a.z + (c.z - a.z) * u) + j * s * 0.7,
+          ]);
         }
       }
       const last = b.points[b.points.length - 1];
