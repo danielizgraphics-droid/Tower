@@ -278,7 +278,9 @@ export function talentsScreen(app: App, route: Route): Screen {
     starBadge.replaceChildren(icon('star', 16), String(p.stars));
     const tree = treeOf(tab);
     const cell = innerWidth < 760 || innerHeight < 520 ? 70 : 92;
-    const treeEl = h('div.tree', { style: `grid-template-columns:repeat(${tree.cols}, ${cell}px);grid-template-rows:repeat(${tree.rows}, ${cell}px)` });
+    const treeEl = h('div.tree', {
+      style: `grid-template-columns:repeat(${tree.cols}, ${cell}px);grid-template-rows:repeat(${tree.rows}, ${cell}px)`,
+    });
     for (const n of tree.nodes) treeEl.append(nodeEl(tree, n));
     const heads = tree.columns
       ? h(

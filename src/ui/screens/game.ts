@@ -1,7 +1,7 @@
 import { RARITY_INFO } from '../../data/augments';
 import { DAMAGE_TYPES } from '../../data/damage';
 import { ENEMIES } from '../../data/enemies';
-import { DIFFICULTY, MAP_BY_ID } from '../../data/maps';
+import { DIFFICULTY, MAP_BY_ID, MAPS } from '../../data/maps';
 import { SPELLS, SPELL_LIST } from '../../data/spells';
 import { BRANCH_TIER, MAX_TIER, TOWERS, TOWER_LIST } from '../../data/towers';
 import type { AugmentDef, Difficulty, SpellId, TargetMode, TowerId } from '../../data/types';
@@ -11,7 +11,7 @@ import type { Tower } from '../../game/entities';
 import { Game } from '../../game/game';
 import { effectiveAttack, effectiveDamageType, effectiveTargetsAir } from '../../game/modifiers';
 import { wavePreview } from '../../game/waves';
-import { applyRunResult, profileModifiers, towerLevel, type RewardSummary } from '../../meta/profile';
+import { applyRunResult, isMapUnlocked, profileModifiers, type RewardSummary } from '../../meta/profile';
 import { enemyPortrait, towerPortrait } from '../../render/portraits';
 import { Renderer } from '../../render/renderer';
 import type { App, Route, Screen } from '../app';
@@ -721,8 +721,7 @@ export function gameScreen(app: App, route: Route): Screen {
     finished = true;
     game.paused = true;
     hint(null);
-    const levelBefore = Object.fromEntries(unlocked.map((id) => [id, towerLevel(profile, id)]));
-    void levelBefore;
+    const mapsBefore = new Set(MAPS.filter((m) => isMapUnlocked(profile, m.requires)).map((m) => m.id));
     const g = game.global;
     const reward: RewardSummary = applyRunResult(profile, {
       mapId: mapDef.id,
@@ -738,6 +737,7 @@ export function gameScreen(app: App, route: Route): Screen {
     });
     profile.tutorialDone = true;
     app.save();
+    const newMaps = MAPS.filter((m) => !mapsBefore.has(m.id) && isMapUnlocked(profile, m.requires)).map((m) => m.name);
     if (abandoned) {
       app.go({ name: 'menu' });
       return;
@@ -768,6 +768,14 @@ export function gameScreen(app: App, route: Route): Screen {
                 h('span', { style: 'display:flex;gap:4px;align-items:center;color:#8a5a12' }, `+${reward.stars}`, icon('star', 16)),
               ),
             ),
+            newMaps.length
+              ? h(
+                  'div.pill',
+                  { style: 'margin-top:10px;background:#efe6ff;color:#4b3596;padding:6px 12px' },
+                  icon('map', 16),
+                  `¡Nuevo mapa desbloqueado: ${newMaps.join(', ')}!`,
+                )
+              : null,
             reward.levelUps.length
               ? h(
                   'div',
