@@ -9,12 +9,16 @@ import '@fontsource/nunito/latin-900.css';
 import './ui/styles.css';
 import type { Biome } from './data/biomes';
 import type { Difficulty } from './data/types';
+import { Renderer } from './render/renderer';
 import { App } from './ui/app';
 import { codexScreen } from './ui/screens/codex';
 import { gameScreen } from './ui/screens/game';
 import { mapsScreen } from './ui/screens/maps';
 import { menuScreen } from './ui/screens/menu';
 import { talentsScreen } from './ui/screens/talents';
+
+// 3D renderer (WebGL + CC0 models) by default; ?r=2d forces the classic 2D renderer.
+Renderer.use3D = new URLSearchParams(location.search).get('r') !== '2d';
 
 const app = new App(document.getElementById('app')!);
 app.register('menu', menuScreen);

@@ -27,7 +27,7 @@ function mapPreview(biome: Biome, seed: number): string {
   const canvas = document.createElement('canvas');
   const def = generateMap({ biome, seed });
   const game = new Game({ map: def, difficulty: 'normal', mods: new ModifierSet(), unlockedTowers: [] });
-  const r = new Renderer(canvas, game);
+  const r = new Renderer(canvas, game, { three: false });
   r.insets = { top: 6, bottom: 6, left: 6, right: 6 };
   r.view.showDamage = false;
   r.paintBackground = true;

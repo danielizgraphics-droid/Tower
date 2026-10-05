@@ -11,6 +11,7 @@ import { Fx } from './fx';
 import { animPhase, drawEnemyStatus, enemyHeight, hoverBob, type EnemyLook } from './models/enemies';
 import { CreatureSprites, DIRS, FRAMES } from './creatureSprites';
 import { limb as kitLimb } from './models/kit';
+import { Scene3D } from '../render3d/scene3d';
 import { drawCreature } from './models/creatures';
 import { drawTowerModel } from './models/towers';
 import { Painter } from './painter';
@@ -70,22 +71,42 @@ export class Renderer {
   private castleHit = 0;
   view: ViewState = { hover: null, selected: null, ghost: null, grid: null, spell: null, showDamage: true, shakeEnabled: true };
 
+  /** Draw the board, towers and characters with the WebGL scene (2D keeps effects and overlays). */
+  static use3D = false;
+  private scene3d: Scene3D | null = null;
+  private glCanvas: HTMLCanvasElement | null = null;
+
   constructor(
     private canvas: HTMLCanvasElement,
     private game: Game,
+    opts: { three?: boolean } = {},
   ) {
     this.ctx = canvas.getContext('2d')!;
+    if (opts.three ?? Renderer.use3D) {
+      try {
+        this.glCanvas = document.createElement('canvas');
+        this.glCanvas.className = 'stage stage-3d';
+        this.glCanvas.style.pointerEvents = 'none';
+        this.scene3d = new Scene3D(this.glCanvas, game);
+      } catch (e) {
+        console.warn('WebGL unavailable, using 2D', e);
+        this.scene3d = null;
+        this.glCanvas = null;
+      }
+    }
     this.painter = new Painter(this.cam);
     this.painter.ctx = this.ctx;
     this.theme = THEMES[game.board.def.theme];
     this.ground = new GroundCache(game.board, this.theme);
     this.cam.rows = game.board.height;
-    canvas.style.background = `linear-gradient(180deg, ${this.theme.bgTop}, ${this.theme.bgBottom})`;
+    (this.glCanvas ?? canvas).style.background = `linear-gradient(180deg, ${this.theme.bgTop}, ${this.theme.bgBottom})`;
     this.bindEvents();
   }
 
   destroy(): void {
     for (const u of this.unsub) u();
+    this.scene3d?.destroy();
+    this.glCanvas?.remove();
   }
 
   // ------------------------------------------------------------ layout
@@ -350,8 +371,20 @@ export class Renderer {
     }
 
     this.creatures.budget = 6;
-    this.ground.draw(ctx, this.cam);
-    this.drawDynamicGround();
+    const s3 = this.scene3d;
+    if (s3 && this.glCanvas) {
+      // Keep the WebGL layer right under the 2D canvas, mirroring its visibility.
+      if (this.glCanvas.parentNode !== this.canvas.parentNode && this.canvas.parentNode)
+        this.canvas.parentNode.insertBefore(this.glCanvas, this.canvas);
+      this.glCanvas.style.display = this.canvas.style.display;
+      this.glCanvas.style.filter = this.canvas.style.filter;
+      s3.sync(this.cam, this.width, this.height, this.dpr);
+      s3.setGhost(this.view.ghost);
+      s3.render(dt);
+    }
+    const flat = !!s3?.groundReady;
+    if (!flat) this.ground.draw(ctx, this.cam);
+    if (!flat) this.drawDynamicGround();
     this.drawGroundOverlays();
     const list = this.buildDrawables();
     list.sort((a, b) => a.depth - b.depth);
@@ -423,14 +456,17 @@ export class Renderer {
     const g = this.game;
     const b = g.board;
     const k = this.cam.scale / this.cacheScale;
-    for (const d of this.ground.decor) {
-      const pos = this.cam.project(d.x, d.y, GRASS_H);
-      out.push({ depth: depthOf(d.x, d.y), draw: () => drawSprite(this.ctx, d.sprite, pos.x, pos.y, k) });
+    const s3 = this.scene3d?.groundReady ? this.scene3d : null;
+    if (!s3) {
+      for (const d of this.ground.decor) {
+        const pos = this.cam.project(d.x, d.y, GRASS_H);
+        out.push({ depth: depthOf(d.x, d.y), draw: () => drawSprite(this.ctx, d.sprite, pos.x, pos.y, k) });
+      }
+      out.push({ depth: depthOf(b.castle.x + 0.5, b.castle.y + 0.5), draw: () => this.drawCastle() });
     }
-    out.push({ depth: depthOf(b.castle.x + 0.5, b.castle.y + 0.5), draw: () => this.drawCastle() });
     out.push({ depth: depthOf(b.spawn.x + 0.5, b.spawn.y + 0.5), draw: () => this.drawPortal() });
-    for (const t of g.towers) out.push({ depth: depthOf(t.x, t.y), draw: () => this.drawTower(t) });
-    for (const e of g.enemies) if (e.alive) out.push({ depth: depthOf(e.x, e.y) + 0.01, draw: () => this.drawEnemy(e) });
+    for (const t of g.towers) if (!s3?.hasTower(t.uid)) out.push({ depth: depthOf(t.x, t.y), draw: () => this.drawTower(t) });
+    for (const e of g.enemies) if (e.alive && !s3?.handlesEnemy(e.def)) out.push({ depth: depthOf(e.x, e.y) + 0.01, draw: () => this.drawEnemy(e) });
     for (const pr of g.projectiles) out.push({ depth: depthOf(pr.x, pr.y) + 0.02, draw: () => this.drawProjectile(pr) });
     for (const s of g.strikes) out.push({ depth: depthOf(s.x, s.y) + 0.03, draw: () => this.drawPendingStrike(s) });
     return out;
@@ -889,7 +925,7 @@ export class Renderer {
   /** Overlays drawn above the scene (placement ghost). */
   private drawOverlays(): void {
     const ghost = this.view.ghost;
-    if (!ghost) return;
+    if (!ghost || this.scene3d?.groundReady) return;
     const pos = this.cam.project(ghost.x + 0.5, ghost.y + 0.5, GRASS_H);
     this.ctx.globalAlpha = ghost.valid ? 0.7 : 0.4;
     drawSprite(this.ctx, this.towerSprite(ghost.id, 1, -1), pos.x, pos.y, this.cam.scale / this.cacheScale);
