@@ -21,7 +21,7 @@ const K = Math.SQRT2 * Math.cos(Math.PI / 6);
 const GROUND_Y = -0.1;
 const GRASS_TOP = 0.1;
 
-const TILE_MODELS = [
+export const TILE_MODELS = [
   'td/tile.glb',
   'td/tile-straight.glb',
   'td/tile-corner-round.glb',

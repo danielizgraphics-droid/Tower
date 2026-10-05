@@ -17,7 +17,10 @@ const ready = new Map<string, GLTF>();
 export function loadModel(path: string): Promise<GLTF> {
   let p = pending.get(path);
   if (!p) {
-    p = loader.loadAsync(BASE + path).then((g) => {
+    // Packaged builds may embed models as base64 (window.__MODELS) instead of serving .glb files.
+    const packed = (globalThis as { __MODELS?: Record<string, string> }).__MODELS?.[path];
+    const source = packed ? loader.parseAsync(base64ToBuffer(packed), BASE) : loader.loadAsync(BASE + path);
+    p = source.then((g) => {
       prepare(g.scene);
       ready.set(path, g);
       return g;
@@ -25,6 +28,13 @@ export function loadModel(path: string): Promise<GLTF> {
     pending.set(path, p);
   }
   return p;
+}
+
+function base64ToBuffer(b64: string): ArrayBuffer {
+  const bin = atob(b64);
+  const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out.buffer;
 }
 
 /** The model if it has finished loading (starts loading otherwise). */
