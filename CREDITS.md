@@ -11,3 +11,6 @@ Todos los modelos 3D son de dominio público (licencia **CC0 1.0**), libres para
 | Character Pack: Skeletons | [KayKit · Kay Lousberg](https://kaylousberg.itch.io/kaykit-skeletons) | No-muertos |
 
 Los modelos se importan y comprimen con `node scripts/build-assets.mjs` (glTF-Transform + meshoptimizer).
+| Animated Monster Pack, Cute Animated Monsters, Animal Pack Vol.2 | [Quaternius](https://quaternius.com) (vía [OpenGameArt](https://opengameart.org/users/quaternius)) | Murciélagos, dragones, slimes, lobos, águilas, fantasmas, cíclopes, yetis, demonios, cangrejos... |
+
+Los monstruos de Quaternius se convierten de `.blend` a glTF con Blender (`scripts/blender-convert.py`).

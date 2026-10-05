@@ -64,7 +64,23 @@ await copyKit(`${HEX}/buildings/neutral`, `${OUT}/hex/neutral`);
 await copyKit(`${HEX}/decoration/nature`, `${OUT}/hex/nature`);
 await copyKit(`${HEX}/decoration/props`, `${OUT}/hex/props`);
 
-const ANIMS = ['Idle', 'Walking_A', 'Running_A', 'Death_A', 'Hit_A'];
+// Quaternius animated monsters (CC0, OpenGameArt), converted FBX -> GLB with scripts/blender-convert.py.
+await copyKit(`${SRC}/monsters-glb`, `${OUT}/monsters`, (n) => !['Cat', 'Dog', 'Penguin', 'Pig', 'Chicken', 'Panda', 'Deer', 'Piranha'].includes(n));
+
+const ANIMS = [
+  'Idle',
+  'Walking_A',
+  'Running_A',
+  'Death_A',
+  'Hit_A',
+  '1H_Melee_Attack_Chop',
+  '2H_Melee_Attack_Chop',
+  'Unarmed_Melee_Attack_Punch_A',
+  '2H_Ranged_Aiming',
+  '2H_Ranged_Shoot',
+  'Spellcast_Shoot',
+  'Cheer',
+];
 for (const [dir, names] of [
   [`${KAY}/kaykit-character-pack-adventures-1.0/addons/kaykit_character_pack_adventures/Characters/gltf`, null],
   [`${KAY}/KayKit-Character-Pack-Skeletons-1.0/addons/kaykit_character_pack_skeletons/Characters/gltf`, null],

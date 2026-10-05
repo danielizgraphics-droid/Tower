@@ -45,6 +45,9 @@ interface TowerObj {
   key: string;
   root: THREE.Group;
   parts: TowerParts;
+  /** 1 right after a shot, decays to 0 (recoil, flash, orb pulse). */
+  kick: number;
+  unit: { pivot: THREE.Group; mixer: THREE.AnimationMixer; shoot: THREE.AnimationClip | null } | null;
 }
 
 interface EnemyObj {
@@ -54,6 +57,11 @@ interface EnemyObj {
   mats: THREE.MeshStandardMaterial[];
   look: EnemyLook3D;
   dying: number;
+  clips: { walk: THREE.AnimationClip | null; death: THREE.AnimationClip | null; hit: THREE.AnimationClip | null; attack: THREE.AnimationClip | null };
+  lastFlash: number;
+  hitCd: number;
+  dist: number;
+  leaked: boolean;
 }
 
 export class Scene3D {
@@ -68,6 +76,9 @@ export class Scene3D {
   private time = 0;
   castle: THREE.Object3D | null = null;
   private water: THREE.MeshStandardMaterial[] = [];
+  private projectiles = new Map<number, { obj: THREE.Object3D; lx: number; ly: number; lz: number }>();
+  private castleHit = 0;
+  private unsub: (() => void)[] = [];
 
   constructor(
     readonly canvas: HTMLCanvasElement,
@@ -111,10 +122,13 @@ export class Scene3D {
     const towersNeeded = new Set<string>();
     for (const id of game.unlockedTowers) for (const m of towerModels(id)) towersNeeded.add(m);
     const charsNeeded = new Set(Object.values(ENEMY_LOOKS).map((l) => l!.model));
-    for (const m of [...towersNeeded, ...charsNeeded]) void loadModel(m).catch(() => undefined);
+    for (const m of [...towersNeeded, ...charsNeeded, ...Object.values(PROJECTILE_MODELS).map((p) => p.model), 'chars/Rogue_Hooded.glb'])
+      void loadModel(m).catch(() => undefined);
+    this.unsub.push(game.events.on('fire', ({ tower }) => this.onFire(tower)));
   }
 
   destroy(): void {
+    for (const u of this.unsub) u();
     this.renderer.dispose();
     this.scene.traverse((o) => {
       const m = o as THREE.Mesh;
@@ -125,7 +139,7 @@ export class Scene3D {
   /** Is this enemy drawn in 3D (otherwise the 2D layer keeps drawing it)? */
   handlesEnemy(def: EnemyDef): boolean {
     const look = ENEMY_LOOKS[def.id];
-    if (!look || !this.clips) return false;
+    if (!look || (!this.clips && look.model.startsWith('chars/'))) return false;
     if (!isLoaded(look.model)) {
       model(look.model);
       return false;
@@ -198,8 +212,9 @@ export class Scene3D {
   render(dt: number): void {
     this.time += dt;
     for (const m of this.water) m.emissiveIntensity = 0.08 + Math.sin(this.time * 1.5) * 0.04;
-    this.syncTowers();
+    this.syncTowers(dt);
     this.syncEnemies(dt);
+    this.syncProjectiles();
     this.renderer.render(this.scene, this.camera);
   }
 
@@ -366,7 +381,7 @@ export class Scene3D {
 
   // ------------------------------------------------------------ towers
 
-  private syncTowers(): void {
+  private syncTowers(dt: number): void {
     const seen = new Set<number>();
     for (const t of this.game.towers) {
       seen.add(t.uid);
@@ -380,10 +395,11 @@ export class Scene3D {
         root.add(parts.root);
         root.position.set(t.x, GRASS_TOP + (t.def.placement === 'water' ? -0.12 : 0), t.y);
         this.scene.add(root);
-        obj = { key, root, parts };
+        obj = { key, root, parts, kick: 0, unit: null };
+        if (parts.unitY !== null) obj.unit = this.makeUnit(parts);
         this.towers.set(t.uid, obj);
       }
-      this.animateTower(t, obj);
+      this.animateTower(t, obj, dt);
     }
     for (const [uid, obj] of this.towers)
       if (!seen.has(uid)) {
@@ -392,12 +408,59 @@ export class Scene3D {
       }
   }
 
-  private animateTower(t: Tower, obj: TowerObj): void {
+  /** A crossbowman standing on top of the tower. */
+  private makeUnit(parts: TowerParts): TowerObj['unit'] {
+    const body = instance('chars/Rogue_Hooded.glb');
+    if (!body || !this.clips) return null;
+    hideGear(body, ['2H_Crossbow']);
+    const box = new THREE.Box3().setFromObject(body);
+    body.scale.setScalar(0.42 / Math.max(0.01, box.max.y - box.min.y));
+    const pivot = new THREE.Group();
+    pivot.position.y = parts.unitY!;
+    pivot.add(body);
+    parts.root.add(pivot);
+    const mixer = new THREE.AnimationMixer(body);
+    const aim = this.clip(this.clips, ['2H_Ranged_Aiming', 'Idle']);
+    if (aim) mixer.clipAction(aim).play();
+    return { pivot, mixer, shoot: this.clip(this.clips, ['2H_Ranged_Shoot']) };
+  }
+
+  private onFire(t: Tower): void {
+    const obj = this.towers.get(t.uid);
+    if (!obj) return;
+    obj.kick = 1;
+    const u = obj.unit;
+    if (u?.shoot) {
+      const a = u.mixer.clipAction(u.shoot);
+      a.reset().setLoop(THREE.LoopOnce, 1).setEffectiveTimeScale(1.8).setEffectiveWeight(1).play();
+      a.clampWhenFinished = false;
+    }
+  }
+
+  private animateTower(t: Tower, obj: TowerObj, dt: number): void {
     const p = obj.parts;
-    if (p.turret) p.turret.rotation.y = Math.PI / 2 - t.angle;
+    const aim = Math.PI / 2 - t.angle;
+    obj.kick = Math.max(0, obj.kick - dt * 5);
+    const kick = obj.kick * obj.kick;
+    if (p.turret) {
+      p.turret.rotation.y = aim;
+      // Recoil: the weapon jolts backwards along its barrel and settles.
+      p.turret.children[0].position.z = -kick * 0.12;
+    }
+    if (p.flash) {
+      p.flash.visible = obj.kick > 0.55;
+      p.flash.scale.setScalar(0.6 + kick * 1.2);
+    }
     if (p.orb) {
       p.orb.position.y = p.orbY + Math.sin(this.time * 2.4 + t.uid) * 0.05;
-      p.orb.rotation.y = this.time;
+      p.orb.rotation.y = this.time * (1 + kick * 6);
+      p.orb.scale.setScalar(1 + kick * 0.7);
+      const mats = p.orbMats;
+      for (const m of mats) m.emissiveIntensity = 0.55 + kick * 2.5;
+    }
+    if (obj.unit) {
+      obj.unit.pivot.rotation.y = aim;
+      obj.unit.mixer.update(dt);
     }
     // Pop when built / upgraded
     const k = Math.min(1, t.buildAnim / 0.35);
@@ -405,7 +468,66 @@ export class Scene3D {
     obj.root.scale.setScalar(s);
   }
 
+  // ------------------------------------------------------------ projectiles
+
+  private syncProjectiles(): void {
+    const seen = new Set<number>();
+    for (const pr of this.game.projectiles) {
+      if (!pr.alive) continue;
+      const m = PROJECTILE_MODELS[pr.style];
+      if (!m) continue;
+      let o = this.projectiles.get(pr.uid);
+      if (!o) {
+        const made = instance(m.model);
+        if (!made) continue;
+        const g = new THREE.Group();
+        made.scale.setScalar(m.scale);
+        if (m.pitch) made.rotation.x = m.pitch;
+        g.add(made);
+        this.scene.add(g);
+        o = { obj: g, lx: pr.x, ly: pr.y, lz: pr.z };
+        this.projectiles.set(pr.uid, o);
+      }
+      seen.add(pr.uid);
+      o.obj.position.set(pr.x, pr.z, pr.y);
+      // Point along the flight direction (including the arc of lobs).
+      const dx = pr.x - o.lx;
+      const dy = pr.y - o.ly;
+      const dz = pr.z - o.lz;
+      if (dx * dx + dy * dy + dz * dz > 1e-6) o.obj.lookAt(pr.x + dx, pr.z + dz, pr.y + dy);
+      if (m.spin) o.obj.rotateZ(this.time * 12);
+      o.lx = pr.x;
+      o.ly = pr.y;
+      o.lz = pr.z;
+    }
+    for (const [uid, o] of this.projectiles)
+      if (!seen.has(uid)) {
+        this.scene.remove(o.obj);
+        this.projectiles.delete(uid);
+      }
+  }
+
+  /** Projectile styles drawn as 3D models (the rest stay as glowing 2D effects). */
+  handlesProjectile(style: string): boolean {
+    const m = PROJECTILE_MODELS[style];
+    return !!m && isLoaded(m.model);
+  }
+
   // ------------------------------------------------------------ enemies
+
+  private clip(clips: THREE.AnimationClip[], names: string[]): THREE.AnimationClip | null {
+    for (const n of names) {
+      const c = clips.find((c) => c.name === n || c.name.endsWith('|' + n) || c.name.endsWith('_' + n));
+      if (c) return c;
+    }
+    return null;
+  }
+
+  private clipsOf(look: EnemyLook3D): THREE.AnimationClip[] | null {
+    if (look.rigid) return [];
+    if (look.model.startsWith('chars/')) return this.clips;
+    return model(look.model)?.animations ?? null;
+  }
 
   private syncEnemies(dt: number): void {
     const seen = new Set<number>();
@@ -421,67 +543,102 @@ export class Scene3D {
       }
       this.updateEnemy(e, obj, dt);
     }
+    const end = this.game.board.length;
     for (const [uid, obj] of this.enemies) {
       if (seen.has(uid)) continue;
-      // Died or leaked: play the fall, then fade away.
       if (obj.dying === 0) {
         obj.dying = 0.0001;
-        const clip = this.clips?.find((c) => c.name === 'Death_A');
+        obj.leaked = obj.dist >= end - 0.35;
+        // Leaked enemies strike the castle; the fallen play their death.
+        const clip = obj.leaked ? obj.clips.attack : obj.clips.death;
         if (clip) {
           obj.mixer.stopAllAction();
           const a = obj.mixer.clipAction(clip);
           a.setLoop(THREE.LoopOnce, 1);
           a.clampWhenFinished = true;
-          a.timeScale = 1.6;
+          a.timeScale = obj.leaked ? 1.4 : 1.5;
           a.play();
         }
+        if (obj.leaked) this.castleHit = 1;
       }
       obj.dying += dt;
       obj.mixer.update(dt);
-      if (obj.dying > 0.8) {
-        const f = Math.max(0, 1 - (obj.dying - 0.8) / 0.5);
+      if (obj.look.rigid && !obj.leaked) obj.root.rotation.z = Math.min(0.5, obj.dying);
+      const fadeStart = obj.leaked ? 0.45 : 0.9;
+      if (obj.dying > fadeStart) {
+        const f = Math.max(0, 1 - (obj.dying - fadeStart) / 0.45);
         for (const m of obj.mats) {
           m.transparent = true;
-          m.opacity = f;
+          m.opacity = f * (obj.look.ghost ? 0.7 : 1);
         }
+        if (!obj.leaked) obj.root.position.y -= dt * 0.25;
       }
-      if (obj.dying > 1.3) {
+      if (obj.dying > fadeStart + 0.45) {
         this.scene.remove(obj.root);
         this.enemies.delete(uid);
       }
+    }
+    if (this.castle) {
+      this.castleHit = Math.max(0, this.castleHit - dt * 3);
+      const k = this.castleHit;
+      this.castle.position.x = this.game.board.castle.x + 0.5 + Math.sin(this.time * 70) * 0.03 * k;
+      this.castle.scale.setScalar(1 - k * 0.04);
     }
   }
 
   private makeEnemy(e: Enemy): EnemyObj | null {
     const look = ENEMY_LOOKS[e.def.id]!;
+    const clips = this.clipsOf(look);
     const body = instance(look.model);
-    if (!body || !this.clips) return null;
-    // Only the accessories this enemy carries.
-    body.traverse((o) => {
-      if (!(o as THREE.Mesh).isMesh) return;
-      const n = o.name;
-      if (/^(1H_|2H_|Knife|Throwable|Spellbook|Mug|Badge_Shield|Rectangle_Shield|Round_Shield|Spike_Shield|Barbarian_Round_Shield)/.test(n))
-        o.visible = look.show.includes(n);
-      if (look.hide?.some((h) => n.includes(h))) o.visible = false;
-    });
+    if (!body || !clips) return null;
+    hideGear(body, look.show ?? [], look.hide);
     const mats = ownMaterials(body);
-    if (look.tint) for (const m of mats) m.color.set(look.tint);
-    body.scale.setScalar(look.scale * e.def.size);
+    if (look.tint) for (const m of mats) m.color.lerp(new THREE.Color(look.tint), look.tintAmount ?? 0.5);
+    // Fit to the requested height (models come in very different units).
+    // Fit the model's largest dimension (bosses grow, but not without limit).
+    const box = new THREE.Box3().setFromObject(body);
+    const sz = box.getSize(new THREE.Vector3());
+    const k = (look.height * Math.min(e.def.size, 1.45)) / Math.max(0.01, sz.x, sz.y, sz.z);
+    body.scale.setScalar(k);
+    body.position.y = -box.min.y * k;
+    body.rotation.y = look.yaw ?? 0;
     const root = new THREE.Group();
     root.add(body);
     this.scene.add(root);
     const mixer = new THREE.AnimationMixer(body);
-    const clip = this.clips.find((c) => c.name === (e.def.speed > 1.3 ? 'Running_A' : 'Walking_A'));
-    const walk = clip ? mixer.clipAction(clip) : null;
+    const fast = e.def.speed > 1.3;
+    const set = {
+      walk: this.clip(
+        clips,
+        e.def.flying
+          ? ['Flying', 'Bat_Flying', 'Dragon_Flying', 'Walk']
+          : fast
+            ? ['Running_A', 'Skeleton_Running', 'Walk', 'Walking', 'Slime_Walk']
+            : ['Walking_A', 'Walk', 'Walking', 'Slime_Walk', 'Skeleton_Running', 'Flying', 'Idle'],
+      ),
+      death: this.clip(clips, ['Death_A', 'Death', 'Bat_Death', 'Dragon_Death', 'Slime_Death', 'Skeleton_Death']),
+      hit: this.clip(clips, ['Hit_A', 'HitRecieve', 'Bat_Hit', 'Dragon_Hit']),
+      attack: this.clip(clips, [
+        '1H_Melee_Attack_Chop',
+        'Bite_Front',
+        'Bat_Attack',
+        'Dragon_Attack',
+        'Slime_Attack',
+        'Skeleton_Attack',
+        'Unarmed_Melee_Attack_Punch_A',
+      ]),
+    };
+    const walk = set.walk ? mixer.clipAction(set.walk) : null;
     if (walk) {
       walk.play();
-      walk.time = Math.random() * clip!.duration;
+      walk.time = Math.random() * set.walk!.duration;
     }
-    return { root, mixer, walk, mats, look, dying: 0 };
+    return { root, mixer, walk, mats, look, dying: 0, clips: set, lastFlash: 1, hitCd: 0, dist: e.dist, leaked: false };
   }
 
   private updateEnemy(e: Enemy, obj: EnemyObj, dt: number): void {
-    const hover = e.def.flying ? 0.9 + Math.sin(e.age * 6) * 0.05 : 0;
+    const hover = e.def.flying ? 0.75 + Math.sin(e.age * 4) * 0.06 : 0;
+    obj.dist = e.dist;
     obj.root.position.set(e.x, hover, e.y);
     // Smoothly turn to face the walking direction.
     const target = Math.PI / 2 - e.angle;
@@ -490,29 +647,57 @@ export class Scene3D {
     obj.root.rotation.y += d * Math.min(1, dt * 12);
     const stopped = e.stunTime > 0 || e.freezeTime > 0;
     if (obj.walk)
-      obj.walk.timeScale = stopped ? 0 : (e.currentSpeed / Math.max(0.3, e.def.speed)) * (e.def.speed > 1.3 ? 1.1 : 1.4) * obj.look.stride;
+      obj.walk.timeScale = stopped ? 0 : (e.currentSpeed / Math.max(0.3, e.def.speed)) * (e.def.speed > 1.3 ? 1.1 : 1.4) * (obj.look.stride ?? 1);
+    if (obj.look.rigid) {
+      // Siege engines rock gently as they roll.
+      obj.root.rotation.z = stopped ? 0 : Math.sin(e.age * 6) * 0.03;
+    }
+    // Flinch when hit (at most every 0.6 s so the walk keeps reading).
+    obj.hitCd -= dt;
+    if (e.hitFlash < obj.lastFlash && obj.hitCd <= 0 && obj.clips.hit) {
+      obj.hitCd = 0.6;
+      const a = obj.mixer.clipAction(obj.clips.hit);
+      a.reset().setLoop(THREE.LoopOnce, 1).setEffectiveTimeScale(1.6).setEffectiveWeight(0.8).play();
+    }
+    obj.lastFlash = e.hitFlash;
     obj.mixer.update(dt);
     const flash = e.hitFlash < 0.08;
     const frozen = e.freezeTime > 0;
     for (const m of obj.mats) {
       m.emissive.set(flash ? '#ffffff' : frozen ? '#6fc8ff' : (obj.look.glow ?? '#000000'));
-      m.emissiveIntensity = flash ? 0.6 : frozen ? 0.5 : obj.look.glow ? 0.25 : 0;
+      m.emissiveIntensity = flash ? 0.6 : frozen ? 0.5 : obj.look.glow ? 0.35 : 0;
     }
     const spawnFade = Math.min(1, e.age / 0.35);
-    if (spawnFade < 1)
-      for (const m of obj.mats) {
-        m.transparent = true;
-        m.opacity = spawnFade;
+    const base = obj.look.ghost ? 0.7 : 1;
+    const want = spawnFade * base;
+    const transparent = want < 1;
+    for (const m of obj.mats) {
+      if (m.transparent !== transparent) {
+        m.transparent = transparent;
+        m.needsUpdate = true;
       }
-    else if (obj.mats[0]?.transparent && !obj.look.ghost)
-      for (const m of obj.mats) {
-        m.transparent = false;
-        m.opacity = 1;
-      }
-    if (obj.look.ghost)
-      for (const m of obj.mats) {
-        m.transparent = true;
-        m.opacity = 0.7 * spawnFade;
-      }
+      m.opacity = want;
+    }
   }
 }
+
+/** Shows only the listed accessory meshes of a KayKit character. */
+function hideGear(body: THREE.Object3D, show: string[], hide?: string[]): void {
+  body.traverse((o) => {
+    if (!(o as THREE.Mesh).isMesh) return;
+    const n = o.name;
+    if (/^(1H_|2H_|Knife|Throwable|Spellbook|Mug|Badge_Shield|Rectangle_Shield|Round_Shield|Spike_Shield|Barbarian_Round_Shield)/.test(n))
+      o.visible = show.includes(n);
+    if (hide?.some((h) => n.includes(h))) o.visible = false;
+  });
+}
+
+export const PROJECTILE_MODELS: Record<string, { model: string; scale: number; pitch?: number; spin?: boolean }> = {
+  arrow: { model: 'td/weapon-ammo-arrow.glb', scale: 0.7 },
+  runeArrow: { model: 'td/weapon-ammo-arrow.glb', scale: 0.7 },
+  bolt: { model: 'td/weapon-ammo-arrow.glb', scale: 1.1 },
+  harpoon: { model: 'td/weapon-ammo-arrow.glb', scale: 1.5 },
+  ball: { model: 'td/weapon-ammo-cannonball.glb', scale: 0.8 },
+  bomb: { model: 'td/weapon-ammo-cannonball.glb', scale: 0.6 },
+  flask: { model: 'td/weapon-ammo-boulder.glb', scale: 0.5, spin: true },
+};

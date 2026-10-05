@@ -14,6 +14,11 @@ export interface TowerParts {
   /** Floating magic focus. */
   orb: THREE.Object3D | null;
   orbY: number;
+  orbMats: THREE.MeshStandardMaterial[];
+  /** Muzzle flash shown for an instant after each shot. */
+  flash: THREE.Object3D | null;
+  /** Height where a crossbowman stands (null = no unit). */
+  unitY: number | null;
 }
 
 type Color = 'blue' | 'red' | 'green' | 'yellow';
@@ -44,6 +49,10 @@ interface Plan {
   props?: Prop[];
   /** Tinted crystals on top (Kenney). */
   crystals?: string;
+  /** A crossbowman stands on top (height fraction). */
+  unitAt?: number;
+  /** Muzzle flash colour for the turret. */
+  flash?: string;
 }
 
 function plan(id: TowerId, tier: number, branch: number): Plan {
@@ -57,8 +66,9 @@ function plan(id: TowerId, tier: number, branch: number): Plan {
     case 'archer':
       if (tier >= 4) return { base: B('archeryrange', c), fit: size + 0.08, props: extras };
       return {
-        base: B(tier >= 3 ? 'tower_B' : 'tower_A', c),
-        fit: size * 0.75,
+        base: B('tower_base', c),
+        fit: size * 0.72,
+        unitAt: 0.97,
         props: [...extras, ...(tier >= 2 ? [{ m: PROP('bucket_arrows'), x: -0.3, z: -0.25, s: 0.5 }] : [])],
       };
     case 'ballista':
@@ -70,6 +80,7 @@ function plan(id: TowerId, tier: number, branch: number): Plan {
         fit: size * 0.82,
         turret: TD('weapon-cannon'),
         turretAt: 0.86,
+        flash: '#ffc04a',
         props: [...extras, ...(tier >= 2 ? [{ m: 'hex/neutral/projectile_catapult.glb', x: -0.3, z: 0.05, s: 0.4 }] : [])],
       };
     case 'alchemist':
@@ -94,7 +105,7 @@ function plan(id: TowerId, tier: number, branch: number): Plan {
     case 'harbor':
       if (branch === 1) return { base: B('tower_catapult', c), fit: size * 0.8, props: extras };
       if (branch === 2) return { base: B('tower_B', c), fit: size * 0.75, orb: '#fff2b0' };
-      return { base: B('watermill', c), fit: size + 0.05, turret: TD('weapon-cannon'), turretAt: 0.45 };
+      return { base: B('watermill', c), fit: size + 0.05, turret: TD('weapon-cannon'), turretAt: 0.45, flash: '#ffc04a' };
     case 'tide':
       return { base: B('well', c), fit: size + 0.05, orb: branch === 2 ? '#c48cff' : '#5fe0ff', crystals: branch === 0 ? '#9fe8ff' : undefined };
   }
@@ -136,14 +147,28 @@ export function towerParts(id: TowerId, tier: number, branch: number): TowerPart
   const height = sz.y * k;
   let i = 1;
   let turret: THREE.Object3D | null = null;
+  let flash: THREE.Object3D | null = null;
   if (p.turret) {
     const w = objs[i++]!;
     const pivot = new THREE.Group();
     pivot.position.y = height * (p.turretAt ?? 0.9);
     w.scale.setScalar(0.75);
-    pivot.add(w);
+    // The recoil moves this holder; the weapon keeps its own transform.
+    const holder = new THREE.Group();
+    holder.add(w);
+    pivot.add(holder);
     root.add(pivot);
     turret = pivot;
+    if (p.flash) {
+      const f = new THREE.Mesh(
+        new THREE.IcosahedronGeometry(0.09, 1),
+        new THREE.MeshBasicMaterial({ color: p.flash, transparent: true, opacity: 0.9, depthWrite: false }),
+      );
+      f.position.set(0, 0.28, 0.42);
+      f.visible = false;
+      holder.add(f);
+      flash = f;
+    }
   }
   if (p.crystals) {
     const cr = objs[i++]!;
@@ -162,6 +187,7 @@ export function towerParts(id: TowerId, tier: number, branch: number): TowerPart
     root.add(o);
   }
   let orb: THREE.Object3D | null = null;
+  const orbMats: THREE.MeshStandardMaterial[] = [];
   const orbY = height + 0.28;
   if (p.orb) {
     const mat = new THREE.MeshStandardMaterial({ color: p.orb, emissive: p.orb, emissiveIntensity: 0.55, roughness: 0.25 });
@@ -173,10 +199,11 @@ export function towerParts(id: TowerId, tier: number, branch: number): TowerPart
       new THREE.MeshStandardMaterial({ color: p.orb, emissive: p.orb, emissiveIntensity: 0.4, transparent: true, opacity: 0.75 }),
     );
     halo.rotation.x = Math.PI / 2;
+    orbMats.push(mat, halo.material as THREE.MeshStandardMaterial);
     g.add(core, halo);
     g.position.y = orbY;
     root.add(g);
     orb = g;
   }
-  return { root, turret, orb, orbY };
+  return { root, turret, orb, orbY, orbMats, flash, unitY: p.unitAt !== undefined ? height * p.unitAt : null };
 }

@@ -467,7 +467,8 @@ export class Renderer {
     out.push({ depth: depthOf(b.spawn.x + 0.5, b.spawn.y + 0.5), draw: () => this.drawPortal() });
     for (const t of g.towers) if (!s3?.hasTower(t.uid)) out.push({ depth: depthOf(t.x, t.y), draw: () => this.drawTower(t) });
     for (const e of g.enemies) if (e.alive && !s3?.handlesEnemy(e.def)) out.push({ depth: depthOf(e.x, e.y) + 0.01, draw: () => this.drawEnemy(e) });
-    for (const pr of g.projectiles) out.push({ depth: depthOf(pr.x, pr.y) + 0.02, draw: () => this.drawProjectile(pr) });
+    for (const pr of g.projectiles)
+      if (!s3?.handlesProjectile(pr.style)) out.push({ depth: depthOf(pr.x, pr.y) + 0.02, draw: () => this.drawProjectile(pr) });
     for (const s of g.strikes) out.push({ depth: depthOf(s.x, s.y) + 0.03, draw: () => this.drawPendingStrike(s) });
     return out;
   }
