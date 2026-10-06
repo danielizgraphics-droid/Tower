@@ -79,6 +79,9 @@ export class Renderer {
   private scene3d: Scene3D | null = null;
   private glCanvas: HTMLCanvasElement | null = null;
   private errors3D = 0;
+  private lostFor = 0;
+  private rebuilds3D = 0;
+  private background = '';
 
   constructor(
     private canvas: HTMLCanvasElement,
@@ -86,25 +89,16 @@ export class Renderer {
     opts: { three?: boolean } = {},
   ) {
     this.ctx = canvas.getContext('2d')!;
-    if (opts.three ?? Renderer.use3D) {
-      try {
-        this.glCanvas = document.createElement('canvas');
-        this.glCanvas.className = 'stage stage-3d';
-        this.glCanvas.style.pointerEvents = 'none';
-        this.scene3d = new Scene3D(this.glCanvas, game);
-        this.homeZoom = 1.5;
-        this.zoom = this.homeZoom;
-      } catch (e) {
-        console.warn('WebGL unavailable, using 2D', e);
-        this.scene3d = null;
-        this.glCanvas = null;
-      }
+    if ((opts.three ?? Renderer.use3D) && this.create3D()) {
+      this.homeZoom = 1.5;
+      this.zoom = this.homeZoom;
     }
     this.painter = new Painter(this.cam);
     this.painter.ctx = this.ctx;
     this.theme = THEMES[game.board.def.theme];
     this.ground = new GroundCache(game.board, this.theme);
     this.cam.rows = game.board.height;
+    this.background = `linear-gradient(180deg, ${this.theme.bgTop}, ${this.theme.bgBottom})`;
     (this.glCanvas ?? canvas).style.background = `linear-gradient(180deg, ${this.theme.bgTop}, ${this.theme.bgBottom})`;
     this.bindEvents();
   }
@@ -116,6 +110,43 @@ export class Renderer {
 
   get has3D(): boolean {
     return this.scene3d !== null;
+  }
+
+  /** Creates the WebGL layer; false when WebGL is unavailable (the 2D renderer is used). */
+  private create3D(): boolean {
+    try {
+      const gl = document.createElement('canvas');
+      gl.className = 'stage stage-3d';
+      gl.style.pointerEvents = 'none';
+      if (this.background) gl.style.background = this.background;
+      this.scene3d = new Scene3D(gl, this.game);
+      this.glCanvas = gl;
+      return true;
+    } catch (e) {
+      console.warn('WebGL unavailable, using 2D', e);
+      this.scene3d = null;
+      this.glCanvas = null;
+      return false;
+    }
+  }
+
+  /**
+   * The GPU context was lost (phones reclaim it under memory pressure, often for good)
+   * or the 3D layer kept failing: start a fresh one. Models stay cached, so this is quick.
+   */
+  private rebuild3D(): void {
+    this.rebuilds3D++;
+    try {
+      this.scene3d?.destroy();
+    } catch {
+      /* the old context may already be gone */
+    }
+    this.glCanvas?.remove();
+    this.scene3d = null;
+    this.glCanvas = null;
+    this.errors3D = 0;
+    this.lostFor = 0;
+    this.create3D();
   }
 
   destroy(): void {
@@ -391,6 +422,10 @@ export class Renderer {
     }
 
     this.creatures.budget = 6;
+    if (this.scene3d?.lost) {
+      this.lostFor += dt;
+      if (this.lostFor > 1.5 && this.rebuilds3D < 3) this.rebuild3D();
+    } else this.lostFor = 0;
     const s3 = this.scene3d;
     if (s3 && this.glCanvas) {
       // Keep the WebGL layer right under the 2D canvas, mirroring its visibility.

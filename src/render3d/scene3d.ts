@@ -184,7 +184,7 @@ export class Scene3D {
 
   // ------------------------------------------------------------ frame
 
-  private ghost: { key: string; obj: THREE.Object3D } | null = null;
+  private ghost: { key: string; obj: THREE.Object3D; mats: THREE.Material[] } | null = null;
 
   /** Translucent preview of the tower being placed. */
   setGhost(g: { id: TowerId; x: number; y: number; valid: boolean } | null): void {
@@ -196,8 +196,12 @@ export class Scene3D {
     if (!this.ghost || this.ghost.key !== key) {
       const parts = towerParts(g.id, 1, -1);
       if (!parts) return;
-      if (this.ghost) this.scene.remove(this.ghost.obj);
-      for (const m of ownMaterials(parts.root)) {
+      if (this.ghost) {
+        this.scene.remove(this.ghost.obj);
+        release(this.ghost.obj, this.ghost.mats);
+      }
+      const mats = ownMaterials(parts.root);
+      for (const m of mats) {
         m.transparent = true;
         m.opacity = 0.6;
         m.depthWrite = false;
@@ -208,7 +212,7 @@ export class Scene3D {
         }
       }
       parts.root.traverse((o) => (o.castShadow = false));
-      this.ghost = { key, obj: parts.root };
+      this.ghost = { key, obj: parts.root, mats };
       this.scene.add(parts.root);
     }
     const water = this.game.board.tile(g.x, g.y)?.kind === 'water';
@@ -612,7 +616,10 @@ export class Scene3D {
       if (!obj || obj.key !== key) {
         const parts = towerParts(t.def.id as TowerId, t.tier, t.branch);
         if (!parts) continue;
-        if (obj) this.scene.remove(obj.root);
+        if (obj) {
+          this.scene.remove(obj.root);
+          release(obj.root, obj.parts.orbMats);
+        }
         const root = new THREE.Group();
         root.add(parts.root);
         root.position.set(t.x, GRASS_TOP + (t.def.placement === 'water' ? -0.12 : 0), t.y);
@@ -626,6 +633,7 @@ export class Scene3D {
     for (const [uid, obj] of this.towers)
       if (!seen.has(uid)) {
         this.scene.remove(obj.root);
+        release(obj.root, obj.parts.orbMats);
         this.towers.delete(uid);
       }
   }
@@ -797,6 +805,7 @@ export class Scene3D {
       }
       if (obj.dying > fadeStart + 0.45) {
         this.scene.remove(obj.root);
+        release(obj.root, obj.mats);
         this.enemies.delete(uid);
       }
     }
@@ -904,6 +913,18 @@ export class Scene3D {
 }
 
 /** Shows only the listed accessory meshes of a KayKit character. */
+/**
+ * Frees what a removed object owned on the GPU: skeleton bone textures and
+ * the materials cloned for it (shared model geometry stays cached).
+ */
+function release(root: THREE.Object3D, mats: THREE.Material[] = []): void {
+  root.traverse((o) => {
+    const s = o as THREE.SkinnedMesh;
+    if (s.isSkinnedMesh) s.skeleton.dispose();
+  });
+  for (const m of mats) m.dispose();
+}
+
 export function hideGear(body: THREE.Object3D, show: string[], hide?: string[]): void {
   body.traverse((o) => {
     if (!(o as THREE.Mesh).isMesh) return;

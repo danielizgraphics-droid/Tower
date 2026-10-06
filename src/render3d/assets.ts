@@ -18,7 +18,10 @@ export function loadModel(path: string): Promise<GLTF> {
   let p = pending.get(path);
   if (!p) {
     // Packaged builds may embed models as base64 (window.__MODELS) instead of serving .glb files.
-    const packed = (globalThis as { __MODELS?: Record<string, string> }).__MODELS?.[path];
+    const bank = (globalThis as { __MODELS?: Record<string, string> }).__MODELS;
+    const packed = bank?.[path];
+    // Parsed models stay cached here, so the packed text can be freed (saves memory on phones).
+    if (packed) delete bank![path];
     const source = packed ? loader.parseAsync(base64ToBuffer(packed), BASE) : loader.loadAsync(BASE + path);
     p = source.then((g) => {
       prepare(g.scene);
