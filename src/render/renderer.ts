@@ -78,6 +78,7 @@ export class Renderer {
   static use3D = false;
   private scene3d: Scene3D | null = null;
   private glCanvas: HTMLCanvasElement | null = null;
+  private errors3D = 0;
 
   constructor(
     private canvas: HTMLCanvasElement,
@@ -398,9 +399,15 @@ export class Renderer {
       this.glCanvas.style.display = s3.lost ? 'none' : this.canvas.style.display;
       this.glCanvas.style.filter = this.canvas.style.filter;
       if (!s3.lost) {
-        s3.sync(this.cam, this.width, this.height, this.dpr);
-        s3.setGhost(this.view.ghost);
-        s3.render(dt);
+        try {
+          s3.sync(this.cam, this.width, this.height, this.dpr);
+          s3.setGhost(this.view.ghost);
+          s3.render(dt);
+        } catch (e) {
+          // A failing 3D layer must not stop the battle: after repeated errors the 2D renderer takes over.
+          console.error('3D', e);
+          if (++this.errors3D >= 3) s3.lost = true;
+        }
       }
     }
     const flat = !!s3?.groundReady;

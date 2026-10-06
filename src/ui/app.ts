@@ -176,21 +176,28 @@ export class App {
     this.screen?.resize?.();
   }
 
+  private frameErrors = 0;
+
   private frame(now: number): void {
+    // Schedule the next frame first: an error in one frame must never freeze the game.
+    requestAnimationFrame((t) => this.frame(t));
     if (`${innerWidth}x${innerHeight}` !== this.size) this.resize();
     const dt = Math.min(0.1, (now - this.last) / 1000);
     this.last = now;
-    if (this.backdrop) {
-      const b = this.backdrop;
-      b.bot.update(dt);
-      b.game.update(dt);
-      if (b.game.isOver) {
-        // Restart the demo when it ends.
-        this.stopBackdrop();
-        this.startBackdrop();
-      } else b.renderer.render(dt);
+    try {
+      if (this.backdrop) {
+        const b = this.backdrop;
+        b.bot.update(dt);
+        b.game.update(dt);
+        if (b.game.isOver) {
+          // Restart the demo when it ends.
+          this.stopBackdrop();
+          this.startBackdrop();
+        } else b.renderer.render(dt);
+      }
+      this.screen?.update?.(dt);
+    } catch (e) {
+      if (this.frameErrors++ < 5) console.error('frame', e);
     }
-    this.screen?.update?.(dt);
-    requestAnimationFrame((t) => this.frame(t));
   }
 }

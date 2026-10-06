@@ -1203,7 +1203,12 @@ export function gameScreen(app: App, route: Route): Screen {
     update(dt: number) {
       game.update(dt);
       if (placing) setGhost(placing);
-      renderer.render(dt);
+      // Drawing problems must never stop the battle itself.
+      try {
+        renderer.render(dt);
+      } catch (e) {
+        console.error('render', e);
+      }
       updateHud(dt);
       updateConfirm();
     },

@@ -12,7 +12,13 @@ export class Emitter<Events extends { [K in keyof Events]: unknown }> {
   emit<K extends keyof Events>(type: K, payload: Events[K]): void {
     const set = this.handlers.get(type);
     if (!set) return;
-    for (const fn of set) (fn as (p: Events[K]) => void)(payload);
+    // Listeners are presentation (sound, effects, UI): one failing must not stop the simulation that emits.
+    for (const fn of set)
+      try {
+        (fn as (p: Events[K]) => void)(payload);
+      } catch (e) {
+        console.error('event', String(type), e);
+      }
   }
 
   clear(): void {
