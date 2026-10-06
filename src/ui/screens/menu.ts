@@ -4,7 +4,7 @@ import { nodeState } from '../../meta/profile';
 import type { App, Screen } from '../app';
 import { h } from '../dom';
 import { icon } from '../icons';
-import { openSettings } from './settings';
+import { cloudBadge, openSettings } from './settings';
 
 /** True when the player can buy at least one talent somewhere. */
 export function hasAffordableTalent(app: App): boolean {
@@ -52,6 +52,7 @@ export function menuScreen(app: App): Screen {
       h(
         'div.menu-footer',
         h('span.star-badge', icon('star', 18), `${p.stars} estrellas`),
+        cloudBadge(app, 'star-badge'),
         p.stats.runs > 0 ? h('span', `${p.stats.wins} victorias · ${p.stats.kills.toLocaleString('es')} enemigos abatidos`) : null,
       ),
     ),

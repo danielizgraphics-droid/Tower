@@ -21,6 +21,28 @@ function slider(value: number, onInput: (v: number) => void): HTMLInputElement {
   return s;
 }
 
+const CLOUD_TEXT = {
+  connecting: 'Conectando…',
+  synced: 'Guardado en tu cuenta',
+  saving: 'Guardando…',
+  off: 'Solo en este dispositivo',
+  error: 'Sin conexión: se guarda aquí y se subirá luego',
+} as const;
+
+/** A live label with the cloud-save state (stops listening once removed from the page). */
+export function cloudBadge(app: App, extraClass?: string): HTMLElement {
+  const el = h('span.cloud-badge', icon('cloud', 16), h('span'));
+  if (extraClass) el.classList.add(extraClass);
+  let shown = false;
+  const stop = app.cloud.onStatus((s) => {
+    if (shown && !el.isConnected) return void stop();
+    shown = true;
+    el.lastElementChild!.textContent = CLOUD_TEXT[s];
+    el.dataset.state = s;
+  });
+  return el;
+}
+
 /** Settings modal; `onClose` lets in-game callers resume. */
 export function openSettings(app: App, host: HTMLElement, onClose?: () => void, extra?: HTMLElement[]): HTMLElement {
   const st = app.profile.settings;
@@ -43,7 +65,7 @@ export function openSettings(app: App, host: HTMLElement, onClose?: () => void, 
     }
     app.profile = defaultProfile();
     app.save();
-    location.reload();
+    void app.cloud.flush().finally(() => location.reload());
   };
   const modal = h(
     'div.modal',
@@ -77,6 +99,7 @@ export function openSettings(app: App, host: HTMLElement, onClose?: () => void, 
           h('span', 'Temblor de pantalla'),
           toggle(st.screenShake, (v) => ((st.screenShake = v), apply())),
         ),
+        h('div.setting', h('span', 'Progreso'), cloudBadge(app)),
         h(
           'div.setting',
           h('span.muted.tiny', 'Atajos: 1–0 construir · Espacio oleada · Q/W/E hechizos · U mejorar · S vender · F velocidad · P pausa · C centrar'),

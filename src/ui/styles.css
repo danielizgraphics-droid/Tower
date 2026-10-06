@@ -2090,3 +2090,27 @@ table.dmg td.bad {
 .preview-frame img:not([src]) {
   visibility: hidden;
 }
+.cloud-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ink-2);
+}
+.cloud-badge .icon {
+  color: var(--ink-3);
+}
+.cloud-badge[data-state='synced'] .icon {
+  color: var(--forest);
+}
+.cloud-badge[data-state='error'] .icon {
+  color: var(--red);
+}
+.cloud-badge[data-state='connecting'],
+.cloud-badge[data-state='off'] {
+  display: none;
+}
+.settings .cloud-badge[data-state] {
+  display: inline-flex;
+}

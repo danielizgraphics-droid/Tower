@@ -40,6 +40,8 @@ export interface Profile {
   /** Ids of codex entries (enemies) the player has encountered. */
   seenEnemies: string[];
   tutorialDone: boolean;
+  /** When this profile was last saved (ms since epoch) — the newer copy wins when syncing devices. */
+  savedAt?: number;
 }
 
 export function defaultProfile(): Profile {

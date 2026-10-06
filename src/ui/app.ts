@@ -5,6 +5,7 @@ import { AutoPlayer, ALL_TOWERS } from '../game/autoplay';
 import { Game } from '../game/game';
 import { generateMap } from '../game/mapgen';
 import { ModifierSet } from '../game/modifiers';
+import { CloudSave } from '../meta/cloud';
 import { loadProfile, saveProfile, type Profile, type Storage } from '../meta/profile';
 import { Renderer } from '../render/renderer';
 import { h } from './dom';
@@ -45,6 +46,10 @@ export class App {
   readonly audio = new AudioEngine();
   readonly storage = safeStorage();
   profile: Profile;
+  readonly cloud: CloudSave;
+  private route: Route | null = null;
+  /** A newer cloud profile that arrived mid-battle (applied when the battle ends). */
+  private incoming: Profile | null = null;
   private screen: Screen | null = null;
   private stage: HTMLCanvasElement;
   private backdrop: { game: Game; renderer: Renderer; bot: AutoPlayer } | null = null;
@@ -54,6 +59,8 @@ export class App {
   constructor(root: HTMLElement) {
     this.root = root;
     this.profile = loadProfile(this.storage);
+    this.cloud = new CloudSave(this);
+    void this.cloud.connect();
     this.stage = h('canvas.stage');
     this.root.appendChild(this.stage);
     this.audio.setVolumes(this.profile.settings.sfxVolume, this.profile.settings.musicVolume);
@@ -76,6 +83,12 @@ export class App {
   }
 
   go(route: Route): void {
+    if (this.incoming && route.name !== 'game') {
+      // Progress saved after the battle is newer still and stays (and reaches the cloud).
+      if ((this.incoming.savedAt ?? 0) > (this.profile.savedAt ?? 0)) this.applyProfile(this.incoming);
+      this.incoming = null;
+    }
+    this.route = route;
     hideTip();
     this.screen?.destroy?.();
     this.screen?.el.remove();
@@ -90,7 +103,25 @@ export class App {
   }
 
   save(): void {
+    this.profile.savedAt = Math.max(Date.now(), (this.profile.savedAt ?? 0) + 1);
     saveProfile(this.storage, this.profile);
+    this.cloud.save(this.profile);
+  }
+
+  /** Takes a newer profile from the cloud; a battle in progress keeps its own until it ends. */
+  adoptProfile(p: Profile): void {
+    if (this.route?.name === 'game') {
+      this.incoming = p;
+      return;
+    }
+    this.applyProfile(p);
+    if (this.route) this.go(this.route);
+  }
+
+  private applyProfile(p: Profile): void {
+    this.profile = p;
+    saveProfile(this.storage, p);
+    this.audio.setVolumes(p.settings.sfxVolume, p.settings.musicVolume);
   }
 
   sfx(name: Parameters<AudioEngine['play']>[0]): void {
