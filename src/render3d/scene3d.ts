@@ -23,6 +23,9 @@ const GROUND_Y = -0.1;
 const GRASS_TOP = 0.1;
 /** Tiles of countryside drawn around the board. */
 const SCENERY_MARGIN = 14;
+/** Phones and tablets: fewer pixels and a smaller shadow map keep memory (and the GPU) in check. */
+const MOBILE = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
+const MAX_DPR = MOBILE ? 1.5 : 2;
 
 /** Every terrain model any biome may use (for packaging). */
 export const TILE_MODELS = [...new Set(Object.values(BIOMES_3D).flatMap(biomeModels))];
@@ -67,6 +70,8 @@ export class Scene3D {
   private water: THREE.MeshStandardMaterial[] = [];
   private projectiles = new Map<number, { obj: THREE.Object3D; lx: number; ly: number; lz: number }>();
   private castleHit = 0;
+  /** True while the WebGL context is lost. */
+  lost = false;
   private unsub: (() => void)[] = [];
 
   constructor(
@@ -74,6 +79,15 @@ export class Scene3D {
     readonly game: Game,
   ) {
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, preserveDrawingBuffer: false });
+    // The browser may drop the GPU context (memory pressure, e.g. when an iPhone rotates):
+    // the 2D layer takes over until it comes back.
+    canvas.addEventListener('webglcontextlost', (e) => {
+      e.preventDefault();
+      this.lost = true;
+    });
+    canvas.addEventListener('webglcontextrestored', () => {
+      this.lost = false;
+    });
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFShadowMap;
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -95,7 +109,7 @@ export class Scene3D {
     sc.bottom = -half;
     sc.near = 1;
     sc.far = 80;
-    this.sun.shadow.mapSize.set(2048, 2048);
+    this.sun.shadow.mapSize.setScalar(MOBILE ? 1024 : 2048);
     this.sun.shadow.bias = -0.0006;
     this.sun.shadow.normalBias = 0.02;
     this.scene.add(this.sun, this.sun.target);
@@ -144,14 +158,15 @@ export class Scene3D {
   }
 
   get groundReady(): boolean {
-    return this.ground !== null;
+    return this.ground !== null && !this.lost;
   }
 
   // ------------------------------------------------------------ camera
 
   sync(cam: Camera, width: number, height: number, dpr: number): void {
     const r = this.renderer;
-    if (r.getPixelRatio() !== dpr) r.setPixelRatio(dpr);
+    const ratio = Math.min(dpr, MAX_DPR);
+    if (r.getPixelRatio() !== ratio) r.setPixelRatio(ratio);
     const size = r.getSize(new THREE.Vector2());
     if (size.x !== width || size.y !== height) r.setSize(width, height, true);
     const k = cam.scale * K;

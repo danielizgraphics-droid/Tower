@@ -70,7 +70,15 @@ export class App {
     };
     window.addEventListener('pointerdown', unlock, { capture: true });
     window.addEventListener('keydown', unlock, { capture: true });
-    window.addEventListener('resize', () => this.resize());
+    // Rotation: some browsers (iOS Safari, framed pages) report the new size late,
+    // so also check again shortly after and on every frame (see frame()).
+    const settle = () => {
+      this.resize();
+      for (const ms of [100, 300, 700]) setTimeout(() => this.resize(), ms);
+    };
+    window.addEventListener('resize', settle);
+    window.addEventListener('orientationchange', settle);
+    window.visualViewport?.addEventListener('resize', settle);
     window.addEventListener('keydown', (e) => this.screen?.onKey?.(e));
     document.addEventListener('visibilitychange', () => {
       this.last = performance.now();
@@ -160,12 +168,16 @@ export class App {
     this.backdrop = null;
   }
 
+  private size = '';
+
   private resize(): void {
+    this.size = `${innerWidth}x${innerHeight}`;
     if (this.backdrop) this.backdrop.renderer.resize(innerWidth, innerHeight, window.devicePixelRatio || 1);
     this.screen?.resize?.();
   }
 
   private frame(now: number): void {
+    if (`${innerWidth}x${innerHeight}` !== this.size) this.resize();
     const dt = Math.min(0.1, (now - this.last) / 1000);
     this.last = now;
     if (this.backdrop) {

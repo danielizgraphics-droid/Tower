@@ -16,7 +16,6 @@ import { wavePreview } from '../../game/waves';
 import { applyRunResult, isMapUnlocked, profileModifiers, type RewardSummary } from '../../meta/profile';
 import { enemyPortrait, towerPortrait } from '../../render/portraits';
 import { Renderer } from '../../render/renderer';
-import { GRASS_H } from '../../render/terrain';
 import type { App, Route, Screen } from '../app';
 import { h, setText, toggleClass } from '../dom';
 import { statLines, TARGET_LABELS } from '../format';
@@ -119,6 +118,7 @@ export function gameScreen(app: App, route: Route): Screen {
     // Pointer: tap to pick (then drag the ghost on the map) or pull the card up onto the map and drop it.
     card.addEventListener('pointerdown', (e) => {
       if (e.button !== 0 || finished || !unlocked.includes(t.id)) return;
+      if (drag) cards.get(drag.id)?.classList.remove('dragging');
       lastPointer = e.pointerType;
       if (noWater) {
         sfx('error');
@@ -635,18 +635,38 @@ export function gameScreen(app: App, route: Route): Screen {
     const show = !!buildId && !!placing && lastPointer !== 'mouse' && !drag?.active && !finished && game.phase !== 'augment';
     confirmEl.style.display = show ? '' : 'none';
     if (!show || !placing || !buildId) return;
-    const top = renderer.toScreen(placing.x + 0.5, placing.y + 0.5, GRASS_H + 1.35);
+    const top = renderer.toScreen(placing.x + 0.5, placing.y + 0.5, renderer.groundH + 1.35);
     const half = 70;
     const x = Math.min(innerWidth - half, Math.max(half, top.x));
-    const y = Math.max(96, top.y);
-    confirmEl.style.transform = `translate(${Math.round(x)}px, ${Math.round(y)}px) translate(-50%, -100%)`;
+    // Above the tower when it fits under the top bar; otherwise below the tile, so the
+    // bubble never covers the cell the player is tapping.
+    const ceiling = topBar.getBoundingClientRect().bottom + 8 + (confirmEl.offsetHeight || 56);
+    const below = top.y < ceiling;
+    toggleClass(confirmEl, 'below', below);
+    if (below) {
+      const ground = renderer.toScreen(placing.x + 0.5, placing.y + 0.5, renderer.groundH);
+      confirmEl.style.transform = `translate(${Math.round(x)}px, ${Math.round(ground.y + tilePx() * 0.55)}px) translate(-50%, 0)`;
+    } else confirmEl.style.transform = `translate(${Math.round(x)}px, ${Math.round(top.y)}px) translate(-50%, -100%)`;
     toggleClass(confirmOk, 'disabled', !renderer.view.ghost?.valid);
     setText(confirmCost, String(game.buildCost(buildId)));
     toggleClass(confirmCost, 'short', game.gold < game.buildCost(buildId));
   }
 
+  /** Forgets every touch in progress (a lost pointerup must never leave the map thinking a finger is still down). */
+  function resetGestures() {
+    pointers.clear();
+    pinchDist = 0;
+    if (drag) cards.get(drag.id)?.classList.remove('dragging');
+    drag = null;
+  }
   canvas.addEventListener('pointerdown', (e) => {
-    canvas.setPointerCapture(e.pointerId);
+    // A primary pointer means no other finger is down: drop anything stale.
+    if (e.isPrimary) resetGestures();
+    try {
+      canvas.setPointerCapture(e.pointerId);
+    } catch {
+      /* some mobile browsers refuse capture for an already-finished touch */
+    }
     lastPointer = e.pointerType;
     pointers.set(e.pointerId, { x: e.clientX, y: e.clientY, sx: e.clientX, sy: e.clientY, moved: false, type: e.pointerType });
     if (pointers.size === 2) {
@@ -668,7 +688,7 @@ export function gameScreen(app: App, route: Route): Screen {
       let ox = 0;
       let oy = -LIFT;
       if (placing) {
-        const g = renderer.toScreen(placing.x + 0.5, placing.y + 0.5, GRASS_H);
+        const g = renderer.toScreen(placing.x + 0.5, placing.y + 0.5, renderer.groundH);
         const size = tilePx();
         const near = Math.abs(e.clientX - g.x) < size * 0.9 && e.clientY < g.y + size * 0.5 && e.clientY > g.y - size * 1.9;
         if (near) {
@@ -712,6 +732,11 @@ export function gameScreen(app: App, route: Route): Screen {
   };
   canvas.addEventListener('pointerup', endPointer);
   canvas.addEventListener('pointercancel', endPointer);
+  canvas.addEventListener('lostpointercapture', (e) => {
+    pointers.delete(e.pointerId);
+    if (pointers.size < 2) pinchDist = 0;
+  });
+  window.addEventListener('blur', resetGestures);
   canvas.addEventListener('pointerleave', (e) => {
     if (e.pointerType !== 'mouse') return;
     renderer.view.hover = null;
@@ -1161,6 +1186,8 @@ export function gameScreen(app: App, route: Route): Screen {
   (window as unknown as { __game?: unknown }).__game = { game, renderer, tap, select };
 
   let zoomedForPortrait = false;
+  let lastW = innerWidth;
+  let lastH = innerHeight;
 
   // Initial UI state
   renderer.insets = { top: 120, bottom: 120, left: 10, right: 10 };
@@ -1183,6 +1210,10 @@ export function gameScreen(app: App, route: Route): Screen {
     resize() {
       const w = innerWidth;
       const hgt = innerHeight;
+      // The view changed under the fingers (rotation): cancel gestures in progress.
+      if (w !== lastW || hgt !== lastH) resetGestures();
+      lastW = w;
+      lastH = hgt;
       const narrow = w < 640;
       const short = hgt < 520;
       renderer.insets = short
@@ -1204,6 +1235,7 @@ export function gameScreen(app: App, route: Route): Screen {
       window.removeEventListener('pointermove', onWindowMove);
       window.removeEventListener('pointerup', onWindowUp);
       window.removeEventListener('pointercancel', onWindowUp);
+      window.removeEventListener('blur', resetGestures);
       renderer.destroy();
       game.events.clear();
       app.save();

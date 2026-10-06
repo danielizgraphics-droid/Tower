@@ -196,9 +196,14 @@ export class Renderer {
   }
 
   /** Tile under a screen point (prefers raised tiles). */
+  /** Height of the buildable ground surface (the 3D tiles are a little lower than the 2D slabs). */
+  get groundH(): number {
+    return this.scene3d?.groundReady ? 0.1 : GRASS_H;
+  }
+
   pickTile(sx: number, sy: number): { x: number; y: number } | null {
     const b = this.game.board;
-    const hi = this.cam.unproject(sx, sy, GRASS_H);
+    const hi = this.cam.unproject(sx, sy, this.groundH);
     const tx = Math.floor(hi.x);
     const ty = Math.floor(hi.y);
     if (b.isBuildable(tx, ty) || b.tile(tx, ty)?.kind === 'tree' || b.tile(tx, ty)?.kind === 'rock') return { x: tx, y: ty };
@@ -390,11 +395,13 @@ export class Renderer {
       // Keep the WebGL layer right under the 2D canvas, mirroring its visibility.
       if (this.glCanvas.parentNode !== this.canvas.parentNode && this.canvas.parentNode)
         this.canvas.parentNode.insertBefore(this.glCanvas, this.canvas);
-      this.glCanvas.style.display = this.canvas.style.display;
+      this.glCanvas.style.display = s3.lost ? 'none' : this.canvas.style.display;
       this.glCanvas.style.filter = this.canvas.style.filter;
-      s3.sync(this.cam, this.width, this.height, this.dpr);
-      s3.setGhost(this.view.ghost);
-      s3.render(dt);
+      if (!s3.lost) {
+        s3.sync(this.cam, this.width, this.height, this.dpr);
+        s3.setGhost(this.view.ghost);
+        s3.render(dt);
+      }
     }
     const flat = !!s3?.groundReady;
     if (!flat) this.ground.draw(ctx, this.cam);

@@ -2114,3 +2114,7 @@ table.dmg td.bad {
 .settings .cloud-badge[data-state] {
   display: inline-flex;
 }
+.place-confirm.below::after {
+  bottom: auto;
+  top: -6px;
+}
