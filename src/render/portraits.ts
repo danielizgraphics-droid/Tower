@@ -7,8 +7,18 @@ import { outlineCanvas } from './sprites';
 import { drawTowerModel } from './models/towers';
 import { Painter } from './painter';
 import { Camera } from './projection';
+import { ICON_KEYS } from './iconKeys';
 
 const cache = new Map<string, string>();
+
+/** URL of an icon pre-rendered from the 3D models (scripts/icons.mjs), or null. */
+function icon3D(key: string): string | null {
+  if (!ICON_KEYS.has(key)) return null;
+  // Packaged builds may embed the icons as base64 (window.__ICONS).
+  const packed = (globalThis as { __ICONS?: Record<string, string> }).__ICONS?.[key];
+  if (packed) return `data:image/webp;base64,${packed}`;
+  return `${import.meta.env.BASE_URL ?? './'}icons/${key}.webp`;
+}
 
 function canvasFor(size: number): { canvas: HTMLCanvasElement; ctx: CanvasRenderingContext2D; dpr: number } {
   const dpr = Math.min(2, window.devicePixelRatio || 1);
@@ -21,6 +31,8 @@ function canvasFor(size: number): { canvas: HTMLCanvasElement; ctx: CanvasRender
 
 /** Renders a tower model into a data URL for use in the DOM UI (cached). */
 export function towerPortrait(id: TowerId, tier = 1, branch = -1, size = 64): string {
+  const pre = icon3D(`t-${id}-${tier}-${tier >= 4 ? Math.max(0, branch) : -1}`);
+  if (pre) return pre;
   const key = `t:${id}:${tier}:${branch}:${size}`;
   const hit = cache.get(key);
   if (hit) return hit;
@@ -80,6 +92,8 @@ function fitInto(src: HTMLCanvasElement, size: number, dpr: number, pad = 0.06, 
 }
 
 export function enemyPortrait(id: EnemyId, size = 48): string {
+  const pre = icon3D(`e-${id}`);
+  if (pre) return pre;
   const key = `e:${id}:${size}`;
   const hit = cache.get(key);
   if (hit) return hit;

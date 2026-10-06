@@ -1,0 +1,199 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Icons</title>
+    <style>
+      body {
+        margin: 0;
+        background: #f2f5f0;
+        font: 11px sans-serif;
+      }
+      #g {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px;
+        padding: 6px;
+      }
+      #g img {
+        width: 96px;
+        height: 96px;
+        background: #fff;
+        border-radius: 10px;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="g"></div>
+    <script type="module">
+      // Renders the UI icons (towers per tier/branch, enemies) from the 3D models.
+      // scripts/icons.mjs calls window.renderIcons() and writes public/icons/*.webp.
+      import * as THREE from 'three';
+      import { loadModel, instance, model, ownMaterials } from '../src/render3d/assets';
+      import { towerParts, towerModels } from '../src/render3d/towers3d';
+      import { ENEMY_LOOKS } from '../src/render3d/looks';
+      import { hideGear } from '../src/render3d/scene3d';
+      import { TOWER_LIST } from '../src/data/towers';
+      import { ENEMIES } from '../src/data/enemies';
+
+      const BIG = 512;
+      const OUT = 192;
+      const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true, alpha: true });
+      renderer.setSize(BIG, BIG);
+      renderer.setPixelRatio(1);
+      renderer.outputColorSpace = THREE.SRGBColorSpace;
+      renderer.toneMapping = THREE.ACESFilmicToneMapping;
+      renderer.toneMappingExposure = 1.05;
+      renderer.setClearColor(0x000000, 0);
+
+      function clip(clips, names) {
+        for (const n of names) {
+          const c = clips.find((c) => c.name === n || c.name.endsWith('|' + n) || c.name.endsWith('_' + n));
+          if (c) return c;
+        }
+        return null;
+      }
+
+      /** Renders an object in the game's isometric view and returns a cropped, fitted WebP data URL. */
+      function shoot(obj, { pad = 0.06 } = {}) {
+        const scene = new THREE.Scene();
+        scene.add(new THREE.HemisphereLight('#dfe9ff', '#6b5a48', 1.6));
+        const sun = new THREE.DirectionalLight('#fff4dc', 2.6);
+        sun.position.set(-9, 22, 14);
+        scene.add(sun);
+        scene.add(obj);
+        obj.updateMatrixWorld(true);
+        const box = new THREE.Box3().setFromObject(obj);
+        const c = box.getCenter(new THREE.Vector3());
+        const r = box.getSize(new THREE.Vector3()).length() * 0.75 + 0.05;
+        const cam = new THREE.OrthographicCamera(-r, r, r, -r, 0.01, 200);
+        cam.position.set(c.x + 20, c.y + 20, c.z + 20);
+        cam.lookAt(c);
+        renderer.render(scene, cam);
+        // Crop to the opaque pixels and fit into the output square, standing near the bottom.
+        const src = document.createElement('canvas');
+        src.width = src.height = BIG;
+        const sctx = src.getContext('2d', { willReadFrequently: true });
+        sctx.drawImage(renderer.domElement, 0, 0);
+        const d = sctx.getImageData(0, 0, BIG, BIG).data;
+        let x0 = BIG,
+          y0 = BIG,
+          x1 = -1,
+          y1 = -1;
+        for (let y = 0; y < BIG; y++)
+          for (let x = 0; x < BIG; x++)
+            if (d[(y * BIG + x) * 4 + 3] > 8) {
+              if (x < x0) x0 = x;
+              if (x > x1) x1 = x;
+              if (y < y0) y0 = y;
+              if (y > y1) y1 = y;
+            }
+        const out = document.createElement('canvas');
+        out.width = out.height = OUT;
+        if (x1 >= 0) {
+          const bw = x1 - x0 + 1,
+            bh = y1 - y0 + 1;
+          const avail = OUT * (1 - pad * 2);
+          const k = Math.min(avail / bw, avail / bh);
+          const dw = bw * k,
+            dh = bh * k;
+          out.getContext('2d').drawImage(src, x0, y0, bw, bh, (OUT - dw) / 2, OUT * (1 - pad) - dh, dw, dh);
+        }
+        return out.toDataURL('image/webp', 0.9);
+      }
+
+      function crossbowman(parts, clips) {
+        const body = instance('chars/Rogue_Hooded.glb');
+        hideGear(body, ['2H_Crossbow']);
+        const box = new THREE.Box3().setFromObject(body);
+        body.scale.setScalar(0.42 / Math.max(0.01, box.max.y - box.min.y));
+        const pivot = new THREE.Group();
+        pivot.position.y = parts.unitY;
+        pivot.rotation.y = Math.PI / 4;
+        pivot.add(body);
+        parts.root.add(pivot);
+        const mixer = new THREE.AnimationMixer(body);
+        const aim = clip(clips, ['2H_Ranged_Aiming', 'Idle']);
+        if (aim) mixer.clipAction(aim).play();
+        mixer.update(0.4);
+      }
+
+      function towerIcon(id, tier, branch, naval, clips) {
+        const parts = towerParts(id, tier, branch);
+        if (parts.turret) parts.turret.rotation.y = Math.PI / 4;
+        if (parts.unitY !== null) crossbowman(parts, clips);
+        if (parts.flash) parts.flash.visible = false;
+        if (naval) {
+          const water = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.62, 0.62, 0.04, 40),
+            new THREE.MeshStandardMaterial({ color: '#4aa8d8', roughness: 0.4, transparent: true, opacity: 0.85 }),
+          );
+          water.position.y = 0.02;
+          parts.root.add(water);
+        }
+        return shoot(parts.root);
+      }
+
+      function enemyIcon(id, look, clips) {
+        const def = ENEMIES[id];
+        const body = instance(look.model);
+        hideGear(body, look.show ?? [], look.hide);
+        const mats = ownMaterials(body);
+        if (look.tint) for (const m of mats) m.color.lerp(new THREE.Color(look.tint), look.tintAmount ?? 0.5);
+        if (look.ghost)
+          for (const m of mats) {
+            m.transparent = true;
+            m.opacity = 0.8;
+          }
+        if (look.glow)
+          for (const m of mats) {
+            m.emissive = new THREE.Color(look.glow);
+            m.emissiveIntensity = 0.25;
+          }
+        body.rotation.y = (look.yaw ?? 0) + 0.35;
+        const root = new THREE.Group();
+        root.add(body);
+        if (clips.length) {
+          const mixer = new THREE.AnimationMixer(body);
+          const c = clip(
+            clips,
+            def.flying ? ['Flying', 'Bat_Flying', 'Dragon_Flying', 'Idle'] : ['Idle', 'Idle_A', 'Slime_Idle', 'Skeleton_Idle', 'Walk', 'Walking_A'],
+          );
+          if (c) {
+            mixer.clipAction(c).play();
+            mixer.update(c.duration * 0.3);
+          }
+        }
+        return shoot(root, { pad: 0.08 });
+      }
+
+      window.renderIcons = async () => {
+        const icons = {};
+        await loadModel('chars/anims.glb');
+        await loadModel('chars/Rogue_Hooded.glb');
+        const shared = model('chars/anims.glb').animations;
+        const g = document.getElementById('g');
+        const show = (key, url) => {
+          icons[key] = url;
+          const img = new Image();
+          img.src = url;
+          img.title = key;
+          g.append(img);
+        };
+        for (const t of TOWER_LIST) {
+          await Promise.all(towerModels(t.id).map(loadModel));
+          for (const tier of [1, 2, 3, 4, 5])
+            for (const br of tier >= 4 ? [0, 1, 2] : [-1])
+              show(`t-${t.id}-${tier}-${br}`, towerIcon(t.id, tier, br, t.placement === 'water', shared));
+        }
+        for (const [id, look] of Object.entries(ENEMY_LOOKS)) {
+          await loadModel(look.model);
+          const clips = look.rigid ? [] : look.model.startsWith('chars/') ? shared : model(look.model).animations;
+          show(`e-${id}`, enemyIcon(id, look, clips));
+        }
+        return icons;
+      };
+      document.title = 'ready';
+    </script>
+  </body>
+</html>

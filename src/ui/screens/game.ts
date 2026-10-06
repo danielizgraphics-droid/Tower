@@ -154,7 +154,7 @@ export function gameScreen(app: App, route: Route): Screen {
           `${DAMAGE_TYPES[t.damageType].name} · ${t.targetsAir ? 'tierra y aire' : 'solo tierra'} · ${t.role}`,
         ),
         t.placement === 'water'
-          ? h('div', { style: 'margin-top:4px;color:#2f8fc4;font-weight:800' }, noWater ? 'Este mapa no tiene agua.' : 'Se construye sobre el agua.')
+          ? h('div', { style: 'margin-top:4px;color:#7fd0f5;font-weight:500' }, noWater ? 'Este mapa no tiene agua.' : 'Se construye sobre el agua.')
           : null,
       ),
     );
@@ -1005,10 +1005,9 @@ export function gameScreen(app: App, route: Route): Screen {
               h('div.line', h('span', 'Enemigos abatidos'), h('span', String(game.kills))),
               h('div.line', h('span', 'Oro obtenido'), h('span', formatNumber(game.goldEarned))),
               h(
-                'div.line',
-                { style: 'background:#fff3c4' },
+                'div.line.highlight',
                 h('span', reward.firstClear ? 'Estrellas (¡primera victoria!)' : 'Estrellas'),
-                h('span', { style: 'display:flex;gap:4px;align-items:center;color:#8a5a12' }, `+${reward.stars}`, icon('star', 16)),
+                h('span', { style: 'display:flex;gap:4px;align-items:center;color:var(--gold-ink)' }, `+${reward.stars}`, icon('star', 16)),
               ),
             ),
             newMaps.length
@@ -1022,7 +1021,7 @@ export function gameScreen(app: App, route: Route): Screen {
             reward.levelUps.length
               ? h(
                   'div',
-                  h('p', { style: 'margin:12px 0 4px;font-weight:800' }, 'Maestría de torres'),
+                  h('p', { style: 'margin:12px 0 4px;font-weight:600' }, 'Maestría de torres'),
                   h(
                     'div.levelups',
                     reward.levelUps.map((l) =>
@@ -1159,7 +1158,7 @@ export function gameScreen(app: App, route: Route): Screen {
   }
 
   // Debug/test hook (used by automated screenshot tests).
-  (window as unknown as { __game?: unknown }).__game = { game, renderer, tap };
+  (window as unknown as { __game?: unknown }).__game = { game, renderer, tap, select };
 
   let zoomedForPortrait = false;
 

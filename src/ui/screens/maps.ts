@@ -22,20 +22,45 @@ const BIOME_ICON: Record<Biome, string> = {
   dusk: 'skull',
 };
 
-/** Renders a still image of a generated map. */
-function mapPreview(biome: Biome, seed: number): string {
+let previewToken = 0;
+
+/**
+ * Renders a still image of a generated map (in 3D when available, compositing
+ * the WebGL layer under the 2D overlay). Older pending requests are dropped.
+ */
+function mapPreview(biome: Biome, seed: number, done: (url: string) => void): void {
+  const token = ++previewToken;
   const canvas = document.createElement('canvas');
   const def = generateMap({ biome, seed });
   const game = new Game({ map: def, difficulty: 'normal', mods: new ModifierSet(), unlockedTowers: [] });
-  const r = new Renderer(canvas, game, { three: false });
-  r.insets = { top: 6, bottom: 6, left: 6, right: 6 };
+  const r = new Renderer(canvas, game);
+  r.insets = { top: 10, bottom: 70, left: 10, right: 10 };
   r.view.showDamage = false;
-  r.paintBackground = true;
+  r.paintBackground = !r.has3D;
   r.resize(640, 400, Math.min(2, window.devicePixelRatio || 1));
-  r.render(0.016);
-  const url = canvas.toDataURL('image/jpeg', 0.88);
-  r.destroy();
-  return url;
+  r.setZoom(1);
+  let waited = 0;
+  let settled = 0;
+  const step = () => {
+    if (token !== previewToken) return r.destroy();
+    r.render(0.016);
+    // Wait (up to ~5 s) for the 3D terrain; a few extra frames let the models settle.
+    if (r.has3D && waited++ < 300 && (!r.layer3D || settled++ < 2)) {
+      requestAnimationFrame(step);
+      return;
+    }
+    const out = document.createElement('canvas');
+    out.width = canvas.width;
+    out.height = canvas.height;
+    const ctx = out.getContext('2d')!;
+    ctx.fillStyle = '#8fd3a0';
+    ctx.fillRect(0, 0, out.width, out.height);
+    if (r.layer3D) ctx.drawImage(r.layer3D, 0, 0, out.width, out.height);
+    ctx.drawImage(canvas, 0, 0);
+    done(out.toDataURL('image/jpeg', 0.88));
+    r.destroy();
+  };
+  step();
 }
 
 const newSeed = () => (Math.random() * 2 ** 31) >>> 0;
@@ -67,7 +92,7 @@ export function mapsScreen(app: App): Screen {
     const def = generateMap({ biome: state.biome!, seed: state.seed });
     mapName.textContent = def.name;
     seedEl.textContent = `Mapa #${seedCode(state.seed)}`;
-    img.src = mapPreview(state.biome!, state.seed);
+    mapPreview(state.biome!, state.seed, (url) => (img.src = url));
   }
 
   function render() {
@@ -80,11 +105,7 @@ export function mapsScreen(app: App): Screen {
         const card = h(
           'button.biome',
           { disabled: !open },
-          h(
-            'span.swatch',
-            { style: `background:radial-gradient(circle at 35% 30%, ${theme.grassLight}, ${theme.grassDark})` },
-            icon(open ? BIOME_ICON[bd.id] : 'lock', 20),
-          ),
+          h('span.swatch', { style: `background:${theme.grassDark}` }, icon(open ? BIOME_ICON[bd.id] : 'lock', 20)),
           h('h3', bd.name),
           h(
             'div.meta',

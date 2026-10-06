@@ -78,7 +78,7 @@ export function codexScreen(app: App): Screen {
                 known
                   ? h(
                       'div',
-                      { style: 'display:flex;gap:4px;flex-wrap:wrap;font-size:11px;font-weight:800' },
+                      { style: 'display:flex;gap:4px;flex-wrap:wrap;font-size:11px;font-weight:600' },
                       h('span.pill', `Vida ${e.hp}`),
                       e.armor ? h('span.pill', `Armadura ${e.armor}`) : null,
                       e.shield ? h('span.pill', `Escudo ${e.shield}`) : null,
@@ -124,7 +124,7 @@ export function codexScreen(app: App): Screen {
                       ' ',
                       effectiveDamageType(t, i) !== t.damageType ? typeTag(effectiveDamageType(t, i)) : null,
                       h('div.muted.tiny', b.description),
-                      h('div.tiny', { style: 'color:#7a5cd6;font-weight:800' }, ATTACK_LABELS[effectiveAttack(t, i)]),
+                      h('div.tiny', { style: 'color:var(--violet);font-weight:600' }, ATTACK_LABELS[effectiveAttack(t, i)]),
                     ),
                   ),
                 ),

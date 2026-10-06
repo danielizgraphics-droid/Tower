@@ -22,7 +22,10 @@ for (const f of readdirSync('dist/assets')) {
 // Models travel as one base64 data script (Artifacts don't serve .glb files).
 const models = {};
 for (const m of readFileSync(listFile, 'utf8').split('\n').filter(Boolean)) models[m] = readFileSync(join('dist/models', m)).toString('base64');
-writeFileSync(join(out, 'models.js'), `window.__MODELS=${JSON.stringify(models)};`);
+// UI icons travel the same way.
+const icons = {};
+for (const f of readdirSync('dist/icons')) icons[f.replace(/\.webp$/, '')] = readFileSync(join('dist/icons', f)).toString('base64');
+writeFileSync(join(out, 'models.js'), `window.__MODELS=${JSON.stringify(models)};window.__ICONS=${JSON.stringify(icons)};`);
 files['models.js'] = join(out, 'models.js');
 writeFileSync(join(out, 'files.json'), JSON.stringify(files, null, 1));
 console.log(Object.keys(files).length, 'files');

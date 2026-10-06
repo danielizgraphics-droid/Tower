@@ -136,6 +136,7 @@ export class Scene3D {
   destroy(): void {
     for (const u of this.unsub) u();
     this.renderer.dispose();
+    this.renderer.forceContextLoss();
     this.scene.traverse((o) => {
       const m = o as THREE.Mesh;
       if (m.isMesh) m.geometry.dispose();
@@ -774,7 +775,7 @@ export class Scene3D {
 }
 
 /** Shows only the listed accessory meshes of a KayKit character. */
-function hideGear(body: THREE.Object3D, show: string[], hide?: string[]): void {
+export function hideGear(body: THREE.Object3D, show: string[], hide?: string[]): void {
   body.traverse((o) => {
     if (!(o as THREE.Mesh).isMesh) return;
     const n = o.name;

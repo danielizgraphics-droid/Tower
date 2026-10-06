@@ -45,7 +45,7 @@ export function talentsScreen(app: App, route: Route): Screen {
       mk(
         'general',
         'Comandante',
-        h('span', { style: 'width:30px;height:30px;display:flex;align-items:center;justify-content:center;color:#7a5cd6' }, icon('crown', 24)),
+        h('span', { style: 'width:30px;height:30px;display:flex;align-items:center;justify-content:center' }, icon('crown', 24)),
       ),
       ...TOWER_LIST.map((t) =>
         mk(t.id, t.name.replace('Torre de ', '').replace('Torre ', ''), h('img', { src: towerPortrait(t.id, 1, -1, 60), alt: '' })),
@@ -127,7 +127,7 @@ export function talentsScreen(app: App, route: Route): Screen {
         const midY = (a.y + b.y) / 2;
         line.setAttribute('d', `M${a.x},${a.y} C${a.x},${midY} ${b.x},${midY} ${b.x},${b.y}`);
         const on = (ranks[r] ?? 0) > 0;
-        line.setAttribute('stroke', on ? '#e2a01e' : '#d8c59a');
+        line.setAttribute('stroke', on ? '#2f7d5b' : '#cfd8cc');
         line.setAttribute('stroke-width', on ? '5' : '4');
         line.setAttribute('stroke-linecap', 'round');
         line.setAttribute('fill', 'none');
@@ -194,7 +194,7 @@ export function talentsScreen(app: App, route: Route): Screen {
             'div',
             h(
               'div',
-              { style: 'display:flex;justify-content:space-between;font-weight:800;font-size:13px' },
+              { style: 'display:flex;justify-content:space-between;font-weight:600;font-size:13px' },
               h('span', `Maestría nivel ${lvl}`),
               h('span.muted', lvl >= MAX_TOWER_LEVEL ? 'MÁX' : `${Math.floor(prog.xp)}/${next} XP`),
             ),
@@ -230,7 +230,7 @@ export function talentsScreen(app: App, route: Route): Screen {
         h(
           'div.panel',
           { style: 'padding:12px;display:flex;flex-direction:column;gap:6px' },
-          h('b', { style: 'font-family:var(--font-head);font-size:17px' }, node.name),
+          h('b', { style: 'font-size:17px' }, node.name),
           h('span', { style: 'font-size:14px' }, node.description),
           h('span.muted.tiny', `Rango ${rank}/${node.maxRank}`),
           state === 'maxed'

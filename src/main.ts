@@ -1,11 +1,9 @@
 // Self-hosted fonts (latin subset covers Spanish) so the game works offline.
-import '@fontsource/cinzel/latin-700.css';
-import '@fontsource/cinzel/latin-800.css';
-import '@fontsource/cinzel-decorative/latin-900.css';
-import '@fontsource/nunito/latin-600.css';
-import '@fontsource/nunito/latin-700.css';
-import '@fontsource/nunito/latin-800.css';
-import '@fontsource/nunito/latin-900.css';
+import '@fontsource/rubik/latin-400.css';
+import '@fontsource/rubik/latin-500.css';
+import '@fontsource/rubik/latin-600.css';
+import '@fontsource/rubik/latin-700.css';
+import '@fontsource/rubik/latin-800.css';
 import './ui/styles.css';
 import type { Biome } from './data/biomes';
 import type { Difficulty } from './data/types';

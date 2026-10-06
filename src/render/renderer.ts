@@ -23,8 +23,8 @@ import { THEMES, type Theme } from './theme';
 /** Towers are drawn a bit larger than their tile footprint so they read well in isometric view. */
 const TOWER_SCALE = 1.22;
 
-export const UI_FONT = '"Nunito", system-ui, sans-serif';
-export const DISPLAY_FONT = '"Cinzel", Georgia, serif';
+export const UI_FONT = '"Rubik", system-ui, sans-serif';
+export const DISPLAY_FONT = UI_FONT;
 
 export interface ViewState {
   hover: { x: number; y: number } | null;
@@ -106,6 +106,15 @@ export class Renderer {
     this.cam.rows = game.board.height;
     (this.glCanvas ?? canvas).style.background = `linear-gradient(180deg, ${this.theme.bgTop}, ${this.theme.bgBottom})`;
     this.bindEvents();
+  }
+
+  /** The WebGL layer once its terrain is built (for snapshots), else null. */
+  get layer3D(): HTMLCanvasElement | null {
+    return this.scene3d?.groundReady ? this.glCanvas : null;
+  }
+
+  get has3D(): boolean {
+    return this.scene3d !== null;
   }
 
   destroy(): void {
@@ -966,7 +975,7 @@ export class Renderer {
       seg(Math.max(0, e.armor), '#c3c8d4');
       seg(Math.max(0, e.shield), '#58b7ff');
       if (e.def.boss) {
-        ctx.font = `700 ${Math.max(11, s * 0.22)}px ${DISPLAY_FONT}`;
+        ctx.font = `600 ${Math.max(11, s * 0.22)}px ${DISPLAY_FONT}`;
         ctx.textAlign = 'center';
         ctx.fillStyle = '#fff3c4';
         ctx.strokeStyle = 'rgba(30,22,50,0.8)';
