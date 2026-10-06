@@ -71,6 +71,9 @@ export class Renderer {
   private castleHit = 0;
   view: ViewState = { hover: null, selected: null, ghost: null, grid: null, spell: null, showDamage: true, shakeEnabled: true };
 
+  /** Default zoom: the 3D view starts closer, with the countryside filling the screen. */
+  homeZoom = 1;
+
   /** Draw the board, towers and characters with the WebGL scene (2D keeps effects and overlays). */
   static use3D = false;
   private scene3d: Scene3D | null = null;
@@ -88,6 +91,8 @@ export class Renderer {
         this.glCanvas.className = 'stage stage-3d';
         this.glCanvas.style.pointerEvents = 'none';
         this.scene3d = new Scene3D(this.glCanvas, game);
+        this.homeZoom = 1.5;
+        this.zoom = this.homeZoom;
       } catch (e) {
         console.warn('WebGL unavailable, using 2D', e);
         this.scene3d = null;
@@ -176,7 +181,7 @@ export class Renderer {
   }
 
   recenter(): void {
-    this.zoom = 1;
+    this.zoom = this.homeZoom;
     this.panX = this.panY = 0;
     this.applyCamera();
   }

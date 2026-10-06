@@ -20,6 +20,8 @@ const K = Math.SQRT2 * Math.cos(Math.PI / 6);
 /** The ground group sits so the path surface (Kenney y = 0.1) is at game z = 0. */
 const GROUND_Y = -0.1;
 const GRASS_TOP = 0.1;
+/** Tiles of countryside drawn around the board. */
+const SCENERY_MARGIN = 14;
 
 export const TILE_MODELS = [
   'td/tile.glb',
@@ -39,6 +41,10 @@ export const TILE_MODELS = [
   'nature/flower_yellowA.glb',
   'nature/flower_purpleA.glb',
   'nature/grass_large.glb',
+  'hex/nature/mountain_A_grass_trees.glb',
+  'hex/nature/mountain_B_grass_trees.glb',
+  'hex/nature/hills_A_trees.glb',
+  'hex/nature/hills_B_trees.glb',
 ];
 
 interface TowerObj {
@@ -96,7 +102,7 @@ export class Scene3D {
     this.sun = new THREE.DirectionalLight('#fff4dc', 2.6);
     this.sun.castShadow = true;
     const b = game.board;
-    const half = Math.max(b.width, b.height) * 0.8;
+    const half = Math.max(b.width, b.height) * 0.8 + 4;
     const sc = this.sun.shadow.camera;
     sc.left = -half;
     sc.right = half;
@@ -226,7 +232,7 @@ export class Scene3D {
     group.position.y = GROUND_Y;
     // Geometry grouped by material so differently coloured kits merge correctly.
     const groups = new Map<string, { mat: THREE.Material; geos: THREE.BufferGeometry[] }>();
-    const add = (path: string, x: number, z: number, rot = 0, scale = 1, y = 0) => {
+    const add = (path: string, x: number, z: number, rot = 0, scale = 1, y = 0, tint = 1) => {
       const g = model(path);
       if (!g) return;
       const m = new THREE.Matrix4().compose(
@@ -239,14 +245,37 @@ export class Scene3D {
         const mesh = o as THREE.Mesh;
         if (!mesh.isMesh) return;
         const mat = (Array.isArray(mesh.material) ? mesh.material[0] : mesh.material) as THREE.MeshStandardMaterial;
-        const key = `${mat.name}|${mat.map?.source.uuid ?? ''}|${mat.color?.getHexString()}`;
+        const key = `${mat.name}|${mat.map?.source.uuid ?? ''}|${mat.color?.getHexString()}|${tint}`;
         let grp = groups.get(key);
-        if (!grp) groups.set(key, (grp = { mat, geos: [] }));
+        if (!grp) {
+          let m2: THREE.Material = mat;
+          if (tint !== 1) {
+            const c = mat.clone();
+            c.color.multiplyScalar(tint);
+            m2 = c;
+          }
+          groups.set(key, (grp = { mat: m2, geos: [] }));
+        }
         const geo = toFloatGeometry(mesh.geometry);
         geo.applyMatrix4(new THREE.Matrix4().multiplyMatrices(m, mesh.matrixWorld));
         grp.geos.push(geo);
       });
     };
+    // Scale a model so its footprint spans `size` tiles, standing on the ground.
+    const fitCache = new Map<string, { k: number; y: number }>();
+    const addFit = (path: string, x: number, z: number, size: number, rot = 0, tint = 1) => {
+      const g = model(path);
+      if (!g) return;
+      let f = fitCache.get(path);
+      if (!f) {
+        const box = new THREE.Box3().setFromObject(g.scene);
+        const sz = box.getSize(new THREE.Vector3());
+        f = { k: 1 / Math.max(0.01, sz.x, sz.z), y: -box.min.y };
+        fitCache.set(path, f);
+      }
+      add(path, x, z, rot, size * f.k, 0.2 + f.y * size * f.k, tint);
+    };
+    this.buildScenery(add, addFit);
     const isPath = (x: number, y: number) => b.isWalkable(x, y);
     const rnd = (t: Tile, i: number) => {
       const v = Math.sin(t.seed * 9301 + i * 49297) * 233280;
@@ -346,19 +375,82 @@ export class Scene3D {
       group.add(surf);
     }
 
-    // Island base: earth and rock strata under the board.
-    const W = b.width;
-    const H = b.height;
-    const earth = new THREE.Mesh(new THREE.BoxGeometry(W, 0.35, H), new THREE.MeshStandardMaterial({ color: '#9a6b44', roughness: 1 }));
-    earth.position.set(W / 2, -0.175, H / 2);
-    const rock = new THREE.Mesh(new THREE.BoxGeometry(W - 0.2, 0.55, H - 0.2), new THREE.MeshStandardMaterial({ color: '#8a8597', roughness: 1 }));
-    rock.position.set(W / 2, -0.62, H / 2);
-    earth.receiveShadow = rock.receiveShadow = true;
-    group.add(earth, rock);
-
     this.scene.add(group);
     this.ground = group;
     this.buildCastle();
+  }
+
+  /**
+   * The countryside around the battlefield: open fields at the edge, then
+   * woods, rocks and, far away, hills and mountains, so the view is filled
+   * with landscape instead of a floating board. The road leads in from
+   * beyond the horizon to the spawn portal.
+   */
+  private buildScenery(
+    add: (path: string, x: number, z: number, rot?: number, scale?: number, y?: number, tint?: number) => void,
+    addFit: (path: string, x: number, z: number, size: number, rot?: number, tint?: number) => void,
+  ): void {
+    const b = this.game.board;
+    const W = b.width;
+    const H = b.height;
+    const M = SCENERY_MARGIN;
+    const noise = (x: number, y: number) => {
+      const v = Math.sin(x * 12.9898 + y * 78.233 + b.def.id.length * 3.1) * 43758.5453;
+      return v - Math.floor(v);
+    };
+    const smooth = (x: number, y: number) => (Math.sin(x * 0.45 + y * 0.2) + Math.sin(x * 0.17 - y * 0.38) + 2) / 4;
+    // Road coming from outside towards the spawn portal.
+    const road = new Set<string>();
+    const sp = b.spawn;
+    const dir = sp.x === 0 ? [-1, 0] : sp.y === 0 ? [0, -1] : sp.x === W - 1 ? [1, 0] : [0, 1];
+    for (let i = 1; i <= M; i++) road.add(`${sp.x + dir[0] * i},${sp.y + dir[1] * i}`);
+    const OUT = 0.9;
+    for (let y = -M; y < H + M; y++)
+      for (let x = -M; x < W + M; x++) {
+        if (x >= 0 && y >= 0 && x < W && y < H) continue;
+        const cx = x + 0.5;
+        const cz = y + 0.5;
+        if (road.has(`${x},${y}`)) {
+          add('td/tile-straight.glb', cx, cz, dir[0] !== 0 ? Math.PI / 2 : 0, 1, 0, OUT);
+          continue;
+        }
+        const d = Math.max(x < 0 ? -x : x >= W ? x - W + 1 : 0, y < 0 ? -y : y >= H ? y - H + 1 : 0);
+        const n = noise(x, y);
+        const forest = smooth(x, y) * 0.9 + (d - 2) * 0.09;
+        if (d >= 2 && forest > 0.62 && n < 0.85) {
+          add(
+            n < 0.35 ? 'td/tile-tree-quad.glb' : n < 0.65 ? 'td/tile-tree-double.glb' : 'td/tile-tree.glb',
+            cx,
+            cz,
+            Math.floor(n * 4) * (Math.PI / 2),
+            1,
+            0,
+            OUT,
+          );
+          continue;
+        }
+        add('td/tile.glb', cx, cz, 0, 1, 0, OUT);
+        if (d >= 2 && n > 0.93) add('td/detail-rocks.glb', cx, cz, n * 20, 1, 0.2, OUT);
+        else if (n > 0.86) add('nature/grass_large.glb', cx - 0.2, cz + 0.1, n * 30, 0.6, 0.2);
+        else if (n < 0.04) add('nature/flower_yellowA.glb', cx, cz, n * 50, 0.5, 0.2);
+      }
+    // Far hills and mountains frame the horizon (placed on a coarse grid).
+    for (let y = -M; y < H + M; y += 3)
+      for (let x = -M; x < W + M; x += 3) {
+        const d = Math.max(x < 0 ? -x : x >= W ? x - W : 0, y < 0 ? -y : y >= H ? y - H : 0);
+        if (d < 6 || road.has(`${x},${y}`) || road.has(`${x + 1},${y + 1}`)) continue;
+        const n = noise(x * 3.7, y * 1.3);
+        if (n > 0.55) continue;
+        const kind =
+          n < 0.18
+            ? 'hex/nature/mountain_A_grass_trees.glb'
+            : n < 0.3
+              ? 'hex/nature/mountain_B_grass_trees.glb'
+              : n < 0.42
+                ? 'hex/nature/hills_A_trees.glb'
+                : 'hex/nature/hills_B_trees.glb';
+        addFit(kind, x + 1.5, y + 1.5, 2.6 + n * 2, n * 10);
+      }
   }
 
   private buildCastle(): void {

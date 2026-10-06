@@ -1197,7 +1197,7 @@ export function gameScreen(app: App, route: Route): Screen {
       // On tall phones the wide board would be tiny: start zoomed in (players can pinch/pan).
       if (portrait && !zoomedForPortrait) {
         zoomedForPortrait = true;
-        renderer.setZoom(1.35);
+        renderer.setZoom(Math.max(renderer.zoom, renderer.homeZoom > 1 ? 2 : 1.35));
       }
     },
     destroy() {
