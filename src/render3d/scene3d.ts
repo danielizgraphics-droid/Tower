@@ -12,6 +12,7 @@ import type { Game } from '../game/game';
 import type { Tile } from '../game/board';
 import type { Camera } from '../render/projection';
 import { instance, isLoaded, loadModel, model, ownMaterials, toFloatGeometry } from './assets';
+import { BIOMES_3D, biomeModels, tdTile, type Biome3D } from './biomes3d';
 import { ENEMY_LOOKS, type EnemyLook3D } from './looks';
 import { towerModels, towerParts, type TowerParts } from './towers3d';
 
@@ -23,29 +24,8 @@ const GRASS_TOP = 0.1;
 /** Tiles of countryside drawn around the board. */
 const SCENERY_MARGIN = 14;
 
-export const TILE_MODELS = [
-  'td/tile.glb',
-  'td/tile-straight.glb',
-  'td/tile-corner-round.glb',
-  'td/tile-end-round.glb',
-  'td/tile-spawn-end-round.glb',
-  'td/tile-tree.glb',
-  'td/tile-tree-double.glb',
-  'td/tile-tree-quad.glb',
-  'td/tile-rock.glb',
-  'td/tile-crystal.glb',
-  'td/tile-hill.glb',
-  'td/detail-dirt.glb',
-  'td/detail-rocks.glb',
-  'nature/flower_redA.glb',
-  'nature/flower_yellowA.glb',
-  'nature/flower_purpleA.glb',
-  'nature/grass_large.glb',
-  'hex/nature/mountain_A_grass_trees.glb',
-  'hex/nature/mountain_B_grass_trees.glb',
-  'hex/nature/hills_A_trees.glb',
-  'hex/nature/hills_B_trees.glb',
-];
+/** Every terrain model any biome may use (for packaging). */
+export const TILE_MODELS = [...new Set(Object.values(BIOMES_3D).flatMap(biomeModels))];
 
 interface TowerObj {
   key: string;
@@ -75,6 +55,9 @@ export class Scene3D {
   readonly scene = new THREE.Scene();
   readonly camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 400);
   private sun: THREE.DirectionalLight;
+  private readonly biome: Biome3D;
+  /** Kenney palette materials repainted with the biome's colours. */
+  private palette = new Map<THREE.Material, THREE.Material>();
   private ground: THREE.Group | null = null;
   private towers = new Map<number, TowerObj>();
   private enemies = new Map<number, EnemyObj>();
@@ -97,9 +80,11 @@ export class Scene3D {
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.05;
 
-    const hemi = new THREE.HemisphereLight('#dfe9ff', '#6b5a48', 1.6);
+    this.biome = BIOMES_3D[game.board.def.theme];
+    const light = this.biome.light;
+    const hemi = new THREE.HemisphereLight(light.sky, light.ground, light.hemi);
     this.scene.add(hemi);
-    this.sun = new THREE.DirectionalLight('#fff4dc', 2.6);
+    this.sun = new THREE.DirectionalLight(light.sun, light.sunI);
     this.sun.castShadow = true;
     const b = game.board;
     const half = Math.max(b.width, b.height) * 0.8 + 4;
@@ -120,7 +105,7 @@ export class Scene3D {
     // Sun from the upper left of the screen, like the 2D shading.
     this.sun.position.set(cx - 9, 22, cz + 14);
 
-    void Promise.all([...TILE_MODELS.map(loadModel), loadModel('chars/anims.glb')]).then(() => {
+    void Promise.all([...biomeModels(this.biome).map(loadModel), loadModel('chars/anims.glb')]).then(() => {
       this.buildGround();
       this.clips = model('chars/anims.glb')!.animations;
     });
@@ -245,7 +230,7 @@ export class Scene3D {
       g.scene.traverse((o) => {
         const mesh = o as THREE.Mesh;
         if (!mesh.isMesh) return;
-        const mat = (Array.isArray(mesh.material) ? mesh.material[0] : mesh.material) as THREE.MeshStandardMaterial;
+        const mat = this.biomeMaterial((Array.isArray(mesh.material) ? mesh.material[0] : mesh.material) as THREE.MeshStandardMaterial);
         const key = `${mat.name}|${mat.map?.source.uuid ?? ''}|${mat.color?.getHexString()}|${tint}`;
         let grp = groups.get(key);
         if (!grp) {
@@ -276,7 +261,39 @@ export class Scene3D {
       }
       add(path, x, z, rot, size * f.k, 0.2 + f.y * size * f.k, tint);
     };
-    this.buildScenery(add, addFit);
+    // Scale a model so its largest dimension spans `h` tiles, standing on the ground.
+    const hCache = new Map<string, { h: number; y: number }>();
+    const addH = (path: string, x: number, z: number, h: number, rot = 0, tint = 1) => {
+      const g = model(path);
+      if (!g) return;
+      let f = hCache.get(path);
+      if (!f) {
+        const box = new THREE.Box3().setFromObject(g.scene);
+        const sz = box.getSize(new THREE.Vector3());
+        f = { h: Math.max(0.01, sz.x, sz.y, sz.z), y: -box.min.y };
+        hCache.set(path, f);
+      }
+      const k = h / f.h;
+      add(path, x, z, rot, k, GRASS_TOP * 2 + f.y * k, tint);
+    };
+    const bio = this.biome;
+    /** A few free-standing trees on one tile (biomes without Kenney tree tiles). */
+    const grove = (x: number, z: number, r: (i: number) => number, count: number, tint = 1) => {
+      for (let i = 0; i < count; i++) {
+        const a = i * 2.4 + r(i) * 3;
+        const d = count === 1 ? r(i + 7) * 0.15 : 0.18 + r(i + 7) * 0.12;
+        const [h0, h1] = bio.treeH;
+        addH(
+          bio.trees[Math.floor(r(i + 3) * bio.trees.length)],
+          x + Math.cos(a) * d,
+          z + Math.sin(a) * d,
+          h0 + (h1 - h0) * r(i + 5),
+          r(i + 9) * 6,
+          tint,
+        );
+      }
+    };
+    this.buildScenery(add, addFit, addH, grove);
     const isPath = (x: number, y: number) => b.isWalkable(x, y);
     const rnd = (t: Tile, i: number) => {
       const v = Math.sin(t.seed * 9301 + i * 49297) * 233280;
@@ -290,27 +307,39 @@ export class Scene3D {
         switch (t.kind) {
           case 'grass':
           case 'flowers': {
-            add('td/tile.glb', x, z);
+            add(tdTile(bio, 'tile'), x, z);
             if (t.kind === 'flowers') {
-              const f = ['nature/flower_redA.glb', 'nature/flower_yellowA.glb', 'nature/flower_purpleA.glb'];
+              const f = bio.flowers;
               for (let i = 0; i < 3; i++)
-                add(f[Math.floor(rnd(t, i) * 3)], x - 0.3 + rnd(t, i + 3) * 0.6, z - 0.3 + rnd(t, i + 6) * 0.6, rnd(t, i + 9) * 6, 0.45, 0.2);
-            } else if (rnd(t, 1) > 0.8)
-              add('nature/grass_large.glb', x - 0.25 + rnd(t, 2) * 0.5, z - 0.25 + rnd(t, 3) * 0.5, rnd(t, 4) * 6, 0.5, 0.2);
+                addH(
+                  f[Math.floor(rnd(t, i) * f.length)],
+                  x - 0.3 + rnd(t, i + 3) * 0.6,
+                  z - 0.3 + rnd(t, i + 6) * 0.6,
+                  0.12 + rnd(t, i + 12) * 0.08,
+                  rnd(t, i + 9) * 6,
+                );
+            } else if (rnd(t, 1) > 0.8) {
+              const p = bio.props[Math.floor(rnd(t, 5) * bio.props.length)];
+              addH(p, x - 0.25 + rnd(t, 2) * 0.5, z - 0.25 + rnd(t, 3) * 0.5, 0.1 + rnd(t, 6) * 0.12, rnd(t, 4) * 6);
+            }
             break;
           }
           case 'tree': {
             const r = rnd(t, 1);
-            add(
-              r < 0.4 ? 'td/tile-tree.glb' : r < 0.75 ? 'td/tile-tree-double.glb' : 'td/tile-tree-quad.glb',
-              x,
-              z,
-              Math.floor(rnd(t, 2) * 4) * (Math.PI / 2),
-            );
+            if (bio.trees.length) {
+              add(tdTile(bio, 'tile'), x, z);
+              grove(x, z, (i) => rnd(t, i + 20), r < 0.4 ? 1 : r < 0.75 ? 2 : 3);
+            } else
+              add(
+                tdTile(bio, r < 0.4 ? 'tile-tree' : r < 0.75 ? 'tile-tree-double' : 'tile-tree-quad'),
+                x,
+                z,
+                Math.floor(rnd(t, 2) * 4) * (Math.PI / 2),
+              );
             break;
           }
           case 'rock':
-            add(rnd(t, 1) < 0.7 ? 'td/tile-rock.glb' : 'td/tile-crystal.glb', x, z, Math.floor(rnd(t, 2) * 4) * (Math.PI / 2));
+            add(tdTile(bio, rnd(t, 1) < 0.7 ? 'tile-rock' : 'tile-crystal'), x, z, Math.floor(rnd(t, 2) * 4) * (Math.PI / 2));
             break;
           case 'water':
           case 'lava':
@@ -323,16 +352,16 @@ export class Scene3D {
             const e = isPath(t.x + 1, t.y);
             const w = isPath(t.x - 1, t.y);
             const count = +n + +s + +e + +w;
-            const end = t.kind === 'spawn' ? 'td/tile-spawn-end-round.glb' : 'td/tile-end-round.glb';
+            const end = tdTile(bio, t.kind === 'spawn' ? 'tile-spawn-end-round' : 'tile-end-round');
             if (count <= 1) {
               // Open side: +z (s) θ=0, +x (e) π/2, -z (n) π, -x (w) -π/2
               const rot = s ? 0 : e ? Math.PI / 2 : n ? Math.PI : -Math.PI / 2;
               add(end, x, z, rot);
-            } else if ((n && s) || (e && w)) add('td/tile-straight.glb', x, z, n && s ? 0 : Math.PI / 2);
+            } else if ((n && s) || (e && w)) add(tdTile(bio, 'tile-straight'), x, z, n && s ? 0 : Math.PI / 2);
             else {
               // Corner pieces open +x/+z at θ=0.
               const rot = e && s ? 0 : e && n ? Math.PI / 2 : w && n ? Math.PI : -Math.PI / 2;
-              add('td/tile-corner-round.glb', x, z, rot);
+              add(tdTile(bio, 'tile-corner-round'), x, z, rot);
             }
           }
         }
@@ -349,7 +378,6 @@ export class Scene3D {
     }
 
     // Water / lava basins: a sunken bed and a glossy surface.
-    const theme = this.game.board.def.theme;
     for (const t of waterTiles) {
       const lava = t.kind === 'lava';
       const bed = new THREE.Mesh(
@@ -360,7 +388,7 @@ export class Scene3D {
       bed.receiveShadow = true;
       group.add(bed);
       const mat = new THREE.MeshStandardMaterial({
-        color: lava ? '#ff7a2b' : theme === 'swamp' ? '#3f7a5a' : '#2f9fd0',
+        color: lava ? '#ff7a2b' : bio.water,
         emissive: lava ? '#ff5a1a' : '#4fb8ff',
         emissiveIntensity: lava ? 0.9 : 0.08,
         roughness: lava ? 0.6 : 0.15,
@@ -385,13 +413,17 @@ export class Scene3D {
    * The countryside around the battlefield: open fields at the edge, then
    * woods, rocks and, far away, hills and mountains, so the view is filled
    * with landscape instead of a floating board. The road leads in from
-   * beyond the horizon to the spawn portal.
+   * beyond the horizon to the spawn portal. Coasts end in the sea; swamps
+   * and volcanoes are dotted with ponds and lava pools.
    */
   private buildScenery(
     add: (path: string, x: number, z: number, rot?: number, scale?: number, y?: number, tint?: number) => void,
     addFit: (path: string, x: number, z: number, size: number, rot?: number, tint?: number) => void,
+    addH: (path: string, x: number, z: number, h: number, rot?: number, tint?: number) => void,
+    grove: (x: number, z: number, r: (i: number) => number, count: number, tint?: number) => void,
   ): void {
     const b = this.game.board;
+    const bio = this.biome;
     const W = b.width;
     const H = b.height;
     const M = SCENERY_MARGIN;
@@ -406,52 +438,134 @@ export class Scene3D {
     const dir = sp.x === 0 ? [-1, 0] : sp.y === 0 ? [0, -1] : sp.x === W - 1 ? [1, 0] : [0, 1];
     for (let i = 1; i <= M; i++) road.add(`${sp.x + dir[0] * i},${sp.y + dir[1] * i}`);
     const OUT = 0.9;
+    // Sea beyond the bottom and right shores (the board's own sea lies along them).
+    const isSea = (x: number, y: number) => !!bio.ocean && (x >= W || y >= H);
+    const pond = (x: number, y: number, d: number) =>
+      !!bio.pools && d >= 2 && (Math.sin(x * 0.61 + y * 0.37) + Math.sin(x * 0.23 - y * 0.52 + 1.3) + 2) / 4 > (bio.pools === 'lava' ? 0.86 : 0.8);
+    const liquid: [number, number][] = [];
     for (let y = -M; y < H + M; y++)
       for (let x = -M; x < W + M; x++) {
         if (x >= 0 && y >= 0 && x < W && y < H) continue;
         const cx = x + 0.5;
         const cz = y + 0.5;
         if (road.has(`${x},${y}`)) {
-          add('td/tile-straight.glb', cx, cz, dir[0] !== 0 ? Math.PI / 2 : 0, 1, 0, OUT);
+          add(tdTile(bio, 'tile-straight'), cx, cz, dir[0] !== 0 ? Math.PI / 2 : 0, 1, 0, OUT);
           continue;
         }
         const d = Math.max(x < 0 ? -x : x >= W ? x - W + 1 : 0, y < 0 ? -y : y >= H ? y - H + 1 : 0);
-        const n = noise(x, y);
-        const forest = smooth(x, y) * 0.9 + (d - 2) * 0.09;
-        if (d >= 2 && forest > 0.62 && n < 0.85) {
-          add(
-            n < 0.35 ? 'td/tile-tree-quad.glb' : n < 0.65 ? 'td/tile-tree-double.glb' : 'td/tile-tree.glb',
-            cx,
-            cz,
-            Math.floor(n * 4) * (Math.PI / 2),
-            1,
-            0,
-            OUT,
-          );
+        if (isSea(x, y) || pond(x, y, d)) {
+          liquid.push([x, y]);
           continue;
         }
-        add('td/tile.glb', cx, cz, 0, 1, 0, OUT);
-        if (d >= 2 && n > 0.93) add('td/detail-rocks.glb', cx, cz, n * 20, 1, 0.2, OUT);
-        else if (n > 0.86) add('nature/grass_large.glb', cx - 0.2, cz + 0.1, n * 30, 0.6, 0.2);
-        else if (n < 0.04) add('nature/flower_yellowA.glb', cx, cz, n * 50, 0.5, 0.2);
+        const n = noise(x, y);
+        const forest = smooth(x, y) * 0.9 + (d - 2) * 0.09 + (0.5 - bio.woods) * 0.6;
+        if (d >= 2 && forest > 0.62 && n < 0.85 && noise(y * 1.3, x * 0.7) < (bio.sparse ?? 1)) {
+          if (bio.trees.length) {
+            add(tdTile(bio, 'tile'), cx, cz, 0, 1, 0, OUT);
+            grove(cx, cz, (i) => noise(x + i * 7.1, y - i * 3.3), n < 0.35 ? 3 : n < 0.65 ? 2 : 1, OUT);
+          } else
+            add(
+              tdTile(bio, n < 0.35 ? 'tile-tree-quad' : n < 0.65 ? 'tile-tree-double' : 'tile-tree'),
+              cx,
+              cz,
+              Math.floor(n * 4) * (Math.PI / 2),
+              1,
+              0,
+              OUT,
+            );
+          continue;
+        }
+        add(tdTile(bio, 'tile'), cx, cz, 0, 1, 0, OUT);
+        if (d >= 2 && n > 0.93) add(tdTile(bio, 'detail-rocks'), cx, cz, n * 20, 1, 0.2, OUT);
+        else if (n > 0.84) {
+          const p = bio.props[Math.floor(noise(y, x) * bio.props.length)];
+          addH(p, cx - 0.2, cz + 0.1, 0.12 + noise(x * 2, y) * 0.14, n * 30, OUT);
+        } else if (n < 0.04) addH(bio.flowers[0], cx, cz, 0.14, n * 50, OUT);
       }
     // Far hills and mountains frame the horizon (placed on a coarse grid).
     for (let y = -M; y < H + M; y += 3)
       for (let x = -M; x < W + M; x += 3) {
         const d = Math.max(x < 0 ? -x : x >= W ? x - W : 0, y < 0 ? -y : y >= H ? y - H : 0);
         if (d < 6 || road.has(`${x},${y}`) || road.has(`${x + 1},${y + 1}`)) continue;
+        if ([0, 1, 2].some((i) => isSea(x + i, y + i) || isSea(x + 2 - i, y + i) || pond(x + i, y + i, d))) continue;
         const n = noise(x * 3.7, y * 1.3);
         if (n > 0.55) continue;
-        const kind =
-          n < 0.18
-            ? 'hex/nature/mountain_A_grass_trees.glb'
-            : n < 0.3
-              ? 'hex/nature/mountain_B_grass_trees.glb'
-              : n < 0.42
-                ? 'hex/nature/hills_A_trees.glb'
-                : 'hex/nature/hills_B_trees.glb';
-        addFit(kind, x + 1.5, y + 1.5, 2.6 + n * 2, n * 10);
+        const kind = bio.far[Math.min(bio.far.length - 1, Math.floor((n / 0.55) * bio.far.length))];
+        addFit(kind, x + 1.5, y + 1.5, 2.6 + n * 2, n * 10, bio.farTint ?? 1);
       }
+    if (liquid.length) this.buildLiquid(liquid, bio.pools === 'lava');
+  }
+
+  /** Sea, ponds or lava pools in the countryside, as one merged surface over a dark bed. */
+  private buildLiquid(cells: [number, number][], lava: boolean): void {
+    const surf: THREE.BufferGeometry[] = [];
+    for (const [x, y] of cells) {
+      const g = new THREE.PlaneGeometry(1, 1);
+      g.rotateX(-Math.PI / 2);
+      g.translate(x + 0.5, 0, y + 0.5);
+      surf.push(g);
+    }
+    const merged = mergeGeometries(surf, false)!;
+    for (const g of surf) g.dispose();
+    const bed = new THREE.Mesh(merged, new THREE.MeshStandardMaterial({ color: lava ? '#2a1a18' : '#5f8a7a', roughness: 1 }));
+    bed.position.y = GROUND_Y + 0.03;
+    bed.receiveShadow = true;
+    const mat = new THREE.MeshStandardMaterial({
+      color: lava ? '#ff7a2b' : this.biome.water,
+      emissive: lava ? '#ff5a1a' : '#4fb8ff',
+      emissiveIntensity: lava ? 0.9 : 0.08,
+      roughness: lava ? 0.6 : 0.15,
+      metalness: 0.1,
+      transparent: !lava,
+      opacity: 0.88,
+    });
+    if (!lava) this.water.push(mat);
+    const top = new THREE.Mesh(merged.clone(), mat);
+    top.position.y = GROUND_Y + 0.07;
+    top.receiveShadow = true;
+    this.scene.add(bed, top);
+  }
+
+  /**
+   * Kenney's tiles share one palette texture; biomes repaint its grass and
+   * road swatches (keeping the vertical shading) instead of tinting.
+   */
+  private biomeMaterial(mat: THREE.MeshStandardMaterial): THREE.MeshStandardMaterial {
+    const b = this.biome;
+    const hit = this.palette.get(mat);
+    if (hit) return hit as THREE.MeshStandardMaterial;
+    const swap = b.recolor?.[mat.name];
+    if (swap) {
+      const out = mat.clone();
+      out.color.set(swap);
+      this.palette.set(mat, out);
+      return out;
+    }
+    const img = mat.map?.image as (CanvasImageSource & { width: number; height: number }) | undefined;
+    if ((!b.ground && !b.path) || mat.name !== 'colormap' || !img) return mat;
+    const c = document.createElement('canvas');
+    c.width = img.width;
+    c.height = img.height;
+    const ctx = c.getContext('2d')!;
+    ctx.drawImage(img, 0, 0);
+    const cw = c.width / 16;
+    const rh = c.height / 4;
+    const paint = (col: number, row: number, [top, bottom]: [string, string]) => {
+      const g = ctx.createLinearGradient(0, row * rh, 0, (row + 1) * rh);
+      g.addColorStop(0, top);
+      g.addColorStop(1, bottom);
+      ctx.fillStyle = g;
+      ctx.fillRect(col * cw, row * rh, cw, rh);
+    };
+    if (b.ground) paint(9, 2, b.ground);
+    if (b.path) paint(1, 2, b.path);
+    const tex = mat.map!.clone();
+    tex.image = c;
+    tex.needsUpdate = true;
+    const out = mat.clone();
+    out.map = tex;
+    this.palette.set(mat, out);
+    return out;
   }
 
   private buildCastle(): void {
