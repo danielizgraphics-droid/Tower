@@ -188,7 +188,7 @@ export class Renderer {
   private applyCamera(): void {
     const b = this.game.board;
     const bb = Camera.boardBounds(b.width, b.height);
-    this.zoom = clamp(this.zoom, 1, 2.8);
+    this.zoom = clamp(this.zoom, ...this.zoomRange);
     const scale = this.baseScale * this.zoom;
     this.cam.scale = scale;
     const availW = this.width - this.insets.left - this.insets.right;
@@ -204,10 +204,15 @@ export class Renderer {
     this.cam.oy = this.insets.top + (availH - boardH) / 2 + Renderer.EXTRA_TOP * scale + this.panY;
   }
 
+  /** The 3D models hold up to close-ups; with the countryside around, the view can also pull back a little. */
+  get zoomRange(): [number, number] {
+    return this.scene3d ? [0.8, 5] : [1, 2.6];
+  }
+
   setZoom(z: number, anchorX = this.width / 2, anchorY = this.height / 2): void {
     this.zoomChangedAt = this.time;
     const before = this.cam.unproject(anchorX, anchorY, 0);
-    this.zoom = clamp(z, 1, 2.6);
+    this.zoom = clamp(z, ...this.zoomRange);
     this.applyCamera();
     const after = this.cam.project(before.x, before.y, 0);
     this.panX += anchorX - after.x;
@@ -438,8 +443,9 @@ export class Renderer {
           s3.sync(this.cam, this.width, this.height, this.dpr);
           s3.setGhost(this.view.ghost);
           s3.render(dt);
+          this.errors3D = 0;
         } catch (e) {
-          // A failing 3D layer must not stop the battle: after repeated errors the 2D renderer takes over.
+          // A failing 3D layer must not stop the battle: after repeated errors in a row it is rebuilt.
           console.error('3D', e);
           if (++this.errors3D >= 3) s3.lost = true;
         }

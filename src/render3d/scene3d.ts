@@ -206,12 +206,16 @@ export class Scene3D {
         m.opacity = 0.6;
         m.depthWrite = false;
         if (!g.valid) {
-          m.color.lerp(new THREE.Color('#ff4a3a'), 0.6);
-          m.emissive.set('#ff2a1a');
-          m.emissiveIntensity = 0.3;
+          m.color?.lerp(new THREE.Color('#ff4a3a'), 0.6);
+          // Muzzle flashes and other basic materials have no emissive channel.
+          if (m.emissive) {
+            m.emissive.set('#ff2a1a');
+            m.emissiveIntensity = 0.3;
+          }
         }
       }
       parts.root.traverse((o) => (o.castShadow = false));
+      if (parts.flash) parts.flash.visible = false;
       this.ghost = { key, obj: parts.root, mats };
       this.scene.add(parts.root);
     }
@@ -578,8 +582,10 @@ export class Scene3D {
     };
     if (b.ground) paint(9, 2, b.ground);
     if (b.path) paint(1, 2, b.path);
+    // A new texture source: clone() shares the original's, which would also repaint every
+    // other model using Kenney's palette (the towers' weapons).
     const tex = mat.map!.clone();
-    tex.image = c;
+    tex.source = new THREE.Source(c);
     tex.needsUpdate = true;
     const out = mat.clone();
     out.map = tex;
