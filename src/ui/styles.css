@@ -2118,3 +2118,112 @@ table.dmg td.bad {
   bottom: auto;
   top: -6px;
 }
+
+/* ------------------------------------------------------------------ tower info */
+.tcard .info-btn {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  width: 22px;
+  height: 22px;
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+  color: var(--ink-2);
+  background: var(--surface);
+  box-shadow: var(--shadow-s);
+  cursor: pointer;
+  z-index: 1;
+}
+.tcard .info-btn:active {
+  transform: scale(0.9);
+}
+/* Naval badge moves to the left, under the shortcut number. */
+.tcard .naval {
+  left: 4px;
+  right: auto;
+  top: 18px;
+}
+.tower-info {
+  text-align: left;
+  width: min(460px, 100%);
+  max-height: calc(100% - 8px);
+  overflow: auto;
+  padding: 16px;
+  touch-action: pan-y;
+}
+.ti-head {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+.ti-head img {
+  width: 72px;
+  height: 72px;
+  border-radius: 16px;
+  background: var(--surface-2);
+  flex: none;
+}
+.ti-head > div {
+  flex: 1;
+  min-width: 0;
+}
+.ti-head h2 {
+  font-size: 22px;
+  margin: 0 0 4px;
+}
+.ti-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+  margin: 2px 0;
+}
+.ti-tags .tag {
+  margin: 0;
+}
+.ti-desc {
+  margin: 12px 0 6px;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--ink-2);
+}
+.ti-note {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin: 0 0 6px;
+  font-size: 13px;
+  color: var(--water);
+}
+.ti-tiers {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.ti-tiers .cost {
+  margin-left: 4px;
+}
+.tower-info .branch {
+  cursor: default;
+}
+.tower-info .branch:hover {
+  background: var(--surface-2);
+  box-shadow: none;
+}
+.tower-info .actions {
+  justify-content: flex-end;
+}
+@media (max-height: 520px) {
+  .tcard .info-btn {
+    width: 18px;
+    height: 18px;
+    border-radius: 6px;
+  }
+  .tcard .naval {
+    top: 2px;
+  }
+  .tower-info .branch p {
+    display: block;
+  }
+}

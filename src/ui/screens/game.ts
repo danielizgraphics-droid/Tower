@@ -18,7 +18,7 @@ import { enemyPortrait, towerPortrait } from '../../render/portraits';
 import { Renderer } from '../../render/renderer';
 import type { App, Route, Screen } from '../app';
 import { h, setText, toggleClass } from '../dom';
-import { statLines, TARGET_LABELS } from '../format';
+import { ATTACK_LABELS, statLines, TARGET_LABELS } from '../format';
 import { icon } from '../icons';
 import { hideTip, tip } from '../tooltip';
 import { openSettings } from './settings';
@@ -108,6 +108,21 @@ export function gameScreen(app: App, route: Route): Screen {
       { 'aria-label': t.name },
       h('span.key', i < 10 ? String((i + 1) % 10) : (['-', '='][i - 10] ?? '')),
       t.placement === 'water' ? h('span.naval', { title: 'Torre naval: se construye sobre el agua' }, icon('drop', 11)) : null,
+      h(
+        'span.info-btn',
+        {
+          role: 'button',
+          'aria-label': `Información: ${t.name}`,
+          title: 'Ver descripción',
+          // Not a drag: keep the card's own pointer handling out of it.
+          onpointerdown: (e: PointerEvent) => e.stopPropagation(),
+          onclick: (e: MouseEvent) => {
+            e.stopPropagation();
+            openTowerInfo(t.id);
+          },
+        },
+        icon('info', 14),
+      ),
       h('img', { src: towerPortrait(t.id, 1, -1, 64), alt: '', draggable: false }),
       h('span.name', t.name.replace('Torre de ', '').replace('Torre ', '')),
       costEl,
@@ -846,6 +861,101 @@ export function gameScreen(app: App, route: Route): Screen {
       ),
     );
     hud.append(pauseModal);
+  }
+
+  // ------------------------------------------------------------ tower info sheet
+  /** What a tower does, before building it: description, base stats and its upgrade paths. */
+  function openTowerInfo(id: TowerId) {
+    if (finished) return;
+    sfx('click');
+    hideTip();
+    const def = TOWERS[id];
+    const wasPaused = game.paused;
+    game.paused = true;
+    const close = () => {
+      modal.remove();
+      game.paused = wasPaused;
+    };
+    const tag = (t: keyof typeof DAMAGE_TYPES) => h('span.tag', { style: `background:${DAMAGE_TYPES[t].color}` }, DAMAGE_TYPES[t].name);
+    const targets = def.targetsGround && def.targetsAir ? 'Tierra y aire' : def.targetsAir ? 'Solo aire' : 'Solo tierra';
+    const stats = statLines(game.previewStats(id, 1, -1), def.attack);
+    const canAfford = game.gold >= game.buildCost(id);
+    const naval = def.placement === 'water';
+    const buildBtn = h(
+      'button.btn.primary',
+      {
+        disabled: naval && !game.hasWater,
+        onclick: () => {
+          close();
+          selectBuild(id);
+          if (lastPointer !== 'mouse') setGhost(defaultTile());
+        },
+      },
+      icon('hammer', 18),
+      'Construir',
+      h('span.cost', { style: 'color:#fff' }, icon('coin', 14), String(game.buildCost(id))),
+    );
+    const modal = h(
+      'div.modal',
+      {
+        onpointerdown: (e: PointerEvent) => {
+          if (e.target === modal) close();
+        },
+      },
+      h(
+        'div.modal-card.panel.tower-info',
+        h(
+          'div.ti-head',
+          h('img', { src: towerPortrait(id, 1, -1, 96), alt: '' }),
+          h(
+            'div',
+            h('h2', def.name),
+            h('div.ti-tags', tag(def.damageType), h('span.pill', ATTACK_LABELS[def.attack]), h('span.pill', targets)),
+            h('div.muted.tiny', def.role),
+          ),
+          h('button.btn.small.icon-only.wood', { onclick: close, 'aria-label': 'Cerrar' }, icon('close', 16)),
+        ),
+        h('p.ti-desc', def.description),
+        naval
+          ? h('p.ti-note', icon('drop', 14), game.hasWater ? 'Se construye sobre el agua.' : 'Se construye sobre el agua: este mapa no tiene.')
+          : null,
+        h('div.section-title', 'Nivel 1'),
+        h(
+          'div.stats',
+          stats.map((l) => h('div.row', h('span.muted', l.label), h('b', l.value))),
+        ),
+        h('div.section-title', 'Mejoras'),
+        h(
+          'div.ti-tiers',
+          def.tiers.map((st, i) => h('span.pill', `Nivel ${i + 2}`, h('span.cost', icon('coin', 12), String(st.cost)))),
+        ),
+        h('div.section-title', 'Especializaciones (nivel 4)'),
+        h(
+          'div.branches',
+          def.branches.map((b, i) =>
+            h(
+              'div.branch',
+              h('img', { src: towerPortrait(id, 4, i, 64), alt: '' }),
+              h(
+                'div',
+                h('h4', b.name),
+                h('p', b.description),
+                h(
+                  'div.ti-tags',
+                  b.damageType && b.damageType !== def.damageType ? tag(b.damageType) : null,
+                  b.attack && b.attack !== def.attack ? h('span.pill', ATTACK_LABELS[b.attack]) : null,
+                  b.targetsAir && !def.targetsAir ? h('span.pill', 'También aire') : null,
+                  h('span.cost', icon('coin', 12), String(b.steps[0].cost)),
+                ),
+              ),
+            ),
+          ),
+        ),
+        h('div.actions', h('button.btn', { onclick: close }, 'Cerrar'), buildBtn),
+        !canAfford ? h('div.muted.tiny', { style: 'margin-top:6px' }, 'Oro insuficiente por ahora.') : null,
+      ),
+    );
+    hud.append(modal);
   }
 
   function abandon() {
