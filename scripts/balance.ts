@@ -1,5 +1,7 @@
 import { generateMap } from '../src/game/mapgen';
-const MAPS = (['meadow', 'coast', 'autumn', 'desert', 'swamp', 'snow', 'volcano', 'dusk'] as const).map((b) => generateMap({ biome: b, seed: 777 }));
+const MAPS = (['meadow', 'coast', 'autumn', 'desert', 'swamp', 'snow', 'volcano', 'dusk', 'jungle', 'canyon', 'crystal'] as const).map((b) =>
+  generateMap({ biome: b, seed: 777 }),
+);
 import { AutoPlayer, ALL_TOWERS, simulate } from '../src/game/autoplay';
 import { Game } from '../src/game/game';
 import { ModifierSet } from '../src/game/modifiers';
