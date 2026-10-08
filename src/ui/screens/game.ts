@@ -29,7 +29,9 @@ const SPELL_KEYS: Record<SpellId, string> = { meteor: 'Q', frostNova: 'W', bless
 export function gameScreen(app: App, route: Route): Screen {
   if (route.name !== 'game') throw new Error('bad route');
   const run = route;
-  const endless = run.endless;
+  let endless = run.endless;
+  /** Set when a won campaign continues in endless mode: what was already rewarded. */
+  let continued: { waves: number; kills: number; bosses: number; xp: Partial<Record<TowerId, number>> } | null = null;
   const mapDef = generateMap({ biome: run.biome, seed: run.seed, waves: endless ? Infinity : 30 });
   const difficulty: Difficulty = route.difficulty;
   const profile = app.profile;
@@ -1086,6 +1088,24 @@ export function gameScreen(app: App, route: Route): Screen {
   });
 
   // ------------------------------------------------------------ end of run
+  function xpSince(before: Partial<Record<TowerId, number>>): Partial<Record<TowerId, number>> {
+    const out: Partial<Record<TowerId, number>> = {};
+    for (const [id, xp] of Object.entries(game.towerXp) as [TowerId, number][]) out[id] = xp - (before[id] ?? 0);
+    return out;
+  }
+
+  /** Keeps this very battle going after a victory: same towers, gold and blessings, endless waves. */
+  function continueEndless(modal: HTMLElement) {
+    sfx('click');
+    modal.remove();
+    continued = { waves: game.wavesCleared, kills: game.kills, bosses: game.bossesKilled, xp: { ...game.towerXp } };
+    endless = true;
+    finished = false;
+    game.paused = false;
+    game.continueEndless();
+    banner('Modo infinito', 'Las oleadas ya no terminan');
+  }
+
   function finishRun(victory: boolean, abandoned = false) {
     if (finished) return;
     finished = true;
@@ -1100,9 +1120,10 @@ export function gameScreen(app: App, route: Route): Screen {
       wavesCleared: game.wavesCleared,
       totalWaves: game.totalWaves,
       victory,
-      towerXp: game.towerXp,
-      kills: game.kills,
-      bossesKilled: game.bossesKilled,
+      towerXp: continued ? xpSince(continued.xp) : game.towerXp,
+      kills: game.kills - (continued?.kills ?? 0),
+      bossesKilled: game.bossesKilled - (continued?.bosses ?? 0),
+      rewardedWaves: continued?.waves ?? 0,
       starGain: g.starGain,
       xpGain: g.xpGain,
     });
@@ -1136,7 +1157,7 @@ export function gameScreen(app: App, route: Route): Screen {
             ),
             h(
               'div.results',
-              h('div.line', h('span', 'Oleadas superadas'), h('span', `${game.wavesCleared}/${game.totalWaves}`)),
+              h('div.line', h('span', 'Oleadas superadas'), h('span', endless ? `${game.wavesCleared}` : `${game.wavesCleared}/${game.totalWaves}`)),
               h('div.line', h('span', 'Enemigos abatidos'), h('span', String(game.kills))),
               h('div.line', h('span', 'Oro obtenido'), h('span', formatNumber(game.goldEarned))),
               h(
@@ -1167,6 +1188,14 @@ export function gameScreen(app: App, route: Route): Screen {
                       ),
                     ),
                   ),
+                )
+              : null,
+            victory && !endless
+              ? h(
+                  'button.btn.green.big',
+                  { style: 'width:100%;margin-top:16px', onclick: () => continueEndless(modal) },
+                  icon('infinity', 20),
+                  'Seguir en modo infinito',
                 )
               : null,
             h(

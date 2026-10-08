@@ -202,6 +202,8 @@ export interface RunResult {
   bossesKilled: number;
   starGain: number;
   xpGain: number;
+  /** Waves already rewarded earlier in this battle (a won campaign continued in endless mode). */
+  rewardedWaves?: number;
 }
 
 export interface RewardSummary {
@@ -214,9 +216,10 @@ export const STAR_MULT = { easy: 0.6, normal: 1, hard: 1.6 } as const;
 
 export function computeStars(r: RunResult, alreadyCleared: boolean): number {
   // Endless runs pay a little more for every wave survived past the campaign.
-  const perWave = r.wavesCleared * 0.5 + (r.endless ? Math.max(0, r.wavesCleared - 30) * 0.25 : 0);
+  const from = r.rewardedWaves ?? 0;
+  const perWave = Math.max(0, r.wavesCleared - from) * 0.5 + (r.endless ? Math.max(0, r.wavesCleared - Math.max(30, from)) * 0.25 : 0);
   const victory = r.victory ? (alreadyCleared ? 4 : 10) : 0;
-  return Math.max(r.wavesCleared > 0 ? 1 : 0, Math.round((perWave + victory) * STAR_MULT[r.difficulty] * (1 + r.starGain)));
+  return Math.max(r.wavesCleared > from ? 1 : 0, Math.round((perWave + victory) * STAR_MULT[r.difficulty] * (1 + r.starGain)));
 }
 
 export function applyRunResult(p: Profile, r: RunResult): RewardSummary {

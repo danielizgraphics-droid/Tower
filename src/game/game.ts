@@ -75,7 +75,7 @@ export class Game {
   mana: number;
   wave = 0; // waves started
   wavesCleared = 0;
-  readonly totalWaves: number;
+  totalWaves: number;
   speed = 1;
   paused = false;
 
@@ -1021,6 +1021,14 @@ export class Game {
   /** Remaining waves are not started and nothing is alive: used by UI to show the start button. */
   get waitingForWave(): boolean {
     return this.phase === 'build';
+  }
+
+  /** After a victory: keep the same battle going with endless waves. */
+  continueEndless(): boolean {
+    if (this.phase !== 'victory') return false;
+    this.totalWaves = Infinity;
+    this.setPhase('build');
+    return true;
   }
 
   /** Simulation is frozen (picking an augment or run finished). */
