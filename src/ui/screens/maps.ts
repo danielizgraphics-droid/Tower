@@ -20,6 +20,9 @@ const BIOME_ICON: Record<Biome, string> = {
   snow: 'snow',
   volcano: 'burst',
   dusk: 'skull',
+  jungle: 'clover',
+  canyon: 'mountain',
+  crystal: 'gem',
 };
 
 let previewToken = 0;

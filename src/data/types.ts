@@ -279,7 +279,10 @@ export type EnemyId =
   | 'myconid'
   | 'cactoid'
   | 'voidling'
-  | 'iceKnight';
+  | 'iceKnight'
+  | 'hiveQueen'
+  | 'cyclopsKing'
+  | 'prismGolem';
 
 export type EnemyShape = 'humanoid' | 'beast' | 'blob' | 'flyer' | 'giant' | 'ghost' | 'dragon' | 'siege';
 
@@ -380,7 +383,7 @@ export interface AugmentDef {
 
 export type Difficulty = 'easy' | 'normal' | 'hard';
 
-export type Biome = 'meadow' | 'autumn' | 'snow' | 'dusk' | 'desert' | 'swamp' | 'coast' | 'volcano';
+export type Biome = 'meadow' | 'autumn' | 'snow' | 'dusk' | 'desert' | 'swamp' | 'coast' | 'volcano' | 'jungle' | 'canyon' | 'crystal';
 
 export interface MapDef {
   id: string;

@@ -72,5 +72,8 @@ export const ENEMY_LOOKS: Partial<Record<EnemyId, EnemyLook3D>> = {
   myconid: { model: M + 'Mushroom.glb', height: 0.55, stride: 0.9 },
   cactoid: { model: M + 'Cactus.glb', height: 0.6, stride: 0.8 },
   voidling: { model: M + 'Alien.glb', height: 0.58, tint: '#7a5fd0', tintAmount: 0.45, glow: '#3a1a6a' },
+  hiveQueen: { model: M + 'Bee.glb', height: 0.7, tint: '#ffcf40', tintAmount: 0.3, glow: '#6a4a00', stride: 0.8 },
+  cyclopsKing: { model: M + 'Cyclops.glb', height: 0.72, tint: '#b5654a', tintAmount: 0.55, stride: 0.6 },
+  prismGolem: { model: M + 'Yeti.glb', height: 0.72, tint: '#8fe8f0', tintAmount: 0.7, glow: '#3a4aa0', stride: 0.6 },
   iceKnight: { model: C + 'Knight.glb', height: 0.8, show: ['2H_Sword'], tint: '#bfe8ff', tintAmount: 0.55, stride: 0.85 },
 };

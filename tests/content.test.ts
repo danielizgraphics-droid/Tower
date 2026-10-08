@@ -118,7 +118,7 @@ describe('regional content', () => {
 
   it('every enemy and biome is wired up', () => {
     expect(ENEMY_LIST.length).toBeGreaterThanOrEqual(30);
-    expect(BIOMES).toHaveLength(8);
+    expect(BIOMES).toHaveLength(11);
     for (const b of BIOMES) if (b.requires) expect(BIOMES.some((o) => o.id === b.requires)).toBe(true);
     for (const b of BIOMES) if (b.boss) expect(ENEMIES[b.boss].boss).toBe(true);
   });
