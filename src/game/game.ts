@@ -39,6 +39,7 @@ export interface GameEvents {
   shieldBreak: { x: number; y: number };
   blink: { x: number; y: number };
   revive: { x: number; y: number };
+  dodge: { x: number; y: number; z: number };
 }
 
 export interface GameOptions {
@@ -722,6 +723,10 @@ export class Game {
     crit = false,
   ): number {
     if (!e.alive || amount <= 0) return 0;
+    if (e.def.dodge && type === 'physical' && !dot && this.rng.chance(e.def.dodge)) {
+      this.events.emit('dodge', { x: e.x, y: e.y, z: e.flying ? 0.9 : 0.5 });
+      return 0;
+    }
     const info = DAMAGE_TYPES[type];
     let dmg = amount * (1 + e.vuln) * (e.def.resist?.[type] ?? 1);
     if (type === 'holy' && e.def.undead) dmg *= UNDEAD_HOLY_BONUS;
@@ -803,6 +808,12 @@ export class Game {
         for (const p of e.poison) this.addPoison(o, p.tower, p.dps, Math.max(p.time, 2), Math.max(1, Math.round(p.tower?.stats.poisonStacks ?? 1)));
       }
       this.events.emit('pulse', { x: e.x, y: e.y, radius: spread, color: '#9be15d' });
+    }
+    if (e.def.deathHeal) {
+      // Spores: the fallen heal those around them.
+      for (const o of this.enemiesInRadius(e.x, e.y, 1.6)) if (o !== e && o.alive) o.hp = Math.min(o.maxHp, o.hp + o.maxHp * e.def.deathHeal);
+      this.events.emit('heal', { x: e.x, y: e.y });
+      this.events.emit('pulse', { x: e.x, y: e.y, radius: 1.6, color: '#b8f07a' });
     }
     if (e.def.split) {
       for (let i = 0; i < e.def.split.count; i++) {

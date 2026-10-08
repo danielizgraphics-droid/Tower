@@ -26,6 +26,8 @@ function traits(e: EnemyDef): string[] {
   if (e.revive) t.push('Resucita');
   if (e.shieldAura) t.push('Aura de escudo');
   if (e.unstoppable) t.push('Imparable');
+  if (e.dodge) t.push(`Esquiva ${Math.round(e.dodge * 100)}% físico`);
+  if (e.deathHeal) t.push('Esporas curativas');
   if (e.ccResist) t.push(`Resiste control ${Math.round(e.ccResist * 100)}%`);
   if (e.biomes) t.push(`Región: ${e.biomes.map((b) => BIOME_BY_ID[b].name).join(', ')}`);
   for (const [k, v] of Object.entries(e.resist ?? {})) t.push(`${DAMAGE_TYPES[k as DamageType].name} ×${v}`);

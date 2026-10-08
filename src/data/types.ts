@@ -257,7 +257,15 @@ export type EnemyId =
   | 'witch'
   | 'hydra'
   | 'colossus'
-  | 'scorpionKing';
+  | 'scorpionKing'
+  | 'swarm'
+  | 'shade'
+  | 'skullwisp'
+  | 'ossuary'
+  | 'myconid'
+  | 'cactoid'
+  | 'voidling'
+  | 'iceKnight';
 
 export type EnemyShape = 'humanoid' | 'beast' | 'blob' | 'flyer' | 'giant' | 'ghost' | 'dragon' | 'siege';
 
@@ -296,6 +304,10 @@ export interface EnemyDef {
   revive?: number;
   /** Periodically grants shield to nearby allies. */
   shieldAura?: { amount: number; every: number; radius: number };
+  /** Chance (0..1) to evade each physical hit (arrows, bolts, cannonballs). */
+  dodge?: number;
+  /** On death, heals nearby allies by this fraction of their max health. */
+  deathHeal?: number;
   /** Immune to knockback and pull effects. */
   unstoppable?: boolean;
   /** Regional enemy: only appears in these biomes (and more often there). */

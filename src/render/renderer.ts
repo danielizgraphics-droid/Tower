@@ -335,6 +335,9 @@ export class Renderer {
         }
       }),
       ev.on('heal', ({ x, y }) => fx.burst('glow', x, y, 0.5, 4, '#7dffa0', 0.6, 0.05, 0.6)),
+      ev.on('dodge', ({ x, y, z }) => {
+        if (this.view.showDamage) fx.label(x, y, z + 0.4, 'esquiva', '#e8eef0', 0.8);
+      }),
       ev.on('blink', ({ x, y }) => {
         fx.burst('smoke', x, y, 1, 8, '#ff7a3a', 1.2, 0.08, 0.5);
         fx.burst('spark', x, y, 1.1, 6, '#ffd04a', 1.8, 0.04, 0.35);

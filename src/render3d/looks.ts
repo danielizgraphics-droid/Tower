@@ -64,4 +64,13 @@ export const ENEMY_LOOKS: Partial<Record<EnemyId, EnemyLook3D>> = {
   hydra: { model: M + 'GreenDemon.glb', height: 0.65, tint: '#3f8a4a', tintAmount: 0.4, stride: 0.7 },
   colossus: { model: M + 'Tree.glb', height: 0.7, tint: '#3a2a2a', tintAmount: 0.6, glow: '#ff5a10', stride: 0.6 },
   ram: { model: 'castle/siege-ram.glb', height: 0.45, rigid: true },
+  // ---- expansion
+  swarm: { model: M + 'Bee.glb', height: 0.38, stride: 1.4 },
+  shade: { model: C + 'Rogue_Hooded.glb', height: 0.7, show: ['Knife', 'Knife_Offhand'], tint: '#4a3f6a', tintAmount: 0.6, stride: 1.2 },
+  skullwisp: { model: M + 'Skull.glb', height: 0.48, tint: '#f2ecd8', tintAmount: 0.2, glow: '#2a7a4a', stride: 1.3 },
+  ossuary: { model: M + 'Skeleton.glb', height: 1.05, tint: '#e8e0c8', tintAmount: 0.25, stride: 0.6 },
+  myconid: { model: M + 'Mushroom.glb', height: 0.55, stride: 0.9 },
+  cactoid: { model: M + 'Cactus.glb', height: 0.6, stride: 0.8 },
+  voidling: { model: M + 'Alien.glb', height: 0.58, tint: '#7a5fd0', tintAmount: 0.45, glow: '#3a1a6a' },
+  iceKnight: { model: C + 'Knight.glb', height: 0.8, show: ['2H_Sword'], tint: '#bfe8ff', tintAmount: 0.55, stride: 0.85 },
 };
