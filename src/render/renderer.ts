@@ -738,6 +738,7 @@ export class Renderer {
         break;
       }
       case 'ball':
+      case 'boulder':
       case 'bomb':
         p.shadow(x, y, 0.001, 0.07, 0.2);
         p.sphere(x, y, z, pr.style === 'bomb' ? 0.05 : 0.08, '#3a3a44');

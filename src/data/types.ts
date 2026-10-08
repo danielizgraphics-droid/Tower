@@ -108,7 +108,21 @@ export type AttackKind =
 export type TargetMode = 'first' | 'last' | 'strong' | 'close';
 
 export type TowerId =
-  'archer' | 'ballista' | 'cannon' | 'arcane' | 'pyre' | 'frost' | 'storm' | 'alchemist' | 'sanctum' | 'obelisk' | 'harbor' | 'tide';
+  | 'archer'
+  | 'ballista'
+  | 'cannon'
+  | 'arcane'
+  | 'pyre'
+  | 'frost'
+  | 'storm'
+  | 'alchemist'
+  | 'sanctum'
+  | 'obelisk'
+  | 'harbor'
+  | 'tide'
+  | 'quake'
+  | 'falconer'
+  | 'market';
 
 export type TowerTag = 'physical' | 'magic' | 'siege' | 'elemental' | 'support' | 'dark';
 

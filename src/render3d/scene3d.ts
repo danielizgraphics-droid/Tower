@@ -37,6 +37,7 @@ interface TowerObj {
   /** 1 right after a shot, decays to 0 (recoil, flash, orb pulse). */
   kick: number;
   unit: { pivot: THREE.Group; mixer: THREE.AnimationMixer; shoot: THREE.AnimationClip | null } | null;
+  petMixer: THREE.AnimationMixer | null;
 }
 
 interface EnemyObj {
@@ -630,8 +631,14 @@ export class Scene3D {
         root.add(parts.root);
         root.position.set(t.x, GRASS_TOP + (t.def.placement === 'water' ? -0.12 : 0), t.y);
         this.scene.add(root);
-        obj = { key, root, parts, kick: 0, unit: null };
+        obj = { key, root, parts, kick: 0, unit: null, petMixer: null };
         if (parts.unitY !== null) obj.unit = this.makeUnit(parts);
+        if (parts.pet) {
+          const mixer = new THREE.AnimationMixer(parts.pet.body);
+          const fly = this.clip(parts.pet.clips, ['Flying', 'Fly', 'Idle']);
+          if (fly) mixer.clipAction(fly).play();
+          obj.petMixer = mixer;
+        }
         this.towers.set(t.uid, obj);
       }
       this.animateTower(t, obj, dt);
@@ -697,6 +704,12 @@ export class Scene3D {
     if (obj.unit) {
       obj.unit.pivot.rotation.y = aim;
       obj.unit.mixer.update(dt);
+    }
+    if (p.pet) {
+      // The bird circles the tower, bobbing; it swoops lower right after a shot.
+      p.pet.pivot.rotation.y = this.time * 1.4 + t.uid;
+      p.pet.body.position.y = Math.sin(this.time * 3 + t.uid) * 0.04 - kick * 0.25;
+      obj.petMixer?.update(dt);
     }
     // Pop when built / upgraded
     const k = Math.min(1, t.buildAnim / 0.35);
@@ -949,4 +962,5 @@ export const PROJECTILE_MODELS: Record<string, { model: string; scale: number; p
   ball: { model: 'td/weapon-ammo-cannonball.glb', scale: 0.8 },
   bomb: { model: 'td/weapon-ammo-cannonball.glb', scale: 0.6 },
   flask: { model: 'td/weapon-ammo-boulder.glb', scale: 0.5, spin: true },
+  boulder: { model: 'td/weapon-ammo-boulder.glb', scale: 1, spin: true },
 };

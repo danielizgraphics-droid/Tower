@@ -1205,6 +1205,10 @@ const MODELS: Record<TowerId, ModelFn> = {
         );
     }
   },
+  // The 2D fallback borrows the closest existing silhouettes (the 3D view has their own buildings).
+  quake: (...a) => MODELS.cannon(...a),
+  falconer: (...a) => MODELS.archer(...a),
+  market: (...a) => MODELS.sanctum(...a),
 };
 
 /** Draws a tower model with its base at (cx, cy, z). */

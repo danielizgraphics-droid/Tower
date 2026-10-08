@@ -811,6 +811,200 @@ const defs: TowerDef[] = [
       ),
     },
   },
+  // ------------------------------------------------------------------ 13. Geomancer
+  {
+    id: 'quake',
+    name: 'Geomante',
+    description: 'Golpea el suelo y sacude a todos los enemigos de tierra cercanos; a veces los deja aturdidos.',
+    role: 'Control de tierra',
+    tags: ['magic', 'elemental'],
+    cost: 140,
+    attack: 'pulse',
+    damageType: 'physical',
+    targetsGround: true,
+    targetsAir: false,
+    base: { damage: 16, range: 1.9, rate: 0.5, stunChance: 0.12, stunDuration: 0.6 },
+    tiers: [
+      { cost: 100, add: { damage: 8 } },
+      { cost: 150, add: { damage: 10, range: 0.2, stunChance: 0.05 } },
+    ],
+    branches: [
+      {
+        id: 'earthquake',
+        name: 'Terremoto',
+        description: 'Sacudidas enormes que resquebrajan armaduras y aturden más a menudo.',
+        visual: { body: '#b8a58a', accent: '#8a5a32', fx: '#d9b98a' },
+        steps: [
+          { cost: 290, add: { damage: 30, range: 0.4, stunChance: 0.15, armorShred: 6 } },
+          { cost: 420, add: { damage: 45, stunDuration: 0.4, armorShred: 6 } },
+        ],
+      },
+      {
+        id: 'quarry',
+        name: 'Cantera',
+        description: 'Una catapulta lanza rocas enormes muy lejos: área enorme y empujón.',
+        attack: 'lob',
+        visual: { body: '#b0a89a', accent: '#6f7a5a', fx: '#cfc4a8' },
+        steps: [
+          { cost: 270, add: { damage: 55, splash: 1, range: 1.8, projectileSpeed: 6 }, mul: { rate: 0.8 } },
+          { cost: 400, add: { damage: 80, splash: 0.3, knockback: 0.4 } },
+        ],
+      },
+      {
+        id: 'rockfall',
+        name: 'Lluvia de Rocas',
+        description: 'Invoca rocas desde el cielo sobre el enemigo más peligroso; ralentiza a los supervivientes.',
+        attack: 'strike',
+        visual: { body: '#b8a58a', accent: '#c46a3a', fx: '#ffcf8a' },
+        steps: [
+          { cost: 280, add: { damage: 75, splash: 0.7, range: 1.4, armorShred: 12 }, mul: { rate: 0.75 } },
+          { cost: 410, add: { damage: 95, slow: 0.3, slowDuration: 1.5 } },
+        ],
+      },
+    ],
+    visual: { body: '#b8a58a', accent: '#7a5a3a', fx: '#d9c09a' },
+    unlockCost: 7,
+    talents: {
+      branchBoost: [
+        talent('Fallas profundas', 'Terremoto: +5% probabilidad de aturdir por rango.', [flat('quake', 'stunChance', 0.05, 0)]),
+        talent('Contrapeso', 'Cantera: +12% daño por rango.', [pct('quake', 'damage', 0.12, 1)]),
+        talent('Avalancha', 'Lluvia de Rocas: +10% área por rango.', [pct('quake', 'splash', 0.1, 2)]),
+      ],
+      capstone: talent(
+        'Corazón de la Montaña',
+        'Todos los geomantes: +15% daño y +5% aturdir.',
+        [pct('quake', 'damage', 0.15), flat('quake', 'stunChance', 0.05)],
+        1,
+      ),
+    },
+  },
+  // ------------------------------------------------------------------ 14. Falconer
+  {
+    id: 'falconer',
+    name: 'Halconero',
+    description: 'Halcones adiestrados que cazan voladores con mucha facilidad. Contra los de tierra son más flojos.',
+    role: 'Antiaéreo',
+    tags: ['physical'],
+    cost: 110,
+    attack: 'projectile',
+    damageType: 'physical',
+    targetsGround: true,
+    targetsAir: true,
+    base: { damage: 11, range: 3.6, rate: 1.1, projectileSpeed: 13, airDamage: 1 },
+    tiers: [
+      { cost: 75, add: { damage: 5, airDamage: 0.2 } },
+      { cost: 120, add: { damage: 6, rate: 0.15 } },
+    ],
+    branches: [
+      {
+        id: 'flock',
+        name: 'Bandada',
+        description: 'Suelta varios halcones a la vez, cada uno a una presa distinta.',
+        visual: { body: '#d9cdb5', accent: '#5a7a9a', fx: '#e8f0ff' },
+        steps: [
+          { cost: 220, add: { multishot: 2, rate: 0.2 } },
+          { cost: 340, add: { multishot: 2, airDamage: 0.5 } },
+        ],
+      },
+      {
+        id: 'royal',
+        name: 'Águila Real',
+        description: 'Un ave enorme de garras letales: críticos, más daño a jefes y remata a los heridos.',
+        visual: { body: '#d9cdb5', accent: '#b5893a', fx: '#ffe8a8' },
+        steps: [
+          { cost: 240, add: { damage: 30, critChance: 0.2, critMult: 1, bossDamage: 0.3 } },
+          { cost: 360, add: { damage: 40, execute: 0.12 } },
+        ],
+      },
+      {
+        id: 'gale',
+        name: 'Viento Cortante',
+        description: 'Las alas levantan ráfagas que atraviesan, frenan y aturden.',
+        visual: { body: '#d9cdb5', accent: '#5fb8a8', fx: '#cff6ee' },
+        steps: [
+          { cost: 230, add: { slow: 0.35, slowDuration: 1.5, knockback: 0.3, pierce: 1 } },
+          { cost: 340, add: { stunChance: 0.2, stunDuration: 0.6, damage: 10 } },
+        ],
+      },
+    ],
+    visual: { body: '#d9cdb5', accent: '#6a5a8a', fx: '#eef2ff' },
+    unlockCost: 6,
+    talents: {
+      branchBoost: [
+        talent('Nido grande', 'Bandada: +10% cadencia por rango.', [pct('falconer', 'rate', 0.1, 0)]),
+        talent('Garras', 'Águila Real: +6% probabilidad de crítico por rango.', [flat('falconer', 'critChance', 0.06, 1)]),
+        talent('Corriente ascendente', 'Viento Cortante: +8% alcance por rango.', [pct('falconer', 'range', 0.08, 2)]),
+      ],
+      capstone: talent('Señor de los Cielos', 'Todos los halconeros: +40% de daño a voladores.', [flat('falconer', 'airDamage', 0.4)], 1),
+    },
+  },
+  // ------------------------------------------------------------------ 15. Market
+  {
+    id: 'market',
+    name: 'Mercado',
+    description: 'No ataca: genera oro al final de cada oleada y anima a las torres cercanas a disparar más rápido.',
+    role: 'Economía',
+    tags: ['support'],
+    cost: 160,
+    attack: 'aura',
+    damageType: 'physical',
+    targetsGround: true,
+    targetsAir: false,
+    base: { range: 2.2, waveGold: 12, auraRate: 0.05 },
+    tiers: [
+      { cost: 110, add: { waveGold: 8 } },
+      { cost: 160, add: { waveGold: 10, auraRate: 0.03 } },
+    ],
+    branches: [
+      {
+        id: 'bazaar',
+        name: 'Gran Bazar',
+        description: 'Comercio a lo grande: mucho más oro en cada oleada.',
+        visual: { body: '#e6d6b8', accent: '#d9a43a', fx: '#ffe08a' },
+        steps: [
+          { cost: 300, add: { waveGold: 30 } },
+          { cost: 450, add: { waveGold: 45 } },
+        ],
+      },
+      {
+        id: 'armory',
+        name: 'Armería',
+        description: 'Mejores armas para todos: más daño y críticos para las torres cercanas.',
+        visual: { body: '#d6d0c6', accent: '#8a3a3a', fx: '#ffb8a8' },
+        steps: [
+          { cost: 280, add: { auraDamage: 0.12, auraCrit: 0.05 } },
+          { cost: 400, add: { auraDamage: 0.1, auraRange: 0.1 } },
+        ],
+      },
+      {
+        id: 'tavern',
+        name: 'Taberna de Mercenarios',
+        description: 'Contrata ballesteros que disparan a tierra y aire sin dejar de comerciar.',
+        attack: 'projectile',
+        targetsAir: true,
+        visual: { body: '#d9c4a0', accent: '#6a4a2a', fx: '#f5e0b8' },
+        steps: [
+          { cost: 260, add: { damage: 22, rate: 1.2, projectileSpeed: 12, range: 0.8, multishot: 1 } },
+          { cost: 380, add: { damage: 18, multishot: 1, critChance: 0.15, critMult: 1 } },
+        ],
+      },
+    ],
+    visual: { body: '#e6d6b8', accent: '#c4863a', fx: '#ffe8b0' },
+    unlockCost: 9,
+    talents: {
+      branchBoost: [
+        talent('Rutas comerciales', 'Gran Bazar: +10 de oro por oleada por rango.', [flat('market', 'waveGold', 10, 0)]),
+        talent('Forja', 'Armería: +4% aura de daño por rango.', [flat('market', 'auraDamage', 0.04, 1)]),
+        talent('Paga doble', 'Taberna: +12% daño por rango.', [pct('market', 'damage', 0.12, 2)]),
+      ],
+      capstone: talent(
+        'Gremio',
+        'Todos los mercados: +8 de oro por oleada y +3% aura de cadencia.',
+        [flat('market', 'waveGold', 8), flat('market', 'auraRate', 0.03)],
+        1,
+      ),
+    },
+  },
 ];
 
 export const TOWERS: Record<TowerId, TowerDef> = Object.fromEntries(defs.map((d) => [d.id, d])) as Record<TowerId, TowerDef>;

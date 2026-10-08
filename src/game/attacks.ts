@@ -17,6 +17,8 @@ function projectileStyle(t: Tower): string {
   if (id === 'frost') return t.branch === 2 ? 'icicle' : 'shard';
   if (id === 'sanctum') return 'holy';
   if (id === 'obelisk') return 'shadow';
+  if (id === 'quake') return 'boulder';
+  if (id === 'falconer' || id === 'market') return 'arrow';
   return 'orb';
 }
 
@@ -212,7 +214,16 @@ const ATTACKS: Record<AttackKind, AttackFn> = {
     const mode = t.targetMode === 'first' ? 'first' : t.targetMode;
     const [e] = g.findTargets(t, s, 1, mode);
     if (!e) return false;
-    const style = t.def.id === 'pyre' ? 'meteor' : t.def.id === 'storm' ? 'thunder' : t.def.id === 'tide' ? 'tentacle' : 'smite';
+    const style =
+      t.def.id === 'pyre'
+        ? 'meteor'
+        : t.def.id === 'storm'
+          ? 'thunder'
+          : t.def.id === 'tide'
+            ? 'tentacle'
+            : t.def.id === 'quake'
+              ? 'meteor'
+              : 'smite';
     const delay = style === 'meteor' ? 0.8 : style === 'smite' || style === 'tentacle' ? 0.45 : 0.25;
     const p = lead(g, e, delay);
     aimAt(t, p.x, p.y);

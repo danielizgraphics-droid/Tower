@@ -5,7 +5,7 @@
 
 import * as THREE from 'three';
 import type { TowerId } from '../data/types';
-import { instance, loadModel, ownMaterials } from './assets';
+import { instance, loadModel, model, ownMaterials } from './assets';
 
 export interface TowerParts {
   root: THREE.Group;
@@ -19,6 +19,8 @@ export interface TowerParts {
   flash: THREE.Object3D | null;
   /** Height where a crossbowman stands (null = no unit). */
   unitY: number | null;
+  /** An animated creature circling above the tower (the falconer's bird). */
+  pet: { pivot: THREE.Group; body: THREE.Object3D; clips: THREE.AnimationClip[] } | null;
 }
 
 type Color = 'blue' | 'red' | 'green' | 'yellow';
@@ -53,6 +55,8 @@ interface Plan {
   unitAt?: number;
   /** Muzzle flash colour for the turret. */
   flash?: string;
+  /** Animated model circling above (rigged, with a 'Flying' clip). */
+  pet?: string;
 }
 
 function plan(id: TowerId, tier: number, branch: number): Plan {
@@ -106,6 +110,27 @@ function plan(id: TowerId, tier: number, branch: number): Plan {
       if (branch === 1) return { base: B('tower_catapult', c), fit: size * 0.8, props: extras };
       if (branch === 2) return { base: B('tower_B', c), fit: size * 0.75, orb: '#fff2b0' };
       return { base: B('watermill', c), fit: size + 0.05, turret: TD('weapon-cannon'), turretAt: 0.45, flash: '#ffc04a' };
+    case 'quake':
+      if (branch === 1) return { base: B('barracks', c), fit: size + 0.06, turret: TD('weapon-catapult'), turretAt: 0.62, props: extras };
+      return {
+        base: B('barracks', c),
+        fit: size + 0.06,
+        crystals: branch === 2 ? '#ffb070' : branch === 0 ? '#c9a06a' : undefined,
+        props: [...extras, { m: PROP('resource_stone'), x: -0.32, z: 0.3, s: 0.5 }],
+      };
+    case 'falconer':
+      return { base: B('windmill', c), fit: size * 1.02, pet: 'monsters/Eagle.glb', props: extras };
+    case 'market':
+      if (branch === 2) return { base: B('tavern', c), fit: size + 0.08, unitAt: 0.92, props: extras };
+      return {
+        base: B('market', c),
+        fit: size + 0.12,
+        props: [
+          ...extras,
+          ...(branch === 0 ? [{ m: PROP('sack'), x: 0.34, z: -0.32, s: 0.5 }] : []),
+          ...(branch === 1 ? [{ m: PROP('weaponrack'), x: -0.34, z: -0.3, s: 0.6 }] : []),
+        ],
+      };
     case 'tide':
       return { base: B('well', c), fit: size + 0.05, orb: branch === 2 ? '#c48cff' : '#5fe0ff', crystals: branch === 0 ? '#9fe8ff' : undefined };
   }
@@ -122,6 +147,7 @@ export function towerModels(id: TowerId): string[] {
       out.add(p.base);
       if (p.turret) out.add(p.turret);
       if (p.crystals) out.add(CRYSTALS);
+      if (p.pet) out.add(p.pet);
       for (const x of p.props ?? []) out.add(x.m);
     }
   return [...out];
@@ -130,7 +156,13 @@ export function towerModels(id: TowerId): string[] {
 /** Builds the tower, or returns null (and starts loading) while its pieces are not ready. */
 export function towerParts(id: TowerId, tier: number, branch: number): TowerParts | null {
   const p = plan(id, tier, branch);
-  const need = [p.base, ...(p.turret ? [p.turret] : []), ...(p.crystals ? [CRYSTALS] : []), ...(p.props ?? []).map((x) => x.m)];
+  const need = [
+    p.base,
+    ...(p.turret ? [p.turret] : []),
+    ...(p.crystals ? [CRYSTALS] : []),
+    ...(p.props ?? []).map((x) => x.m),
+    ...(p.pet ? [p.pet] : []),
+  ];
   const objs = need.map((m) => instance(m));
   if (objs.some((o) => !o)) {
     for (const m of need) void loadModel(m).catch(() => undefined);
@@ -205,5 +237,20 @@ export function towerParts(id: TowerId, tier: number, branch: number): TowerPart
     root.add(g);
     orb = g;
   }
-  return { root, turret, orb, orbY, orbMats, flash, unitY: p.unitAt !== undefined ? height * p.unitAt : null };
+  let pet: TowerParts['pet'] = null;
+  if (p.pet) {
+    const body = objs[objs.length - 1]!;
+    const box = new THREE.Box3().setFromObject(body);
+    const sz = box.getSize(new THREE.Vector3());
+    body.scale.setScalar(0.55 / Math.max(0.01, sz.x, sz.y, sz.z));
+    // Wings level, flying along the circle (tangent to it).
+    body.position.set(0.32, 0, 0);
+    body.rotation.y = Math.PI;
+    const pivot = new THREE.Group();
+    pivot.position.y = height + 0.18;
+    pivot.add(body);
+    root.add(pivot);
+    pet = { pivot, body, clips: model(p.pet)?.animations ?? [] };
+  }
+  return { root, turret, orb, orbY, orbMats, flash, unitY: p.unitAt !== undefined ? height * p.unitAt : null, pet };
 }
