@@ -450,7 +450,8 @@ export class Scene3D {
     const bio = this.biome;
     const W = b.width;
     const H = b.height;
-    const M = SCENERY_MARGIN;
+    // Phones get a narrower ring of countryside (it is mostly off screen anyway).
+    const M = MOBILE ? 11 : SCENERY_MARGIN;
     const noise = (x: number, y: number) => {
       const v = Math.sin(x * 12.9898 + y * 78.233 + b.def.id.length * 3.1) * 43758.5453;
       return v - Math.floor(v);
@@ -467,6 +468,23 @@ export class Scene3D {
     const pond = (x: number, y: number, d: number) =>
       !!bio.pools && d >= 2 && (Math.sin(x * 0.61 + y * 0.37) + Math.sin(x * 0.23 - y * 0.52 + 1.3) + 2) / 4 > (bio.pools === 'lava' ? 0.86 : 0.8);
     const liquid: [number, number][] = [];
+    const covered = new Set<string>();
+    // Far hills and mountains frame the horizon (placed on a coarse grid).
+    for (let y = -M; y < H + M; y += 3)
+      for (let x = -M; x < W + M; x += 3) {
+        const d = Math.max(x < 0 ? -x : x >= W ? x - W : 0, y < 0 ? -y : y >= H ? y - H : 0);
+        if (d < 6 || road.has(`${x},${y}`) || road.has(`${x + 1},${y + 1}`)) continue;
+        if ([0, 1, 2].some((i) => isSea(x + i, y + i) || isSea(x + 2 - i, y + i) || pond(x + i, y + i, d))) continue;
+        const n = noise(x * 3.7, y * 1.3);
+        if (n > 0.55) continue;
+        const kind = bio.far[Math.min(bio.far.length - 1, Math.floor((n / 0.55) * bio.far.length))];
+        const size = 2.6 + n * 2;
+        addFit(kind, x + 1.5, y + 1.5, size, n * 10, bio.farTint ?? 1);
+        // Cells under the mountain keep a bare tile: trees there would never be seen.
+        for (let dy = -2; dy <= 4; dy++)
+          for (let dx = -2; dx <= 4; dx++)
+            if (Math.hypot(x + dx + 0.5 - (x + 1.5), y + dy + 0.5 - (y + 1.5)) < size * 0.4) covered.add(`${x + dx},${y + dy}`);
+      }
     for (let y = -M; y < H + M; y++)
       for (let x = -M; x < W + M; x++) {
         if (x >= 0 && y >= 0 && x < W && y < H) continue;
@@ -482,14 +500,20 @@ export class Scene3D {
           continue;
         }
         const n = noise(x, y);
+        if (covered.has(`${x},${y}`)) {
+          add(tdTile(bio, 'tile'), cx, cz, 0, 1, 0, OUT);
+          continue;
+        }
         const forest = smooth(x, y) * 0.9 + (d - 2) * 0.09 + (0.5 - bio.woods) * 0.6;
+        // Level of detail: the far woods use lighter clumps (the quad tile is 1.8k vertices).
+        const maxTrees = d > 6 ? 1 : d > 3 || MOBILE ? 2 : 3;
         if (d >= 2 && forest > 0.62 && n < 0.85 && noise(y * 1.3, x * 0.7) < (bio.sparse ?? 1)) {
           if (bio.trees.length) {
             add(tdTile(bio, 'tile'), cx, cz, 0, 1, 0, OUT);
-            grove(cx, cz, (i) => noise(x + i * 7.1, y - i * 3.3), n < 0.35 ? 3 : n < 0.65 ? 2 : 1, OUT);
+            grove(cx, cz, (i) => noise(x + i * 7.1, y - i * 3.3), Math.min(maxTrees, n < 0.35 ? 3 : n < 0.65 ? 2 : 1), OUT);
           } else
             add(
-              tdTile(bio, n < 0.35 ? 'tile-tree-quad' : n < 0.65 ? 'tile-tree-double' : 'tile-tree'),
+              tdTile(bio, n < 0.35 && maxTrees >= 3 ? 'tile-tree-quad' : n < 0.65 && maxTrees >= 2 ? 'tile-tree-double' : 'tile-tree'),
               cx,
               cz,
               Math.floor(n * 4) * (Math.PI / 2),
@@ -505,17 +529,6 @@ export class Scene3D {
           const p = bio.props[Math.floor(noise(y, x) * bio.props.length)];
           addH(p, cx - 0.2, cz + 0.1, 0.12 + noise(x * 2, y) * 0.14, n * 30, OUT);
         } else if (n < 0.04) addH(bio.flowers[0], cx, cz, 0.14, n * 50, OUT);
-      }
-    // Far hills and mountains frame the horizon (placed on a coarse grid).
-    for (let y = -M; y < H + M; y += 3)
-      for (let x = -M; x < W + M; x += 3) {
-        const d = Math.max(x < 0 ? -x : x >= W ? x - W : 0, y < 0 ? -y : y >= H ? y - H : 0);
-        if (d < 6 || road.has(`${x},${y}`) || road.has(`${x + 1},${y + 1}`)) continue;
-        if ([0, 1, 2].some((i) => isSea(x + i, y + i) || isSea(x + 2 - i, y + i) || pond(x + i, y + i, d))) continue;
-        const n = noise(x * 3.7, y * 1.3);
-        if (n > 0.55) continue;
-        const kind = bio.far[Math.min(bio.far.length - 1, Math.floor((n / 0.55) * bio.far.length))];
-        addFit(kind, x + 1.5, y + 1.5, 2.6 + n * 2, n * 10, bio.farTint ?? 1);
       }
     if (liquid.length) this.buildLiquid(liquid, bio.pools === 'lava');
   }

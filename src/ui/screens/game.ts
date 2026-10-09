@@ -14,6 +14,7 @@ import { Game } from '../../game/game';
 import { effectiveAttack, effectiveDamageType, effectiveTargetsAir } from '../../game/modifiers';
 import { wavePreview } from '../../game/waves';
 import { applyRunResult, isMapUnlocked, profileModifiers, type RewardSummary } from '../../meta/profile';
+import { captureRun, clearRun, loadRun, restoreRun, saveRun } from '../../meta/runsave';
 import { enemyPortrait, towerPortrait } from '../../render/portraits';
 import { Renderer } from '../../render/renderer';
 import type { App, Route, Screen } from '../app';
@@ -38,6 +39,13 @@ export function gameScreen(app: App, route: Route): Screen {
   const unlocked = TOWER_LIST.filter((t) => profile.towers[t.id].unlocked).map((t) => t.id);
 
   const game = new Game({ map: mapDef, difficulty, mods: profileModifiers(profile), unlockedTowers: unlocked });
+  // Resuming a battle saved between waves (the page was closed or reloaded).
+  const saved = run.resume ? loadRun(app.storage) : null;
+  if (saved && saved.biome === run.biome && saved.seed === run.seed && saved.difficulty === difficulty) {
+    restoreRun(game, saved);
+    endless = saved.endless;
+    continued = saved.continued;
+  }
   const canvas = h('canvas.stage');
   const renderer = new Renderer(canvas, game);
   renderer.view.showDamage = profile.settings.showDamageNumbers;
@@ -66,7 +74,7 @@ export function gameScreen(app: App, route: Route): Screen {
   let selected: Tower | null = null;
   let finished = false;
   let autoWave = false;
-  let tutorialStep = profile.tutorialDone ? -1 : 0;
+  let tutorialStep = profile.tutorialDone || saved ? -1 : 0;
   let panelSig = '';
   let panelTimer = 0;
   let lastGold = -1;
@@ -1081,7 +1089,16 @@ export function gameScreen(app: App, route: Route): Screen {
     }
   });
   ev.on('augmentOffer', ({ options }) => showAugments(options));
+  /** Keeps the battle resumable: saved whenever it is between waves. */
+  function persist() {
+    if (finished || game.phase !== 'build') return;
+    saveRun(app.storage, captureRun(game, { biome: run.biome, seed: run.seed, difficulty, endless, continued }));
+  }
+  for (const e of ['build', 'upgrade', 'sell'] as const) ev.on(e, () => persist());
+  persist();
+
   ev.on('phase', ({ phase }) => {
+    if (phase === 'build') persist();
     if (phase === 'victory') finishRun(true);
     else if (phase === 'defeat') finishRun(false);
     else if (phase === 'build' && autoWave) setTimeout(() => game.phase === 'build' && !finished && startWave(), 1200);
@@ -1103,12 +1120,14 @@ export function gameScreen(app: App, route: Route): Screen {
     finished = false;
     game.paused = false;
     game.continueEndless();
+    persist();
     banner('Modo infinito', 'Las oleadas ya no terminan');
   }
 
   function finishRun(victory: boolean, abandoned = false) {
     if (finished) return;
     finished = true;
+    clearRun(app.storage);
     game.paused = true;
     hint(null);
     const mapsBefore = new Set(BIOMES.filter((m) => isMapUnlocked(profile, m.requires)).map((m) => m.id));

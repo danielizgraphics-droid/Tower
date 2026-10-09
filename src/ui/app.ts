@@ -26,7 +26,7 @@ export type Route =
   | { name: 'maps' }
   | { name: 'talents'; tab?: string }
   | { name: 'codex' }
-  | { name: 'game'; biome: Biome; seed: number; difficulty: Difficulty; endless: boolean };
+  | { name: 'game'; biome: Biome; seed: number; difficulty: Difficulty; endless: boolean; resume?: boolean };
 
 type ScreenFactory = (app: App, route: Route) => Screen;
 

@@ -4,6 +4,8 @@ import { nodeState } from '../../meta/profile';
 import type { App, Screen } from '../app';
 import { h } from '../dom';
 import { icon } from '../icons';
+import { BIOME_BY_ID } from '../../data/biomes';
+import { loadRun } from '../../meta/runsave';
 import { cloudBadge, openSettings } from './settings';
 
 /** True when the player can buy at least one talent somewhere. */
@@ -19,6 +21,24 @@ export function hasAffordableTalent(app: App): boolean {
     if (tree.nodes.some((n) => nodeState(p, tree, n) === 'available')) return true;
   }
   return false;
+}
+
+/** «Continuar partida» when a battle was left between waves (closed or reloaded page). */
+function resumeButton(app: App, click: (fn: () => void) => () => void): HTMLElement | null {
+  const s = loadRun(app.storage);
+  if (!s) return null;
+  const wave = s.endless ? `Oleada ${s.wavesCleared + 1}` : `Oleada ${s.wavesCleared + 1}/30`;
+  return h(
+    'button.btn.big.green.resume',
+    { onclick: click(() => app.go({ name: 'game', biome: s.biome, seed: s.seed, difficulty: s.difficulty, endless: s.endless, resume: true })) },
+    icon('refresh', 22),
+    h(
+      'span',
+      { style: 'display:flex;flex-direction:column;align-items:flex-start;line-height:1.15' },
+      'Continuar partida',
+      h('small', { style: 'font-size:12px;font-weight:500;opacity:.85' }, `${BIOME_BY_ID[s.biome]?.name ?? ''} · ${wave}`),
+    ),
+  );
 }
 
 export function menuScreen(app: App): Screen {
@@ -44,6 +64,7 @@ export function menuScreen(app: App): Screen {
       ),
       h(
         'div.menu-buttons.panel.ornate',
+        resumeButton(app, click),
         h('button.btn.big.primary', { onclick: click(() => app.go({ name: 'maps' })) }, icon('play', 22), 'Jugar'),
         talentsBtn,
         h('button.btn.big', { onclick: click(() => app.go({ name: 'codex' })) }, icon('book', 22), 'Códice'),
