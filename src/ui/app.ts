@@ -116,6 +116,14 @@ export class App {
     this.cloud.save(this.profile);
   }
 
+  /** Replaces the profile with one pasted by the player (moving progress between devices). */
+  importProfile(p: Profile): void {
+    this.incoming = null;
+    this.applyProfile(p);
+    this.save();
+    if (this.route) this.go(this.route);
+  }
+
   /** Takes a newer profile from the cloud; a battle in progress keeps its own until it ends. */
   adoptProfile(p: Profile): void {
     if (this.route?.name === 'game') {

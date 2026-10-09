@@ -1,0 +1,78 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>App icon</title>
+  </head>
+  <body style="margin: 0; background: #ddd">
+    <script type="module">
+      // Home-screen icon: the castle on a patch of meadow, rendered from the 3D models.
+      // scripts/appicon.mjs calls window.renderAppIcon(size) and writes public/*.png.
+      import * as THREE from 'three';
+      import { loadModel, instance } from '../src/render3d/assets';
+
+      const BIG = 1024;
+      const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true, alpha: true });
+      renderer.setSize(BIG, BIG);
+      renderer.setPixelRatio(1);
+      renderer.outputColorSpace = THREE.SRGBColorSpace;
+      renderer.toneMapping = THREE.ACESFilmicToneMapping;
+      renderer.toneMappingExposure = 1.05;
+      renderer.shadowMap.enabled = true;
+      renderer.setClearColor(0x000000, 0);
+
+      async function scene() {
+        const paths = ['hex/blue/building_castle_blue.glb', 'td/tile.glb', 'td/tile-tree.glb', 'td/tile-tree-double.glb', 'td/tile-straight.glb'];
+        await Promise.all(paths.map(loadModel));
+        const s = new THREE.Scene();
+        s.add(new THREE.HemisphereLight('#dfe9ff', '#6b5a48', 1.6));
+        const sun = new THREE.DirectionalLight('#fff4dc', 2.6);
+        sun.position.set(-9, 22, 14);
+        sun.castShadow = true;
+        sun.shadow.mapSize.setScalar(2048);
+        Object.assign(sun.shadow.camera, { left: -4, right: 4, top: 4, bottom: -4 });
+        s.add(sun);
+        // A 3×3 patch of ground with the road passing in front of the castle.
+        for (let x = -1; x <= 1; x++)
+          for (let z = -1; z <= 1; z++) {
+            const name = z === 1 ? 'td/tile-straight.glb' : (x + z) % 2 && !(x === 0 && z === 0) ? 'td/tile-tree.glb' : 'td/tile.glb';
+            const t = instance(name);
+            t.position.set(x, -0.2, z);
+            t.rotation.y = z === 1 ? Math.PI / 2 : 0;
+            t.traverse((o) => o.isMesh && ((o.castShadow = true), (o.receiveShadow = true)));
+            s.add(t);
+          }
+        const castle = instance('hex/blue/building_castle_blue.glb');
+        const box = new THREE.Box3().setFromObject(castle);
+        const sz = box.getSize(new THREE.Vector3());
+        const k = 1.25 / Math.max(sz.x, sz.z);
+        castle.scale.setScalar(k);
+        castle.position.set(-(box.min.x + sz.x / 2) * k, -box.min.y * k, -(box.min.z + sz.z / 2) * k);
+        castle.traverse((o) => o.isMesh && (o.castShadow = true));
+        s.add(castle);
+        return s;
+      }
+
+      window.renderAppIcon = async (size) => {
+        const s = await scene();
+        const r = 1.72;
+        const cam = new THREE.OrthographicCamera(-r, r, r, -r, 0.01, 200);
+        cam.position.set(20, 20, 20);
+        cam.lookAt(0, 0.4, 0);
+        renderer.render(s, cam);
+        const out = document.createElement('canvas');
+        out.width = out.height = size;
+        const ctx = out.getContext('2d');
+        // Sky-to-meadow background (iOS rounds the corners itself).
+        const g = ctx.createLinearGradient(0, 0, 0, size);
+        g.addColorStop(0, '#bfe6f0');
+        g.addColorStop(1, '#8fd3a0');
+        ctx.fillStyle = g;
+        ctx.fillRect(0, 0, size, size);
+        ctx.drawImage(renderer.domElement, 0, 0, size, size);
+        return out.toDataURL('image/png');
+      };
+      document.title = 'ready';
+    </script>
+  </body>
+</html>

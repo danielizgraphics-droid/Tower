@@ -1,4 +1,4 @@
-import { defaultProfile } from '../../meta/profile';
+import { defaultProfile, exportProfileCode, importProfileCode } from '../../meta/profile';
 import type { App } from '../app';
 import { h } from '../dom';
 import { icon } from '../icons';
@@ -41,6 +41,65 @@ export function cloudBadge(app: App, extraClass?: string): HTMLElement {
     el.dataset.state = s;
   });
   return el;
+}
+
+/**
+ * Moves progress between devices or between the Claude page and the installed app:
+ * a text code to copy here and paste there.
+ */
+function openTransfer(app: App, host: HTMLElement, mode: 'export' | 'import'): void {
+  const area = h('textarea.transfer-code', { rows: 5, spellcheck: false, readOnly: mode === 'export' }) as HTMLTextAreaElement;
+  const status = h('div.muted.tiny', { style: 'min-height:16px;margin-top:6px' });
+  const close = () => modal.remove();
+  let action: HTMLElement;
+  if (mode === 'export') {
+    area.value = exportProfileCode(app.profile);
+    action = h('button.btn.primary', icon('check', 18), 'Copiar');
+    action.onclick = async () => {
+      area.select();
+      try {
+        await navigator.clipboard.writeText(area.value);
+        status.textContent = 'Copiado. Pégalo en «Pegar código» en el otro dispositivo.';
+      } catch {
+        // Clipboard blocked (some embedded views): the text is selected for a manual copy.
+        document.execCommand?.('copy');
+        status.textContent = 'Si no se ha copiado, mantén pulsado el texto y elige «Copiar».';
+      }
+    };
+  } else {
+    area.placeholder = 'Pega aquí el código (empieza por BASTION1.)';
+    action = h('button.btn.primary', icon('check', 18), 'Cargar progreso');
+    action.onclick = () => {
+      const p = importProfileCode(area.value);
+      if (!p) {
+        status.textContent = 'Ese código no es válido.';
+        return;
+      }
+      app.importProfile(p);
+      app.sfx('upgrade');
+      close();
+    };
+  }
+  const modal = h(
+    'div.modal',
+    { style: 'z-index:30' },
+    h(
+      'div.modal-card.panel',
+      h('h2', mode === 'export' ? 'Copiar progreso' : 'Pegar progreso'),
+      h(
+        'p.muted',
+        { style: 'font-size:14px' },
+        mode === 'export'
+          ? 'Este código contiene todo tu progreso. Cópialo y pégalo en el otro dispositivo o en la app.'
+          : 'Pega el código de otro dispositivo. Sustituirá el progreso de aquí.',
+      ),
+      area,
+      status,
+      h('div.actions', h('button.btn', { onclick: close }, 'Cerrar'), action),
+    ),
+  );
+  host.appendChild(modal);
+  if (mode === 'export') area.select();
 }
 
 /** Settings modal; `onClose` lets in-game callers resume. */
@@ -100,6 +159,18 @@ export function openSettings(app: App, host: HTMLElement, onClose?: () => void, 
           toggle(st.screenShake, (v) => ((st.screenShake = v), apply())),
         ),
         h('div.setting', h('span', 'Progreso'), cloudBadge(app)),
+        extra
+          ? null
+          : h(
+              'div.setting',
+              h('span.muted.tiny', 'Pasar el progreso a otro dispositivo o a la app'),
+              h(
+                'span',
+                { style: 'display:flex;gap:6px' },
+                h('button.btn.small', { onclick: () => openTransfer(app, host, 'export') }, 'Copiar código'),
+                h('button.btn.small', { onclick: () => openTransfer(app, host, 'import') }, 'Pegar código'),
+              ),
+            ),
         h(
           'div.setting',
           h('span.muted.tiny', 'Atajos: 1–0 construir · Espacio oleada · Q/W/E hechizos · U mejorar · S vender · F velocidad · P pausa · C centrar'),

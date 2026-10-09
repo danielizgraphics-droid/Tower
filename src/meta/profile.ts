@@ -99,6 +99,31 @@ export function loadProfile(storage: Storage | undefined): Profile {
   }
 }
 
+const CODE_PREFIX = 'BASTION1.';
+
+/** A text code with the whole profile, to carry progress to another device. */
+export function exportProfileCode(p: Profile): string {
+  const bytes = new TextEncoder().encode(JSON.stringify(p));
+  let bin = '';
+  for (const b of bytes) bin += String.fromCharCode(b);
+  return CODE_PREFIX + btoa(bin);
+}
+
+/** Reads a code made by exportProfileCode; null if it is not valid. */
+export function importProfileCode(code: string): Profile | null {
+  const text = code.replace(/\s+/g, '');
+  if (!text.startsWith(CODE_PREFIX)) return null;
+  try {
+    const bin = atob(text.slice(CODE_PREFIX.length));
+    const bytes = Uint8Array.from(bin, (c) => c.charCodeAt(0));
+    const raw = JSON.parse(new TextDecoder().decode(bytes)) as unknown;
+    if (!raw || typeof raw !== 'object' || !('towers' in raw)) return null;
+    return migrateProfile(raw);
+  } catch {
+    return null;
+  }
+}
+
 export function saveProfile(storage: Storage | undefined, p: Profile): void {
   try {
     storage?.setItem(SAVE_KEY, JSON.stringify(p));

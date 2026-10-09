@@ -2227,3 +2227,22 @@ table.dmg td.bad {
     display: block;
   }
 }
+.transfer-code {
+  width: 100%;
+  margin-top: 8px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface-2);
+  font:
+    12px ui-monospace,
+    'SF Mono',
+    Menlo,
+    monospace;
+  color: var(--ink);
+  resize: none;
+  user-select: text;
+  -webkit-user-select: text;
+  touch-action: auto;
+  word-break: break-all;
+}

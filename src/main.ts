@@ -19,6 +19,10 @@ import { talentsScreen } from './ui/screens/talents';
 Renderer.use3D = new URLSearchParams(location.search).get('r') !== '2d';
 
 const app = new App(document.getElementById('app')!);
+
+// Installed as an app (its own site, not inside Claude): keep working offline.
+if (import.meta.env.PROD && 'serviceWorker' in navigator && !(window as { claude?: unknown }).claude && location.protocol === 'https:')
+  void navigator.serviceWorker.register('./sw.js').catch(() => undefined);
 app.register('menu', menuScreen);
 app.register('maps', mapsScreen);
 app.register('talents', talentsScreen);
