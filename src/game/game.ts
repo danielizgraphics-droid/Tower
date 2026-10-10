@@ -40,6 +40,7 @@ export interface GameEvents {
   blink: { x: number; y: number };
   revive: { x: number; y: number };
   dodge: { x: number; y: number; z: number };
+  exhaust: { x: number; y: number; z: number };
 }
 
 export interface GameOptions {
@@ -54,6 +55,8 @@ const FIXED_DT = 1 / 60;
 /** Global tuning knob for gold dropped by enemies. */
 const KILL_GOLD = 1.4;
 const SPAWN_LEAD = 0.25;
+/** Total tiles an enemy can be pushed back; each push is weaker than the last. */
+const PUSH_CAP = 4;
 
 /**
  * Complete simulation of a run. It has no rendering or DOM dependencies, so it
@@ -543,8 +546,14 @@ export class Game {
 
       // Regeneration (fire stops it)
       const def = e.def;
-      if (def.regen && e.burnTime <= 0) e.hp = Math.min(e.maxHp, e.hp + e.maxHp * def.regen * dt);
-      if (def.shieldRegen && e.shieldIdle > 2 && e.maxShield > 0)
+      if (e.healLock > 0) e.healLock -= dt;
+      const tired = e.exhausted;
+      if (tired && !e.exhaustNoted) {
+        e.exhaustNoted = true;
+        this.events.emit('exhaust', { x: e.x, y: e.y, z: e.flying ? 0.9 : 0.5 });
+      }
+      if (def.regen && e.burnTime <= 0 && !tired) e.hp = Math.min(e.maxHp, e.hp + e.maxHp * def.regen * dt);
+      if (def.shieldRegen && !tired && e.shieldIdle > 2 && e.maxShield > 0)
         e.shield = Math.min(e.maxShield, e.shield + def.shieldRegen * dt * (e.maxShield / Math.max(1, def.shield)));
       if (def.heal) {
         e.healTimer += dt;
@@ -552,8 +561,10 @@ export class Game {
           e.healTimer = 0;
           let healed = false;
           for (const o of this.enemies) {
-            if (o.alive && o !== e && o.hp < o.maxHp && dist2(o.x, o.y, e.x, e.y) < 2.25) {
-              o.hp = Math.min(o.maxHp, o.hp + def.heal * 0.5 * waveHpMultiplier(e.wave));
+            if (o.alive && o !== e && o.hp < o.maxHp && !o.exhausted && o.healLock <= 0 && dist2(o.x, o.y, e.x, e.y) < 2.25) {
+              // One healer at a time per target, and at most 3% of its health per pulse.
+              o.hp = Math.min(o.maxHp, o.hp + Math.min(def.heal * 0.5 * waveHpMultiplier(e.wave), o.maxHp * 0.03));
+              o.healLock = 0.45;
               healed = true;
             }
           }
@@ -567,7 +578,7 @@ export class Game {
           const amount = def.shieldAura.amount * waveHpMultiplier(e.wave);
           const r2 = def.shieldAura.radius * def.shieldAura.radius;
           for (const o of this.enemies) {
-            if (!o.alive || o === e || dist2(o.x, o.y, e.x, e.y) > r2) continue;
+            if (!o.alive || o === e || o.exhausted || dist2(o.x, o.y, e.x, e.y) > r2) continue;
             o.shield = Math.min(Math.max(o.maxShield, amount * 2), o.shield + amount);
             o.maxShield = Math.max(o.maxShield, o.shield);
             o.shieldIdle = 0;
@@ -691,7 +702,7 @@ export class Game {
       e.burnSource = p.tower;
     }
     if (s.poisonDps > 0) this.addPoison(e, p.tower, s.poisonDps * mult, s.poisonDuration || 3, Math.max(1, Math.round(s.poisonStacks)));
-    if (s.knockback > 0 && !e.def.boss && !e.def.unstoppable) e.dist = Math.max(0, e.dist - s.knockback * cc);
+    if (s.knockback > 0) this.pushBack(e, s.knockback * cc);
     if (s.armorShred > 0 && e.armor > 0) {
       const shred = Math.min(e.armor, s.armorShred * mult);
       e.armor -= shred;
@@ -762,6 +773,14 @@ export class Game {
     return dealt;
   }
 
+  /** Knockback and pulls: never on bosses or exhausted enemies, and weaker the more an enemy has been pushed. */
+  private pushBack(e: Enemy, tiles: number): void {
+    if (e.def.boss || e.def.unstoppable || e.exhausted) return;
+    const d = tiles * Math.max(0, 1 - e.pushed / PUSH_CAP);
+    e.dist = Math.max(0, e.dist - d);
+    e.pushed += d;
+  }
+
   private creditDamage(e: Enemy, dealt: number, source: Tower | null): void {
     if (!source || dealt <= 0) return;
     source.damageDealt += dealt;
@@ -811,7 +830,11 @@ export class Game {
     }
     if (e.def.deathHeal) {
       // Spores: the fallen heal those around them.
-      for (const o of this.enemiesInRadius(e.x, e.y, 1.6)) if (o !== e && o.alive) o.hp = Math.min(o.maxHp, o.hp + o.maxHp * e.def.deathHeal);
+      for (const o of this.enemiesInRadius(e.x, e.y, 1.6))
+        if (o !== e && o.alive && !o.exhausted && o.healLock <= 0) {
+          o.hp = Math.min(o.maxHp, o.hp + o.maxHp * e.def.deathHeal);
+          o.healLock = 1;
+        }
       this.events.emit('heal', { x: e.x, y: e.y });
       this.events.emit('pulse', { x: e.x, y: e.y, radius: 1.6, color: '#b8f07a' });
     }
@@ -1011,7 +1034,7 @@ export class Game {
       r.time -= dt;
       for (const e of this.enemiesInRadius(r.x, r.y, r.radius, false)) {
         if (e.def.boss) continue;
-        if (!e.def.unstoppable) e.dist = Math.max(0, e.dist - (r.pull / r.total) * dt * e.ccFactor);
+        this.pushBack(e, (r.pull / r.total) * dt * e.ccFactor);
       }
     }
     this.rifts = this.rifts.filter((r) => r.time > 0);

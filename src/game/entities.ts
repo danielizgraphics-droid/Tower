@@ -9,6 +9,9 @@ export interface PoisonStack {
   time: number;
 }
 
+/** Seconds on the field before an enemy is exhausted (see Enemy.exhausted). */
+export const EXHAUST_AGE = 45;
+
 export class Enemy {
   readonly uid = newId();
   hp: number;
@@ -48,6 +51,11 @@ export class Enemy {
   hitFlash = 1;
   /** Visual: time alive. */
   age = 0;
+  /** Tiles this enemy has been pushed back so far (knockback and rifts lose effect as it adds up). */
+  pushed = 0;
+  /** Seconds before allies can heal it again (one healer's worth at a time). */
+  healLock = 0;
+  exhaustNoted = false;
   /** Distance moved this frame (for walk animation). */
   walk = 0;
 
@@ -73,6 +81,14 @@ export class Enemy {
   /** Raging (enrage threshold crossed). */
   get enraged(): boolean {
     return !!this.def.enrage && this.hp < this.maxHp * this.def.enrage.below;
+  }
+
+  /**
+   * Too long on the field: it no longer heals, regenerates or gets shields from
+   * allies, and can't be pushed back. Prevents endless stalemates.
+   */
+  get exhausted(): boolean {
+    return this.age > EXHAUST_AGE;
   }
 
   get ccFactor(): number {
