@@ -1,3 +1,4 @@
+import { viewSize } from './viewport';
 import type { Biome } from '../data/biomes';
 import type { Difficulty } from '../data/types';
 import { AudioEngine } from '../engine/audio';
@@ -184,8 +185,9 @@ export class App {
   private size = '';
 
   private resize(): void {
-    this.size = `${innerWidth}x${innerHeight}`;
-    if (this.backdrop) this.backdrop.renderer.resize(innerWidth, innerHeight, window.devicePixelRatio || 1);
+    const { w, h } = viewSize();
+    this.size = `${w}x${h}`;
+    if (this.backdrop) this.backdrop.renderer.resize(w, h, window.devicePixelRatio || 1);
     this.screen?.resize?.();
   }
 
@@ -194,7 +196,8 @@ export class App {
   private frame(now: number): void {
     // Schedule the next frame first: an error in one frame must never freeze the game.
     requestAnimationFrame((t) => this.frame(t));
-    if (`${innerWidth}x${innerHeight}` !== this.size) this.resize();
+    const vs = viewSize();
+    if (`${vs.w}x${vs.h}` !== this.size) this.resize();
     // Frame cap (battery saver, quiet moments, the blurred menu backdrop): skip this screen refresh.
     const cap = this.screen?.fpsCap?.() || (this.backdrop ? 30 : 0);
     if (cap > 0 && now - this.last < 1000 / cap - 4) return;

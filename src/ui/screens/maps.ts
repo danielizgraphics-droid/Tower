@@ -92,7 +92,9 @@ export function mapsScreen(app: App): Screen {
   const diffSeg = h('div.seg');
   const records = h('div.records');
   const biomeDesc = h('p');
-  const startBtn = h('button.btn.big.primary', { style: 'width:100%' }, icon('swords', 22), 'Partir a la batalla');
+  const startBtn = h('button.btn.big.primary', icon('swords', 22), 'Partir a la batalla');
+  /** What the button will start, shown next to it. */
+  const summary = h('div.start-summary');
 
   function refreshPreview() {
     const def = generateMap({ biome: state.biome!, seed: state.seed });
@@ -172,6 +174,7 @@ export function mapsScreen(app: App): Screen {
       h('div.record', 'Récord infinito', h('b', prog?.bestEndless ? `${prog.bestEndless} oleadas` : '—')),
     );
     biomeDesc.textContent = `${b.description} Vida enemiga ×${b.hpScale}.`;
+    summary.replaceChildren(h('b', b.name), h('span', `${state.endless ? 'Infinito' : 'Campaña'} · ${DIFFICULTY[state.difficulty].name}`));
   }
 
   startBtn.onclick = () => {
@@ -229,10 +232,11 @@ export function mapsScreen(app: App): Screen {
             ),
             h('div.option-group', h('b', 'Dificultad'), diffSeg),
             h('div.option-group', h('b', 'Registro de la región'), records, biomeDesc),
-            startBtn,
           ),
         ),
       ),
+      // Always in view, however far the options scroll.
+      h('div.window-foot', summary, startBtn),
     ),
   );
   return { el };

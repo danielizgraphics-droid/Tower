@@ -25,6 +25,7 @@ import { ATTACK_LABELS, statLines, TARGET_LABELS } from '../format';
 import { icon } from '../icons';
 import { hideTip, tip } from '../tooltip';
 import { openSettings } from './settings';
+import { viewSize } from '../viewport';
 
 const SPELL_ICON: Record<SpellId, string> = { meteor: 'flame', frostNova: 'snow', blessing: 'sparkle' };
 const SPELL_KEYS: Record<SpellId, string> = { meteor: 'Q', frostNova: 'W', blessing: 'E' };
@@ -494,7 +495,7 @@ export function gameScreen(app: App, route: Route): Screen {
   /** A sensible first spot for the ghost: a free cell beside the road, near the middle of the view. */
   function defaultTile(): { x: number; y: number } | null {
     const b = game.board;
-    const c = renderer.pickGround(innerWidth / 2, innerHeight * 0.45);
+    const c = renderer.pickGround(viewSize().w / 2, viewSize().h * 0.45);
     let best: { x: number; y: number } | null = null;
     let bestScore = Infinity;
     for (let y = 0; y < b.height; y++) {
@@ -695,7 +696,7 @@ export function gameScreen(app: App, route: Route): Screen {
     if (!show || !placing || !buildId) return;
     const top = renderer.toScreen(placing.x + 0.5, placing.y + 0.5, renderer.groundH + 1.35);
     const half = 70;
-    const x = Math.min(innerWidth - half, Math.max(half, top.x));
+    const x = Math.min(viewSize().w - half, Math.max(half, top.x));
     // Above the tower when it fits under the top bar; otherwise below the tile, so the
     // bubble never covers the cell the player is tapping.
     const ceiling = topBar.getBoundingClientRect().bottom + 8 + (confirmEl.offsetHeight || 56);
@@ -1458,8 +1459,8 @@ export function gameScreen(app: App, route: Route): Screen {
   }
 
   let zoomedForPortrait = false;
-  let lastW = innerWidth;
-  let lastH = innerHeight;
+  let lastW = viewSize().w;
+  let lastH = viewSize().h;
 
   // Initial UI state
   renderer.insets = { top: 120, bottom: 120, left: 10, right: 10 };
@@ -1495,8 +1496,7 @@ export function gameScreen(app: App, route: Route): Screen {
       updateConfirm();
     },
     resize() {
-      const w = innerWidth;
-      const hgt = innerHeight;
+      const { w, h: hgt } = viewSize();
       // The view changed under the fingers (rotation): cancel gestures in progress.
       if (w !== lastW || hgt !== lastH) resetGestures();
       lastW = w;
