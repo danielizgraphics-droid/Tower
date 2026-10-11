@@ -134,7 +134,7 @@ const defs: TowerDef[] = [
       },
     ],
     visual: { body: '#b9b2a6', accent: '#8a5a32', fx: '#e0caa0' },
-    unlockCost: 4,
+    unlockCost: 20,
     talents: {
       branchBoost: [
         talent('Contrapesos', 'Asedio: +12% daño por rango.', [pct('ballista', 'damage', 0.12, 0)]),
@@ -327,7 +327,7 @@ const defs: TowerDef[] = [
       },
     ],
     visual: { body: '#b8aca4', accent: '#e0582b', fx: '#ff8a3d' },
-    unlockCost: 6,
+    unlockCost: 30,
     talents: {
       branchBoost: [
         talent('Combustión', 'Infierno: +1 de rampa máxima por rango.', [flat('pyre', 'beamRampMax', 1, 0)]),
@@ -456,7 +456,7 @@ const defs: TowerDef[] = [
       },
     ],
     visual: { body: '#c9ccd6', accent: '#4f7fd9', fx: '#cfe6ff' },
-    unlockCost: 8,
+    unlockCost: 40,
     talents: {
       branchBoost: [
         talent('Bobinado', 'Tesla: +8% cadencia por rango.', [pct('storm', 'rate', 0.08, 0)]),
@@ -521,7 +521,7 @@ const defs: TowerDef[] = [
       },
     ],
     visual: { body: '#c2c7b0', accent: '#6fae3a', fx: '#9be15d' },
-    unlockCost: 5,
+    unlockCost: 25,
     talents: {
       branchBoost: [
         talent('Contagio', 'Peste: +0.3 de radio de propagación por rango.', [flat('alchemist', 'spreadOnDeath', 0.3, 0)]),
@@ -587,7 +587,7 @@ const defs: TowerDef[] = [
       },
     ],
     visual: { body: '#efe9da', accent: '#e0b84a', fx: '#fff2b0' },
-    unlockCost: 8,
+    unlockCost: 40,
     talents: {
       branchBoost: [
         talent('Liturgia', 'Catedral: +4% aura de daño por rango.', [flat('sanctum', 'auraDamage', 0.04, 0)]),
@@ -653,7 +653,7 @@ const defs: TowerDef[] = [
       },
     ],
     visual: { body: '#5d566b', accent: '#9a6bff', fx: '#b48cff' },
-    unlockCost: 10,
+    unlockCost: 50,
     talents: {
       branchBoost: [
         talent('Cosecha', 'Segador: +3% umbral de ejecución por rango.', [flat('obelisk', 'execute', 0.03, 0)]),
@@ -796,7 +796,7 @@ const defs: TowerDef[] = [
       },
     ],
     visual: { body: '#d8e6ea', accent: '#2a9fc4', fx: '#9fe8ff' },
-    unlockCost: 6,
+    unlockCost: 30,
     talents: {
       branchBoost: [
         talent('Resaca', 'Maremoto: +0.1 casillas de empuje por rango.', [flat('tide', 'knockback', 0.1, 0)]),
@@ -863,7 +863,7 @@ const defs: TowerDef[] = [
       },
     ],
     visual: { body: '#b8a58a', accent: '#7a5a3a', fx: '#d9c09a' },
-    unlockCost: 7,
+    unlockCost: 35,
     talents: {
       branchBoost: [
         talent('Fallas profundas', 'Terremoto: +5% probabilidad de aturdir por rango.', [flat('quake', 'stunChance', 0.05, 0)]),
@@ -928,7 +928,7 @@ const defs: TowerDef[] = [
       },
     ],
     visual: { body: '#d9cdb5', accent: '#6a5a8a', fx: '#eef2ff' },
-    unlockCost: 6,
+    unlockCost: 30,
     talents: {
       branchBoost: [
         talent('Nido grande', 'Bandada: +10% cadencia por rango.', [pct('falconer', 'rate', 0.1, 0)]),
@@ -990,7 +990,7 @@ const defs: TowerDef[] = [
       },
     ],
     visual: { body: '#e6d6b8', accent: '#c4863a', fx: '#ffe8b0' },
-    unlockCost: 9,
+    unlockCost: 45,
     talents: {
       branchBoost: [
         talent('Rutas comerciales', 'Gran Bazar: +10 de oro por oleada por rango.', [flat('market', 'waveGold', 10, 0)]),

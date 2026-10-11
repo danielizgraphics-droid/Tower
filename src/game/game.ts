@@ -821,7 +821,7 @@ export class Game {
   private creditDamage(e: Enemy, dealt: number, source: Tower | null): void {
     if (!source || dealt <= 0) return;
     source.damageDealt += dealt;
-    const xp = (dealt / e.pool) * e.def.threat * 1.5 * (e.def.boss ? 2 : 1);
+    const xp = (dealt / e.pool) * e.def.threat * 0.9 * (e.def.boss ? 2 : 1);
     this.towerXp[source.def.id] = (this.towerXp[source.def.id] ?? 0) + xp;
   }
 

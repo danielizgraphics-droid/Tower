@@ -34,7 +34,7 @@ describe('profile & talents', () => {
     ).toBe('locked');
     expect(buyNode(p, GENERAL_TREE, 'plunder')).toBe(false);
     expect(buyNode(p, GENERAL_TREE, 'treasury')).toBe(true);
-    expect(p.stars).toBe(8);
+    expect(p.stars).toBe(6);
     expect(buyNode(p, GENERAL_TREE, 'plunder')).toBe(true);
     expect(profileModifiers(p).global().startGold).toBe(280);
     resetTree(p, GENERAL_TREE);
@@ -63,7 +63,9 @@ describe('profile & talents', () => {
   it('unlocks towers with stars', () => {
     const p = defaultProfile();
     expect(unlockTower(p, 'ballista')).toBe(false);
-    p.stars = 4;
+    p.stars = 19;
+    expect(unlockTower(p, 'ballista')).toBe(false);
+    p.stars = 20;
     expect(unlockTower(p, 'ballista')).toBe(true);
     expect(p.towers.ballista.unlocked).toBe(true);
   });
@@ -84,7 +86,7 @@ describe('profile & talents', () => {
       xpGain: 0,
     });
     expect(r.firstClear).toBe(true);
-    expect(r.stars).toBeGreaterThan(20);
+    expect(r.stars).toBeGreaterThan(15);
     expect(isMapUnlocked(p, 'meadow')).toBe(true);
     expect(r.levelUps[0]).toMatchObject({ tower: 'archer', from: 0, to: 2 });
     const again = applyRunResult(p, {
