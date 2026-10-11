@@ -18,7 +18,8 @@ function projectileStyle(t: Tower): string {
   if (id === 'sanctum') return 'holy';
   if (id === 'obelisk') return 'shadow';
   if (id === 'quake') return 'boulder';
-  if (id === 'falconer' || id === 'market') return 'arrow';
+  if (id === 'falconer' || id === 'market' || id === 'warden') return 'arrow';
+  if (id === 'sawmill') return t.branch === 1 ? 'boulder' : 'bolt';
   return 'orb';
 }
 
@@ -238,14 +239,17 @@ const ATTACKS: Record<AttackKind, AttackFn> = {
     const p = lead(g, e, Math.hypot(e.x - t.x, e.y - t.y) / Math.max(0.5, s.projectileSpeed));
     const a = Math.atan2(p.y - t.y, p.x - t.x);
     t.angle = a;
+    // The sawmill's logs roll along the ground; void orbs float.
+    const log = t.def.id === 'sawmill';
+    const z = log ? 0.2 : 1.2;
     g.spawnProjectile({
       kind: 'orb',
       x: t.x,
       y: t.y,
-      z: 1.2,
+      z,
       sx: t.x,
       sy: t.y,
-      sz: 1.2,
+      sz: z,
       tx: p.x,
       ty: p.y,
       target: null,
@@ -259,7 +263,7 @@ const ATTACKS: Record<AttackKind, AttackFn> = {
       payload,
       splash: s.splash,
       color: t.def.branches[t.branch]?.visual.fx ?? t.def.visual.fx,
-      style: 'voidOrb',
+      style: log ? 'boulder' : 'voidOrb',
       hitCd: new Map(),
     });
     g.events.emit('fire', { tower: t, target: e });

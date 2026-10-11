@@ -9,6 +9,10 @@ export interface BiomeDef {
   hpScale: number;
   /** Biome that must be cleared (30 waves) before this one unlocks. */
   requires?: Biome;
+  /** Only opened by completing a mission. */
+  exclusive?: boolean;
+  /** Multiplier on gold dropped by enemies. */
+  goldMult?: number;
   /** Decoration densities. */
   trees: number;
   rocks: number;
@@ -174,6 +178,48 @@ export const BIOMES: BiomeDef[] = [
     boss: 'prismGolem',
     prefixes: ['Páramo de', 'Grieta de', 'Geoda de', 'Prisma de'],
     places: ['Cristal', 'Luz Partida', 'Cuarzo', 'Resonancia', 'Amatista', 'Eco Arcano'],
+  },
+  // ---------------------------------------------------------------- exclusive (missions)
+  {
+    id: 'sakura',
+    name: 'Jardín de los Cerezos',
+    description: 'Un valle secreto de cerezos en flor y puentes de piedra. Solo se llega cumpliendo misiones.',
+    hpScale: 1.2,
+    exclusive: true,
+    trees: 0.1,
+    rocks: 0.03,
+    water: 1.5,
+    flowers: 0.1,
+    prefixes: ['Jardín de', 'Templo de', 'Sendero de', 'Estanque de'],
+    places: ['Pétalos', 'Luna Rosa', 'Mil Cerezos', 'Brisa Suave', 'Linterna', 'Aurora'],
+  },
+  {
+    id: 'shadow',
+    name: 'Reino de las Sombras',
+    description: 'Tierra maldita bajo un cielo violeta. Los enemigos más duros acechan entre árboles muertos.',
+    hpScale: 1.55,
+    exclusive: true,
+    trees: 0.07,
+    rocks: 0.05,
+    water: 0.6,
+    flowers: 0.02,
+    boss: 'lich',
+    prefixes: ['Reino de', 'Abismo de', 'Cripta de', 'Bosque de'],
+    places: ['Sombras', 'Noche Eterna', 'Ceniza', 'Lamentos', 'Cuervo Negro', 'Velo Oscuro'],
+  },
+  {
+    id: 'gilded',
+    name: 'Valle Dorado',
+    description: 'Campos de trigo y árboles de hojas de oro. Los enemigos sueltan más oro, pero llegan en masa.',
+    hpScale: 1.35,
+    exclusive: true,
+    goldMult: 1.3,
+    trees: 0.08,
+    rocks: 0.03,
+    water: 1,
+    flowers: 0.06,
+    prefixes: ['Valle de', 'Campos de', 'Tesoro de', 'Ruta de'],
+    places: ['Oro', 'Trigo Real', 'El Dorado', 'Sol de Ámbar', 'Corona', 'Miel'],
   },
 ];
 

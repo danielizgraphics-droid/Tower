@@ -13,6 +13,7 @@ import { codexScreen } from './ui/screens/codex';
 import { gameScreen } from './ui/screens/game';
 import { mapsScreen } from './ui/screens/maps';
 import { menuScreen } from './ui/screens/menu';
+import { missionsScreen } from './ui/screens/missions';
 import { talentsScreen } from './ui/screens/talents';
 
 // 3D renderer (WebGL + CC0 models) by default; ?r=2d forces the classic 2D renderer.
@@ -25,6 +26,7 @@ if (import.meta.env.PROD && 'serviceWorker' in navigator && !(window as { claude
   void navigator.serviceWorker.register('./sw.js').catch(() => undefined);
 app.register('menu', menuScreen);
 app.register('maps', mapsScreen);
+app.register('missions', missionsScreen);
 app.register('talents', talentsScreen);
 app.register('codex', codexScreen);
 app.register('game', gameScreen);
@@ -39,8 +41,9 @@ if (screen === 'game')
     seed: Number(params.get('seed') ?? 12345),
     difficulty: (params.get('difficulty') as Difficulty) ?? 'normal',
     endless: params.get('endless') === '1',
+    mission: params.get('mission') ?? undefined,
   });
-else if (screen === 'maps' || screen === 'talents' || screen === 'codex') app.go({ name: screen });
+else if (screen === 'maps' || screen === 'talents' || screen === 'codex' || screen === 'missions') app.go({ name: screen });
 else app.go({ name: 'menu' });
 
 (window as unknown as { __app: App }).__app = app;

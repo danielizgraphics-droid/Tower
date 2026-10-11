@@ -89,7 +89,8 @@ export class AutoPlayer {
         if (g.canBuildAt(x, y)) landSpots.push({ x, y });
         else if (g.canBuildAt(x, y, 'harbor')) waterSpots.push({ x, y });
       }
-    for (const id of this.towerPool) {
+    // Missions may cap the number of towers: then only upgrades are worth considering.
+    for (const id of g.canBuildMore ? this.towerPool : []) {
       const freeSpots = TOWERS[id].placement === 'water' ? waterSpots : landSpots;
       const cost = g.buildCost(id);
       const s = g.previewStats(id, 1, -1);

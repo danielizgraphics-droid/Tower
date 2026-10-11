@@ -1,6 +1,16 @@
 import { TOWERS, TOWER_LIST } from '../../data/towers';
 import type { TowerId } from '../../data/types';
-import { buyNode, currencyAvailable, nodeState, resetTree, spentPoints, towerLevel, treeRanks, unlockTower } from '../../meta/profile';
+import {
+  buyNode,
+  currencyAvailable,
+  missionRewarding,
+  nodeState,
+  resetTree,
+  spentPoints,
+  towerLevel,
+  treeRanks,
+  unlockTower,
+} from '../../meta/profile';
 import { GENERAL_TREE, MAX_TOWER_LEVEL, TOWER_LEVEL_XP, TOWER_TREES, type TalentNode, type TalentTree } from '../../meta/talentTrees';
 import { towerPortrait } from '../../render/portraits';
 import type { App, Route, Screen } from '../app';
@@ -23,7 +33,7 @@ export function talentsScreen(app: App, route: Route): Screen {
 
   function hasWork(t: string): boolean {
     const tree = treeOf(t);
-    if (t !== 'general' && !p.towers[t as TowerId].unlocked) return p.stars >= TOWERS[t as TowerId].unlockCost;
+    if (t !== 'general' && !p.towers[t as TowerId].unlocked) return !TOWERS[t as TowerId].exclusive && p.stars >= TOWERS[t as TowerId].unlockCost;
     return tree.nodes.some((n) => nodeState(p, tree, n) === 'available');
   }
 
@@ -162,7 +172,18 @@ export function talentsScreen(app: App, route: Route): Screen {
         h('img.portrait', { src: towerPortrait(id, Math.min(5, 1 + Math.floor(lvl / 4)), lvl >= 12 ? 0 : -1, 120), alt: def.name }),
         h('div', h('h3', { style: 'font-size:22px' }, def.name), h('span.muted', def.description)),
       );
-      if (!prog.unlocked) {
+      const from = def.exclusive ? missionRewarding({ tower: id }) : undefined;
+      if (!prog.unlocked && def.exclusive) {
+        side.append(
+          h(
+            'div.panel',
+            { style: 'padding:12px;display:flex;flex-direction:column;gap:8px' },
+            h('b', 'Torre exclusiva'),
+            h('span.muted.tiny', from ? `Se consigue completando la misión «${from.name}».` : 'Se consigue completando misiones.'),
+            h('button.btn.green', { onclick: () => (app.sfx('click'), app.go({ name: 'missions' })) }, icon('scroll', 18), 'Ver misiones'),
+          ),
+        );
+      } else if (!prog.unlocked) {
         const can = p.stars >= def.unlockCost;
         side.append(
           h(

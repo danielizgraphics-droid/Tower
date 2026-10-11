@@ -7,6 +7,7 @@ import { icon } from '../icons';
 import { BIOME_BY_ID } from '../../data/biomes';
 import { loadRun } from '../../meta/runsave';
 import { cloudBadge, openSettings } from './settings';
+import { pendingMissions } from './missions';
 
 /** True when the player can buy at least one talent somewhere. */
 export function hasAffordableTalent(app: App): boolean {
@@ -14,7 +15,7 @@ export function hasAffordableTalent(app: App): boolean {
   if (GENERAL_TREE.nodes.some((n) => nodeState(p, GENERAL_TREE, n) === 'available')) return true;
   for (const t of TOWER_LIST) {
     if (!p.towers[t.id].unlocked) {
-      if (p.stars >= t.unlockCost) return true;
+      if (!t.exclusive && p.stars >= t.unlockCost) return true;
       continue;
     }
     const tree = TOWER_TREES[t.id];
@@ -52,6 +53,19 @@ export function menuScreen(app: App): Screen {
     talentsBtn.append(
       h('span', { style: 'position:absolute;top:-6px;right:-6px;width:16px;height:16px;border-radius:50%;background:#e5484d;border:3px solid #fff' }),
     );
+  const missionsBtn = h('button.btn.big.green', { onclick: click(() => app.go({ name: 'missions' })) }, icon('scroll', 22), 'Misiones');
+  const pending = pendingMissions(app);
+  if (pending > 0)
+    missionsBtn.append(
+      h(
+        'span',
+        {
+          style:
+            'position:absolute;top:-8px;right:-8px;min-width:22px;height:22px;padding:0 5px;border-radius:11px;background:#e5484d;color:#fff;border:3px solid #fff;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center',
+        },
+        String(pending),
+      ),
+    );
   const el = h(
     'div.screen.dim',
     h(
@@ -66,6 +80,7 @@ export function menuScreen(app: App): Screen {
         'div.menu-buttons.panel.ornate',
         resumeButton(app, click),
         h('button.btn.big.primary', { onclick: click(() => app.go({ name: 'maps' })) }, icon('play', 22), 'Jugar'),
+        missionsBtn,
         talentsBtn,
         h('button.btn.big', { onclick: click(() => app.go({ name: 'codex' })) }, icon('book', 22), 'Códice'),
         h('button.btn.big.wood', { onclick: click(() => openSettings(app, el)) }, icon('gear', 22), 'Ajustes'),

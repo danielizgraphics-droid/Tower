@@ -132,6 +132,26 @@ function plan(id: TowerId, tier: number, branch: number): Plan {
           ...(branch === 1 ? [{ m: PROP('weaponrack'), x: -0.34, z: -0.3, s: 0.6 }] : []),
         ],
       };
+    case 'warden':
+      if (branch === 2) return { base: B('castle', c), fit: size + 0.14, crystals: '#e8e0c0', props: extras };
+      return { base: B('castle', c), fit: size + 0.14, unitAt: 0.86, props: extras };
+    case 'sawmill':
+      if (branch === 1)
+        return { base: B('lumbermill', c), fit: size + 0.1, props: [...extras, { m: PROP('resource_lumber'), x: -0.33, z: 0.3, s: 0.6 }] };
+      return {
+        base: B('lumbermill', c),
+        fit: size + 0.1,
+        turret: TD('weapon-ballista'),
+        turretAt: 0.7,
+        props: [...extras, ...(branch === 2 ? [{ m: PROP('bucket_water'), x: -0.33, z: 0.3, s: 0.45 }] : [])],
+      };
+    case 'hexhut':
+      return {
+        base: B(branch === 1 ? 'home_A' : 'home_B', c),
+        fit: size + 0.02,
+        orb: branch === 0 ? '#b07aff' : branch === 1 ? '#8aff5a' : branch === 2 ? '#ff5a8a' : '#b58cff',
+        props: extras,
+      };
     case 'tide':
       return { base: B('well', c), fit: size + 0.05, orb: branch === 2 ? '#c48cff' : '#5fe0ff', crystals: branch === 0 ? '#9fe8ff' : undefined };
   }

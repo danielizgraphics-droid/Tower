@@ -2251,3 +2251,148 @@ table.dmg td.bad {
   touch-action: auto;
   word-break: break-all;
 }
+
+.mission-chip {
+  height: 40px;
+  padding: 0 12px;
+  gap: 6px;
+  font-size: 13px;
+  max-width: 46vw;
+}
+.mission-chip span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mission-reward {
+  justify-content: center;
+  width: 100%;
+  background: #efe6ff;
+  color: #4b3596;
+  font-weight: 600;
+  gap: 8px;
+}
+
+/* ---------------------------------------------------------------- missions */
+.missions .section-title {
+  margin-top: 14px;
+}
+.mission-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
+  gap: 10px;
+  margin-top: 8px;
+}
+.mission {
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: var(--surface);
+}
+.mission.locked {
+  opacity: 0.6;
+}
+.mission.done {
+  box-shadow: inset 0 0 0 2px var(--forest);
+}
+.mission-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.mission-head h3 {
+  margin: 0;
+  font-size: 17px;
+}
+.mission-head .region-dot {
+  width: 14px;
+  height: 36px;
+  border-radius: 6px;
+  flex: none;
+}
+.mission-head .check {
+  margin-left: auto;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: var(--forest);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+}
+.mission .story {
+  margin: 0;
+  font-size: 13px;
+  color: var(--ink-2);
+  line-height: 1.4;
+}
+.mission .rules {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.mission .rules li {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--ink-2);
+}
+.mission .allowed {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+}
+.mission .allowed img {
+  width: 32px;
+  height: 32px;
+}
+.mission-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: auto;
+}
+.mission-foot .btn {
+  flex: none;
+}
+.reward {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+  font-size: 14px;
+  min-width: 0;
+}
+.reward small {
+  display: block;
+  font-weight: 500;
+  font-size: 11px;
+  color: var(--ink-3);
+}
+.reward img {
+  width: 40px;
+  height: 40px;
+  flex: none;
+}
+.reward .dot {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  flex: none;
+}
+.reward .dot.star {
+  background: var(--gold, #e2a01e);
+}

@@ -13,7 +13,8 @@ import type { Tower } from '../../game/entities';
 import { Game } from '../../game/game';
 import { effectiveAttack, effectiveDamageType, effectiveTargetsAir } from '../../game/modifiers';
 import { wavePreview } from '../../game/waves';
-import { applyRunResult, isMapUnlocked, profileModifiers, type RewardSummary } from '../../meta/profile';
+import { MISSION_BY_ID, ruleLines, type MissionDef } from '../../data/missions';
+import { applyMissionResult, applyRunResult, isRegionOpen, profileModifiers, type RewardSummary } from '../../meta/profile';
 import { captureRun, clearRun, loadRun, restoreRun, saveRun } from '../../meta/runsave';
 import { enemyPortrait, towerPortrait } from '../../render/portraits';
 import { AutoQuality } from '../../render/quality';
@@ -34,14 +35,18 @@ export function gameScreen(app: App, route: Route): Screen {
   let endless = run.endless;
   /** Set when a won campaign continues in endless mode: what was already rewarded. */
   let continued: { waves: number; kills: number; bosses: number; xp: Partial<Record<TowerId, number>> } | null = null;
-  const mapDef = generateMap({ biome: run.biome, seed: run.seed, waves: endless ? Infinity : 30 });
+  const mission = run.mission ? (MISSION_BY_ID[run.mission] ?? null) : null;
+  const mapDef = generateMap({ biome: run.biome, seed: run.seed, waves: mission ? mission.waves : endless ? Infinity : 30 });
   const difficulty: Difficulty = route.difficulty;
   const profile = app.profile;
-  const unlocked = TOWER_LIST.filter((t) => profile.towers[t.id].unlocked).map((t) => t.id);
+  // A mission decides which towers can be built (even ones the player doesn't own yet).
+  const unlocked = mission ? mission.towers : TOWER_LIST.filter((t) => profile.towers[t.id].unlocked).map((t) => t.id);
+  /** Towers shown in the build bar: exclusive ones only once earned; in missions, only the allowed ones. */
+  const barTowers = TOWER_LIST.filter((t) => (mission ? unlocked.includes(t.id) : !t.exclusive || unlocked.includes(t.id)));
 
-  const game = new Game({ map: mapDef, difficulty, mods: profileModifiers(profile), unlockedTowers: unlocked });
+  const game = new Game({ map: mapDef, difficulty, mods: profileModifiers(profile), unlockedTowers: unlocked, rules: mission?.rules });
   // Resuming a battle saved between waves (the page was closed or reloaded).
-  const saved = run.resume ? loadRun(app.storage) : null;
+  const saved = run.resume && !mission ? loadRun(app.storage) : null;
   if (saved && saved.biome === run.biome && saved.seed === run.seed && saved.difficulty === difficulty) {
     restoreRun(game, saved);
     endless = saved.endless;
@@ -78,7 +83,7 @@ export function gameScreen(app: App, route: Route): Screen {
   let selected: Tower | null = null;
   let finished = false;
   let autoWave = false;
-  let tutorialStep = profile.tutorialDone || saved ? -1 : 0;
+  let tutorialStep = profile.tutorialDone || saved || mission ? -1 : 0;
   let panelSig = '';
   let panelTimer = 0;
   let lastGold = -1;
@@ -109,13 +114,27 @@ export function gameScreen(app: App, route: Route): Screen {
   const speedLabel = h('span', '×1');
   const speedBtn = h('button.btn.icon-only.wood.speed-btn', { 'aria-label': 'Velocidad', title: 'Velocidad (F)' }, icon('fast', 16), speedLabel);
   const cornerLeft = h('div.corner-left', pauseBtn, speedBtn);
+  if (mission) {
+    // The mission's rules stay one tap away.
+    const chip = h(
+      'button.btn.wood.mission-chip',
+      { 'aria-label': 'Reglas de la misión', title: 'Reglas de la misión' },
+      icon('scroll', 16),
+      h('span', mission.name),
+    );
+    chip.onclick = () => {
+      sfx('click');
+      hint(hintEl ? null : `${mission.name}: ${ruleLines(mission).join(' · ')}.`);
+    };
+    cornerLeft.append(chip);
+  }
   const augsEl = h('div.augs');
   const cornerRight = h('div.corner-right', augsEl);
 
   const buildBar = h('div.build-bar.plank');
   const cards = new Map<TowerId, HTMLElement>();
   const costEls = new Map<TowerId, HTMLElement>();
-  TOWER_LIST.forEach((t, i) => {
+  barTowers.forEach((t, i) => {
     const costEl = h('span.cost', icon('coin', 12), String(t.cost));
     const card = h(
       'button.tcard',
@@ -304,7 +323,7 @@ export function gameScreen(app: App, route: Route): Screen {
   function renderPanel(force = false) {
     const t = selected;
     if (!t) return;
-    const nextCost = t.tier >= MAX_TIER ? null : t.tier === BRANCH_TIER ? null : game.upgradeCost(t);
+    const nextCost = t.tier >= game.maxTier ? null : t.tier === BRANCH_TIER ? null : game.upgradeCost(t);
     const branchCosts = t.tier === BRANCH_TIER ? [0, 1, 2].map((b) => game.upgradeCost(t, b) ?? 0) : [];
     const afford = [nextCost, ...branchCosts].map((c) => (c !== null && game.gold >= c ? 1 : 0)).join('');
     const sig = `${t.uid}:${t.tier}:${t.branch}:${t.targetMode}:${afford}:${t.kills}:${game.sellValue(t)}:${Math.round(t.damageDealt / 50)}`;
@@ -345,8 +364,13 @@ export function gameScreen(app: App, route: Route): Screen {
           );
 
     let upgrade: HTMLElement;
-    if (t.tier >= MAX_TIER) {
-      upgrade = h('div.pill', { style: 'justify-content:center;width:100%;padding:8px' }, icon('crown', 16), 'Nivel máximo');
+    if (t.tier >= game.maxTier) {
+      upgrade = h(
+        'div.pill',
+        { style: 'justify-content:center;width:100%;padding:8px' },
+        icon(t.tier >= MAX_TIER ? 'crown' : 'lock', 16),
+        t.tier >= MAX_TIER ? 'Nivel máximo' : 'Mejoras bloqueadas en esta misión',
+      );
     } else if (t.tier === BRANCH_TIER) {
       upgrade = h(
         'div.branches',
@@ -504,6 +528,11 @@ export function gameScreen(app: App, route: Route): Screen {
   /** Builds the selected tower on a tile. Returns true when it was placed. */
   function tryBuild(x: number, y: number, keepMode: boolean): boolean {
     if (!buildId) return false;
+    if (!game.canBuildMore) {
+      sfx('error');
+      toast(`Esta misión solo permite ${game.rules.maxTowers} torres`);
+      return false;
+    }
     if (!game.canBuildAt(x, y, buildId)) {
       sfx('error');
       toast(buildFailReason(x, y));
@@ -1099,7 +1128,8 @@ export function gameScreen(app: App, route: Route): Screen {
   ev.on('augmentOffer', ({ options }) => showAugments(options));
   /** Keeps the battle resumable: saved whenever it is between waves. */
   function persist() {
-    if (finished || game.phase !== 'build') return;
+    // Missions are short and fixed: they are not resumed.
+    if (finished || mission || game.phase !== 'build') return;
     saveRun(app.storage, captureRun(game, { biome: run.biome, seed: run.seed, difficulty, endless, continued }));
   }
   for (const e of ['build', 'upgrade', 'sell'] as const) ev.on(e, () => persist());
@@ -1132,13 +1162,82 @@ export function gameScreen(app: App, route: Route): Screen {
     banner('Modo infinito', 'Las oleadas ya no terminan');
   }
 
+  function finishMission(m: MissionDef, victory: boolean, abandoned: boolean) {
+    const out = applyMissionResult(profile, m, {
+      victory,
+      towerXp: game.towerXp,
+      kills: game.kills,
+      bossesKilled: game.bossesKilled,
+      xpGain: game.global.xpGain,
+    });
+    profile.tutorialDone = true;
+    app.save();
+    if (abandoned) return app.go({ name: 'missions' });
+    const rw = out.reward;
+    const rewardLine = (ic: string, text: string) => h('div.pill.mission-reward', { style: 'margin-top:10px;padding:8px 12px' }, icon(ic, 18), text);
+    setTimeout(
+      () => {
+        sfx(victory ? 'victory' : 'defeat');
+        const modal = h(
+          'div.modal',
+          h(
+            'div.modal-card.panel',
+            h(
+              'div',
+              { style: `color:${victory ? '#e2a01e' : '#a3362a'};display:flex;justify-content:center` },
+              icon(victory ? 'medal' : 'skull', 56),
+            ),
+            h('h2', victory ? '¡Misión cumplida!' : 'Misión fallida'),
+            h('p.muted', victory ? m.name : `${m.name}: has llegado a la oleada ${game.wave} de ${m.waves}.`),
+            h(
+              'div.results',
+              h('div.line', h('span', 'Oleadas superadas'), h('span', `${game.wavesCleared}/${m.waves}`)),
+              h('div.line', h('span', 'Enemigos abatidos'), h('span', String(game.kills))),
+            ),
+            rw?.stars ? rewardLine('star', `+${rw.stars} estrellas`) : null,
+            rw?.tower
+              ? h(
+                  'div.pill.mission-reward',
+                  { style: 'margin-top:10px;padding:6px 12px' },
+                  h('img', { src: towerPortrait(rw.tower, 1, -1, 48), alt: '', style: 'width:40px;height:40px' }),
+                  `¡Nueva torre exclusiva: ${TOWERS[rw.tower].name}!`,
+                )
+              : null,
+            rw?.region ? rewardLine('map', `¡Nueva región exclusiva: ${BIOMES.find((b) => b.id === rw.region)!.name}!`) : null,
+            victory && !out.firstTime
+              ? h('p.muted.tiny', { style: 'margin-top:8px' }, 'Ya habías cumplido esta misión: la recompensa solo se entrega una vez.')
+              : null,
+            h(
+              'div.actions',
+              h('button.btn', { onclick: () => (sfx('click'), app.go({ name: 'missions' })) }, icon('scroll', 18), 'Misiones'),
+              h(
+                'button.btn.primary',
+                {
+                  onclick: () => (
+                    sfx('click'),
+                    app.go({ name: 'game', biome: m.biome, seed: m.seed, difficulty: m.difficulty, endless: false, mission: m.id })
+                  ),
+                },
+                icon('refresh', 18),
+                victory ? 'Jugar de nuevo' : 'Reintentar',
+              ),
+            ),
+          ),
+        );
+        hud.append(modal);
+      },
+      victory ? 900 : 1400,
+    );
+  }
+
   function finishRun(victory: boolean, abandoned = false) {
     if (finished) return;
     finished = true;
-    clearRun(app.storage);
     game.paused = true;
     hint(null);
-    const mapsBefore = new Set(BIOMES.filter((m) => isMapUnlocked(profile, m.requires)).map((m) => m.id));
+    if (mission) return finishMission(mission, victory, abandoned);
+    clearRun(app.storage);
+    const mapsBefore = new Set(BIOMES.filter((m) => isRegionOpen(profile, m.id)).map((m) => m.id));
     const g = game.global;
     const reward: RewardSummary = applyRunResult(profile, {
       mapId: run.biome,
@@ -1156,7 +1255,7 @@ export function gameScreen(app: App, route: Route): Screen {
     });
     profile.tutorialDone = true;
     app.save();
-    const newMaps = BIOMES.filter((m) => !mapsBefore.has(m.id) && isMapUnlocked(profile, m.requires)).map((m) => m.name);
+    const newMaps = BIOMES.filter((m) => !mapsBefore.has(m.id) && isRegionOpen(profile, m.id)).map((m) => m.name);
     if (abandoned) {
       app.go({ name: 'menu' });
       return;
@@ -1277,7 +1376,7 @@ export function gameScreen(app: App, route: Route): Screen {
     else if (k === 'e' && game.unlockedSpells.has('blessing')) toggleSpell('blessing');
     else if (/^[0-9=-]$/.test(k)) {
       const idx = k === '0' ? 9 : k === '-' ? 10 : k === '=' ? 11 : Number(k) - 1;
-      const t = TOWER_LIST[idx];
+      const t = barTowers[idx];
       if (t && unlocked.includes(t.id) && !(t.placement === 'water' && !game.hasWater)) selectBuild(buildId === t.id ? null : t.id);
     }
   }
@@ -1368,6 +1467,11 @@ export function gameScreen(app: App, route: Route): Screen {
     hint(
       'Arrastra una torre desde la barra inferior hasta una casilla junto al camino, o tócala y mueve la silueta por el mapa. Los enemigos salen del portal violeta.',
     );
+  if (mission) {
+    hint(`${mission.name}: ${ruleLines(mission).join(' · ')}.`);
+    const shown = hintEl;
+    setTimeout(() => hintEl === shown && hint(null), 9000);
+  }
   renderAugs();
 
   return {

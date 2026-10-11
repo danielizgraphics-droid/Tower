@@ -4,7 +4,7 @@ import type { Difficulty } from '../../data/types';
 import { Game } from '../../game/game';
 import { generateMap, seedCode } from '../../game/mapgen';
 import { ModifierSet } from '../../game/modifiers';
-import { isMapUnlocked, UNLOCK_WAVE } from '../../meta/profile';
+import { isRegionOpen, UNLOCK_WAVE } from '../../meta/profile';
 import { Renderer } from '../../render/renderer';
 import { THEMES } from '../../render/theme';
 import type { App, Screen } from '../app';
@@ -23,6 +23,9 @@ const BIOME_ICON: Record<Biome, string> = {
   jungle: 'clover',
   canyon: 'mountain',
   crystal: 'gem',
+  sakura: 'sparkle',
+  shadow: 'eye',
+  gilded: 'coins',
 };
 
 let previewToken = 0;
@@ -78,7 +81,7 @@ const state: { biome: Biome | null; seed: number; difficulty: Difficulty; endles
 
 export function mapsScreen(app: App): Screen {
   const p = app.profile;
-  const unlocked = (b: Biome) => isMapUnlocked(p, BIOME_BY_ID[b].requires);
+  const unlocked = (b: Biome) => isRegionOpen(p, b);
   if (!state.biome || !unlocked(state.biome)) state.biome = [...BIOMES].reverse().find((b) => unlocked(b.id))?.id ?? 'meadow';
 
   const img = h('img', { alt: 'Vista previa del mapa' });
@@ -122,7 +125,7 @@ export function mapsScreen(app: App): Screen {
                   ),
                   prog?.bestEndless ? h('span', `∞ ${prog.bestEndless}`) : null,
                 ]
-              : h('span', `Oleada ${UNLOCK_WAVE} en ${BIOME_BY_ID[bd.requires!].name}`),
+              : h('span', bd.exclusive ? 'Recompensa de misión' : `Oleada ${UNLOCK_WAVE} en ${BIOME_BY_ID[bd.requires!].name}`),
           ),
         );
         card.classList.toggle('on', bd.id === state.biome);

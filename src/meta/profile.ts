@@ -1,5 +1,7 @@
 import { TOWERS, TOWER_LIST } from '../data/towers';
-import type { Difficulty, TowerId } from '../data/types';
+import { BIOME_BY_ID } from '../data/biomes';
+import { MISSIONS, type MissionDef, type MissionReward } from '../data/missions';
+import type { Biome, Difficulty, TowerId } from '../data/types';
 import { ModifierSet } from '../game/modifiers';
 import { GENERAL_TREE, TOWER_TREES, isAnyRequirement, towerLevelFromXp, type TalentNode, type TalentTree } from './talentTrees';
 
@@ -42,13 +44,17 @@ export interface Profile {
   /** Ids of codex entries (enemies) the player has encountered. */
   seenEnemies: string[];
   tutorialDone: boolean;
+  /** Missions completed (id → done). */
+  missions: Record<string, { done: boolean }>;
+  /** Exclusive regions opened by missions. */
+  regions: Biome[];
   /** When this profile was last saved (ms since epoch) — the newer copy wins when syncing devices. */
   savedAt?: number;
 }
 
 export function defaultProfile(): Profile {
   const towers = {} as Record<TowerId, TowerProgress>;
-  for (const t of TOWER_LIST) towers[t.id] = { unlocked: t.unlockCost === 0, xp: 0, talents: {} };
+  for (const t of TOWER_LIST) towers[t.id] = { unlocked: t.unlockCost === 0 && !t.exclusive, xp: 0, talents: {} };
   return {
     version: SAVE_VERSION,
     stars: 0,
@@ -60,6 +66,8 @@ export function defaultProfile(): Profile {
     stats: { runs: 0, wins: 0, kills: 0, bossesKilled: 0 },
     seenEnemies: [],
     tutorialDone: false,
+    missions: {},
+    regions: [],
   };
 }
 
@@ -77,11 +85,18 @@ export function migrateProfile(raw: unknown): Profile {
     general: { ...(p.general ?? {}) },
     maps: { ...(p.maps ?? {}) },
     seenEnemies: Array.isArray(p.seenEnemies) ? p.seenEnemies : [],
+    missions: { ...(p.missions ?? {}) },
+    regions: Array.isArray(p.regions) ? p.regions.filter((r) => r in BIOME_BY_ID) : [],
     towers: { ...base.towers },
   };
   for (const id of Object.keys(base.towers) as TowerId[]) {
     const t = p.towers?.[id];
-    if (t) out.towers[id] = { unlocked: !!t.unlocked || TOWERS[id].unlockCost === 0, xp: t.xp ?? 0, talents: { ...(t.talents ?? {}) } };
+    if (t)
+      out.towers[id] = {
+        unlocked: !!t.unlocked || (TOWERS[id].unlockCost === 0 && !TOWERS[id].exclusive),
+        xp: t.xp ?? 0,
+        talents: { ...(t.talents ?? {}) },
+      };
   }
   if (typeof out.stars !== 'number' || !isFinite(out.stars)) out.stars = 0;
   return out;
@@ -196,7 +211,7 @@ export function resetTree(p: Profile, tree: TalentTree): void {
 export function unlockTower(p: Profile, id: TowerId): boolean {
   const t = p.towers[id];
   const cost = TOWERS[id].unlockCost;
-  if (t.unlocked || p.stars < cost) return false;
+  if (t.unlocked || TOWERS[id].exclusive || p.stars < cost) return false;
   p.stars -= cost;
   t.unlocked = true;
   return true;
@@ -272,6 +287,13 @@ export function applyRunResult(p: Profile, r: RunResult): RewardSummary {
   return { stars, firstClear: r.victory && !alreadyCleared, levelUps };
 }
 
+/** Can the player start battles in this region? */
+export function isRegionOpen(p: Profile, id: Biome): boolean {
+  const b = BIOME_BY_ID[id];
+  if (b.exclusive) return p.regions.includes(id);
+  return isMapUnlocked(p, b.requires);
+}
+
 export function isMapUnlocked(p: Profile, mapRequires: string | undefined): boolean {
   if (!mapRequires) return true;
   const m = p.maps[mapRequires];
@@ -280,3 +302,55 @@ export function isMapUnlocked(p: Profile, mapRequires: string | undefined): bool
 
 /** Waves to reach in a region to open the next one. */
 export const UNLOCK_WAVE = 15;
+
+// ---------------------------------------------------------------- missions
+
+export function missionAvailable(p: Profile, m: MissionDef): boolean {
+  return m.requires.every((id) => p.missions[id]?.done);
+}
+
+export interface MissionOutcome {
+  /** First completion: the reward was granted now. */
+  firstTime: boolean;
+  stars: number;
+  reward: MissionReward | null;
+  levelUps: RewardSummary['levelUps'];
+}
+
+/** Records a finished mission: tower experience always, the reward on the first victory. */
+export function applyMissionResult(
+  p: Profile,
+  m: MissionDef,
+  r: { victory: boolean; towerXp: Partial<Record<TowerId, number>>; kills: number; bossesKilled: number; xpGain: number },
+): MissionOutcome {
+  p.stats.runs++;
+  if (r.victory) p.stats.wins++;
+  p.stats.kills += r.kills;
+  p.stats.bossesKilled += r.bossesKilled;
+  const levelUps: RewardSummary['levelUps'] = [];
+  for (const [id, xp] of Object.entries(r.towerXp) as [TowerId, number][]) {
+    // Towers tried in a mission before owning them don't level up.
+    if (!p.towers[id].unlocked) continue;
+    const before = towerLevel(p, id);
+    p.towers[id].xp += Math.round(xp * (1 + r.xpGain));
+    const after = towerLevel(p, id);
+    if (after > before) levelUps.push({ tower: id, from: before, to: after });
+  }
+  const firstTime = r.victory && !p.missions[m.id]?.done;
+  if (firstTime) {
+    p.missions[m.id] = { done: true };
+    const rw = m.reward;
+    if (rw.stars) {
+      p.stars += rw.stars;
+      p.starsEarned += rw.stars;
+    }
+    if (rw.tower) p.towers[rw.tower].unlocked = true;
+    if (rw.region && !p.regions.includes(rw.region)) p.regions.push(rw.region);
+  }
+  return { firstTime, stars: firstTime ? (m.reward.stars ?? 0) : 0, reward: firstTime ? m.reward : null, levelUps };
+}
+
+/** The mission whose reward is this tower or region, if any. */
+export function missionRewarding(what: { tower?: TowerId; region?: Biome }): MissionDef | undefined {
+  return MISSIONS.find((m) => (what.tower && m.reward.tower === what.tower) || (what.region && m.reward.region === what.region));
+}

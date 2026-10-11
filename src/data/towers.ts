@@ -1005,6 +1005,198 @@ const defs: TowerDef[] = [
       ),
     },
   },
+  // ------------------------------------------------------------------ 16. Royal Bastion (mission reward)
+  {
+    id: 'warden',
+    name: 'Bastión Real',
+    description: 'Un pequeño castillo con ballesteros de élite: dispara a tierra y aire y anima a las torres de alrededor.',
+    role: 'Fortaleza exclusiva',
+    tags: ['physical', 'support'],
+    cost: 210,
+    attack: 'projectile',
+    damageType: 'physical',
+    targetsGround: true,
+    targetsAir: true,
+    base: { damage: 18, range: 3.3, rate: 1.1, projectileSpeed: 13, multishot: 1, auraDamage: 0.05, armorDamage: 0.2 },
+    tiers: [
+      { cost: 130, add: { damage: 8, auraDamage: 0.02 } },
+      { cost: 180, add: { damage: 10, range: 0.2, multishot: 1 } },
+    ],
+    branches: [
+      {
+        id: 'citadel',
+        name: 'Ciudadela',
+        description: 'Estandartes reales: las torres cercanas hacen mucho más daño y llegan más lejos.',
+        visual: { body: '#e2dccf', accent: '#3a5fc4', fx: '#d8e4ff' },
+        steps: [
+          { cost: 320, add: { auraDamage: 0.12, auraRange: 0.08, damage: 10 } },
+          { cost: 460, add: { auraDamage: 0.1, auraCrit: 0.06, auraRate: 0.06 } },
+        ],
+      },
+      {
+        id: 'arsenal',
+        name: 'Arsenal',
+        description: 'Una compañía entera de ballesteros: lluvia de virotes con críticos.',
+        visual: { body: '#d6d0c6', accent: '#8a3a3a', fx: '#ffd0b0' },
+        steps: [
+          { cost: 300, add: { multishot: 2, rate: 0.3, critChance: 0.15, critMult: 1 } },
+          { cost: 440, add: { multishot: 2, damage: 18, pierce: 1 } },
+        ],
+      },
+      {
+        id: 'rampart',
+        name: 'Muralla Viva',
+        description: 'Las murallas tiemblan: ondas que aturden y empujan a los de tierra.',
+        attack: 'pulse',
+        visual: { body: '#cfc8b8', accent: '#6a7a5a', fx: '#e8e0c0' },
+        steps: [
+          { cost: 300, add: { damage: 40, range: -1.2, stunChance: 0.25, stunDuration: 0.7, knockback: 0.25 }, mul: { rate: 0.55 } },
+          { cost: 440, add: { damage: 60, stunChance: 0.1, armorShred: 8 } },
+        ],
+      },
+    ],
+    visual: { body: '#e2dccf', accent: '#c4a03a', fx: '#fff0c0' },
+    unlockCost: 0,
+    exclusive: true,
+    talents: {
+      branchBoost: [
+        talent('Juramento', 'Ciudadela: +3% aura de daño por rango.', [flat('warden', 'auraDamage', 0.03, 0)]),
+        talent('Virotes templados', 'Arsenal: +10% daño por rango.', [pct('warden', 'damage', 0.1, 1)]),
+        talent('Cimientos', 'Muralla Viva: +5% probabilidad de aturdir por rango.', [flat('warden', 'stunChance', 0.05, 2)]),
+      ],
+      capstone: talent('Corona', 'Todos los bastiones: +15% daño y +10% alcance.', [pct('warden', 'damage', 0.15), pct('warden', 'range', 0.1)], 1),
+    },
+  },
+  // ------------------------------------------------------------------ 17. Sawmill (mission reward)
+  {
+    id: 'sawmill',
+    name: 'Aserradero',
+    description: 'Lanza sierras giratorias en línea recta que atraviesan a todos los enemigos de tierra y rompen armaduras.',
+    role: 'Perforación exclusiva',
+    tags: ['physical', 'siege'],
+    cost: 150,
+    attack: 'bolt',
+    damageType: 'physical',
+    targetsGround: true,
+    targetsAir: false,
+    base: { damage: 24, range: 3, rate: 0.8, projectileSpeed: 11, pierce: 4, armorShred: 3, armorDamage: 0.3 },
+    tiers: [
+      { cost: 100, add: { damage: 10, pierce: 1 } },
+      { cost: 150, add: { damage: 12, armorShred: 3 } },
+    ],
+    branches: [
+      {
+        id: 'twinsaw',
+        name: 'Sierra Doble',
+        description: 'Dos sierras por disparo, cada una a un objetivo distinto.',
+        visual: { body: '#c9a87a', accent: '#8a8a96', fx: '#e8e8f0' },
+        steps: [
+          { cost: 260, add: { multishot: 1, damage: 14, rate: 0.15 } },
+          { cost: 380, add: { multishot: 1, pierce: 3, damage: 16 } },
+        ],
+      },
+      {
+        id: 'logroll',
+        name: 'Troncos Rodantes',
+        description: 'Suelta troncos enormes que ruedan por el camino aplastando y empujando a todo lo que tocan.',
+        attack: 'orb',
+        visual: { body: '#c9a87a', accent: '#6a4a2a', fx: '#d9b88a' },
+        steps: [
+          { cost: 280, add: { damage: 45, knockback: 0.15, range: 0.5 }, mul: { rate: 0.7 } },
+          { cost: 400, add: { damage: 55, stunChance: 0.15, stunDuration: 0.5 } },
+        ],
+      },
+      {
+        id: 'resin',
+        name: 'Resina',
+        description: 'Hojas untadas en resina pegajosa y venenosa: frenan y envenenan.',
+        damageType: 'poison',
+        visual: { body: '#c9a87a', accent: '#c48a2a', fx: '#ffc04a' },
+        steps: [
+          { cost: 250, add: { slow: 0.3, slowDuration: 2, poisonDps: 14, poisonDuration: 4, poisonStacks: 3 } },
+          { cost: 370, add: { poisonDps: 16, poisonStacks: 2, slow: 0.1 } },
+        ],
+      },
+    ],
+    visual: { body: '#c9a87a', accent: '#7a5a3a', fx: '#e0e0e8' },
+    unlockCost: 0,
+    exclusive: true,
+    talents: {
+      branchBoost: [
+        talent('Dientes afilados', 'Sierra Doble: +10% daño por rango.', [pct('sawmill', 'damage', 0.1, 0)]),
+        talent('Roble macizo', 'Troncos Rodantes: +12% daño por rango.', [pct('sawmill', 'damage', 0.12, 1)]),
+        talent('Savia negra', 'Resina: +15% veneno por rango.', [pct('sawmill', 'poisonDps', 0.15, 2)]),
+      ],
+      capstone: talent(
+        'Gremio de leñadores',
+        'Todos los aserraderos: +2 enemigos atravesados y +15% daño.',
+        [flat('sawmill', 'pierce', 2), pct('sawmill', 'damage', 0.15)],
+        1,
+      ),
+    },
+  },
+  // ------------------------------------------------------------------ 18. Hex hut (mission reward)
+  {
+    id: 'hexhut',
+    name: 'Choza del Hechicero',
+    description: 'Un rayo de maldición que salta entre enemigos de tierra y aire y los deja más vulnerables a todo.',
+    role: 'Maldiciones exclusiva',
+    tags: ['magic', 'dark'],
+    cost: 170,
+    attack: 'chain',
+    damageType: 'shadow',
+    targetsGround: true,
+    targetsAir: true,
+    base: { damage: 16, range: 3, rate: 0.9, chains: 3, chainFalloff: 0.85, vulnerability: 0.12, vulnerabilityDuration: 2.5 },
+    tiers: [
+      { cost: 110, add: { damage: 8, chains: 1 } },
+      { cost: 160, add: { damage: 10, vulnerability: 0.04 } },
+    ],
+    branches: [
+      {
+        id: 'curse',
+        name: 'Gran Maldición',
+        description: 'Maldiciones más profundas: los enemigos reciben mucho más daño de todas las torres.',
+        visual: { body: '#8a7a6a', accent: '#7a3ac4', fx: '#c9a0ff' },
+        steps: [
+          { cost: 280, add: { vulnerability: 0.12, vulnerabilityDuration: 1.5, chains: 2 } },
+          { cost: 410, add: { vulnerability: 0.1, damage: 20, bossDamage: 0.25 } },
+        ],
+      },
+      {
+        id: 'plague',
+        name: 'Plaga',
+        description: 'Los saltos contagian una enfermedad que se acumula y pasa a los vecinos al morir.',
+        damageType: 'poison',
+        visual: { body: '#7a8a6a', accent: '#6ab04a', fx: '#b8ff7a' },
+        steps: [
+          { cost: 260, add: { poisonDps: 12, poisonDuration: 4, poisonStacks: 4, chains: 2 } },
+          { cost: 390, add: { poisonDps: 14, spreadOnDeath: 1.4, poisonStacks: 2 } },
+        ],
+      },
+      {
+        id: 'voodoo',
+        name: 'Vudú',
+        description: 'Muñecos de vudú: remata a los heridos y se hace más fuerte con cada alma.',
+        visual: { body: '#6a5a6a', accent: '#c43a5a', fx: '#ff8ab0' },
+        steps: [
+          { cost: 290, add: { execute: 0.1, damage: 18, soulStacks: 0.4 } },
+          { cost: 420, add: { execute: 0.05, damage: 26, chainFalloff: 0.1 } },
+        ],
+      },
+    ],
+    visual: { body: '#8a7a6a', accent: '#5a3a7a', fx: '#b58cff' },
+    unlockCost: 0,
+    exclusive: true,
+    talents: {
+      branchBoost: [
+        talent('Mal de ojo', 'Gran Maldición: +4% vulnerabilidad por rango.', [flat('hexhut', 'vulnerability', 0.04, 0)]),
+        talent('Contagio', 'Plaga: +15% veneno por rango.', [pct('hexhut', 'poisonDps', 0.15, 1)]),
+        talent('Alfileres', 'Vudú: +10% daño por rango.', [pct('hexhut', 'damage', 0.1, 2)]),
+      ],
+      capstone: talent('Aquelarre', 'Todas las chozas: +1 salto y +12% daño.', [flat('hexhut', 'chains', 1), pct('hexhut', 'damage', 0.12)], 1),
+    },
+  },
 ];
 
 export const TOWERS: Record<TowerId, TowerDef> = Object.fromEntries(defs.map((d) => [d.id, d])) as Record<TowerId, TowerDef>;

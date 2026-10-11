@@ -1,4 +1,5 @@
 import { AUGMENTS, AUGMENT_MAP, RARITY_WEIGHT } from '../data/augments';
+import { BIOME_BY_ID } from '../data/biomes';
 import { DAMAGE_TYPES, UNDEAD_HOLY_BONUS } from '../data/damage';
 import { ENEMIES } from '../data/enemies';
 import { DIFFICULTY } from '../data/maps';
@@ -49,6 +50,27 @@ export interface GameOptions {
   mods: ModifierSet;
   unlockedTowers: TowerId[];
   seed?: number;
+  /** Special rules of a mission (restrictions and handicaps). */
+  rules?: MissionRules;
+}
+
+/** Restrictions a mission imposes on a battle. The towers allowed are given by `unlockedTowers`. */
+export interface MissionRules {
+  /** At most this many towers on the field at once. */
+  maxTowers?: number;
+  /** Highest tier towers may reach (1 = no upgrades). */
+  maxTier?: number;
+  noSpells?: boolean;
+  /** A single enemy reaching the castle loses the battle. */
+  noLeaks?: boolean;
+  /** No blessings between waves. */
+  noBlessings?: boolean;
+  /** Starting gold (replaces the usual amount). */
+  startGold?: number;
+  /** Lives (replaces the difficulty's). */
+  lives?: number;
+  /** Extra enemy health multiplier. */
+  hpMult?: number;
 }
 
 const FIXED_DT = 1 / 60;
@@ -69,6 +91,7 @@ export class Game {
   readonly mods: ModifierSet;
   readonly difficulty: Difficulty;
   readonly unlockedTowers: TowerId[];
+  readonly rules: MissionRules;
   global: GlobalStats;
 
   phase: Phase = 'build';
@@ -116,10 +139,12 @@ export class Game {
     this.mods = opts.mods;
     this.difficulty = opts.difficulty;
     this.unlockedTowers = opts.unlockedTowers;
+    this.rules = opts.rules ?? {};
     this.totalWaves = opts.map.waves;
     this.global = this.mods.global();
     this.gold = Math.round(this.global.startGold);
-    this.maxLives = this.lives = DIFFICULTY[this.difficulty].lives + this.global.lives;
+    this.maxLives = this.lives = this.rules.noLeaks ? 1 : (this.rules.lives ?? DIFFICULTY[this.difficulty].lives + this.global.lives);
+    if (this.rules.startGold !== undefined) this.gold = this.rules.startGold;
     this.mana = this.global.maxMana * 0.5;
     this.rerollsLeft = this.global.augmentRerolls;
     this.unlockedSpells = new Set<SpellId>(['meteor', ...this.mods.unlockedSpells()]);
@@ -269,7 +294,7 @@ export class Game {
 
   spawnEnemy(id: EnemyId, wave: number, dist: number): Enemy {
     const def = ENEMIES[id];
-    const hpMult = waveHpMultiplier(wave) * this.board.def.hpScale * DIFFICULTY[this.difficulty].hp;
+    const hpMult = waveHpMultiplier(wave) * this.board.def.hpScale * DIFFICULTY[this.difficulty].hp * (this.rules.hpMult ?? 1);
     const e = new Enemy(def, wave, hpMult, dist);
     const p = this.board.pointAt(Math.max(0, dist));
     e.x = p.x;
@@ -334,6 +359,7 @@ export class Game {
   }
 
   private offerAugments(): void {
+    if (this.rules.noBlessings) return;
     this.augmentOffer = this.rollAugments();
     if (this.augmentOffer.length === 0) return;
     this.setPhase('augment');
@@ -383,7 +409,7 @@ export class Game {
 
   /** Cost of upgrading to the next tier; `branch` is required when the next tier is the branch tier. */
   upgradeCost(t: Tower, branch = t.branch): number | null {
-    if (t.tier >= MAX_TIER) return null;
+    if (t.tier >= this.maxTier) return null;
     const def = t.def;
     let base: number;
     if (t.tier < BRANCH_TIER) base = def.tiers[t.tier - 1].cost;
@@ -411,7 +437,7 @@ export class Game {
 
   build(id: TowerId, x: number, y: number): Tower | null {
     if (this.phase === 'victory' || this.phase === 'defeat') return null;
-    if (!this.unlockedTowers.includes(id) || !this.canBuildAt(x, y, id)) return null;
+    if (!this.unlockedTowers.includes(id) || !this.canBuildAt(x, y, id) || !this.canBuildMore) return null;
     const cost = this.buildCost(id);
     if (this.gold < cost) return null;
     if (cost === 0 && this.freeTowersLeft > 0) this.freeTowersUsed++;
@@ -425,8 +451,18 @@ export class Game {
     return t;
   }
 
+  /** Highest tier allowed in this battle. */
+  get maxTier(): number {
+    return Math.min(MAX_TIER, this.rules.maxTier ?? MAX_TIER);
+  }
+
+  /** Room for another tower under the mission's limit. */
+  get canBuildMore(): boolean {
+    return this.rules.maxTowers === undefined || this.towers.length < this.rules.maxTowers;
+  }
+
   upgrade(t: Tower, branch?: number): boolean {
-    if (t.tier >= MAX_TIER) return false;
+    if (t.tier >= this.maxTier) return false;
     const b = t.tier >= BRANCH_TIER ? (t.branch >= 0 ? t.branch : (branch ?? -1)) : t.branch;
     if (t.tier >= BRANCH_TIER && b < 0) return false;
     const cost = this.upgradeCost(t, b);
@@ -466,6 +502,7 @@ export class Game {
 
   spellReady(id: SpellId): boolean {
     return (
+      !this.rules.noSpells &&
       this.unlockedSpells.has(id) &&
       this.spellCooldowns[id] <= 0 &&
       this.mana >= SPELLS[id].mana &&
@@ -804,7 +841,8 @@ export class Game {
     e.hp = 0;
     this.kills++;
     if (e.def.boss) this.bossesKilled++;
-    let gold = e.def.gold * KILL_GOLD * DIFFICULTY[this.difficulty].gold * (1 + this.global.killGold);
+    let gold =
+      e.def.gold * KILL_GOLD * DIFFICULTY[this.difficulty].gold * (1 + this.global.killGold) * (BIOME_BY_ID[this.board.def.theme]?.goldMult ?? 1);
     if (e.def.boss) gold += this.global.bossGold;
     if (source) {
       source.kills++;

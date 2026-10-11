@@ -122,7 +122,10 @@ export type TowerId =
   | 'tide'
   | 'quake'
   | 'falconer'
-  | 'market';
+  | 'market'
+  | 'warden'
+  | 'sawmill'
+  | 'hexhut';
 
 export type TowerTag = 'physical' | 'magic' | 'siege' | 'elemental' | 'support' | 'dark';
 
@@ -176,6 +179,8 @@ export interface TowerDef {
   visual: TowerVisual;
   /** Stars needed to unlock. 0 = available from the start. */
   unlockCost: number;
+  /** Only earned by completing missions (never bought with stars). */
+  exclusive?: boolean;
   talents: TowerTalentSet;
 }
 
@@ -383,7 +388,22 @@ export interface AugmentDef {
 
 export type Difficulty = 'easy' | 'normal' | 'hard';
 
-export type Biome = 'meadow' | 'autumn' | 'snow' | 'dusk' | 'desert' | 'swamp' | 'coast' | 'volcano' | 'jungle' | 'canyon' | 'crystal';
+export type Biome =
+  | 'meadow'
+  | 'autumn'
+  | 'snow'
+  | 'dusk'
+  | 'desert'
+  | 'swamp'
+  | 'coast'
+  | 'volcano'
+  | 'jungle'
+  | 'canyon'
+  | 'crystal'
+  // Exclusive regions (mission rewards)
+  | 'sakura'
+  | 'shadow'
+  | 'gilded';
 
 export interface MapDef {
   id: string;
