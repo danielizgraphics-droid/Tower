@@ -19,6 +19,8 @@ export interface Screen {
   /** Screens that draw their own world hide the menu backdrop. */
   ownsStage?: boolean;
   onKey?(e: KeyboardEvent): void;
+  /** Frames per second to draw at most (0 or absent: every screen refresh). */
+  fpsCap?(): number;
 }
 
 export type Route =
@@ -166,6 +168,8 @@ export class App {
     const renderer = new Renderer(this.stage, game);
     renderer.insets = { top: 20, bottom: 20, left: 0, right: 0 };
     renderer.view.showDamage = false;
+    // Blurred behind the menus: the cheapest graphics level looks the same.
+    renderer.setQuality(0);
     this.backdrop = { game, renderer, bot };
     this.resize();
   }
@@ -190,6 +194,9 @@ export class App {
     // Schedule the next frame first: an error in one frame must never freeze the game.
     requestAnimationFrame((t) => this.frame(t));
     if (`${innerWidth}x${innerHeight}` !== this.size) this.resize();
+    // Frame cap (battery saver, quiet moments, the blurred menu backdrop): skip this screen refresh.
+    const cap = this.screen?.fpsCap?.() || (this.backdrop ? 30 : 0);
+    if (cap > 0 && now - this.last < 1000 / cap - 4) return;
     const dt = Math.min(0.1, (now - this.last) / 1000);
     this.last = now;
     try {

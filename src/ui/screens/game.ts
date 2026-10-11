@@ -16,9 +16,10 @@ import { wavePreview } from '../../game/waves';
 import { applyRunResult, isMapUnlocked, profileModifiers, type RewardSummary } from '../../meta/profile';
 import { captureRun, clearRun, loadRun, restoreRun, saveRun } from '../../meta/runsave';
 import { enemyPortrait, towerPortrait } from '../../render/portraits';
+import { AutoQuality } from '../../render/quality';
 import { Renderer } from '../../render/renderer';
 import type { App, Route, Screen } from '../app';
-import { h, setText, toggleClass } from '../dom';
+import { h, setStyle, setText, toggleClass } from '../dom';
 import { ATTACK_LABELS, statLines, TARGET_LABELS } from '../format';
 import { icon } from '../icons';
 import { hideTip, tip } from '../tooltip';
@@ -50,6 +51,9 @@ export function gameScreen(app: App, route: Route): Screen {
   const renderer = new Renderer(canvas, game);
   renderer.view.showDamage = profile.settings.showDamageNumbers;
   renderer.view.shakeEnabled = profile.settings.screenShake;
+  let quality = new AutoQuality(profile.settings.graphics ?? 'auto');
+  renderer.setQuality(quality.level);
+  let lastFrameAt = 0;
 
   // ------------------------------------------------------------ state
   let buildId: TowerId | null = null;
@@ -852,6 +856,10 @@ export function gameScreen(app: App, route: Route): Screen {
                     if (pauseModal) pauseModal.style.display = '';
                     renderer.view.showDamage = profile.settings.showDamageNumbers;
                     renderer.view.shakeEnabled = profile.settings.screenShake;
+                    if ((profile.settings.graphics ?? 'auto') !== quality.setting) {
+                      quality = new AutoQuality(profile.settings.graphics ?? 'auto');
+                      renderer.setQuality(quality.level);
+                    }
                   },
                   [],
                 );
@@ -1277,7 +1285,7 @@ export function gameScreen(app: App, route: Route): Screen {
   // ------------------------------------------------------------ per frame
   function updateHud(dt: number) {
     setText(livesVal, `${game.lives}`);
-    livesBar.style.width = `${Math.max(0, (game.lives / game.maxLives) * 100)}%`;
+    setStyle(livesBar, 'width', `${Math.max(0, (game.lives / game.maxLives) * 100).toFixed(1)}%`);
     if (game.lives < lastLives) lastLives = game.lives;
     const gold = Math.floor(game.gold);
     if (gold !== lastGold) {
@@ -1301,10 +1309,10 @@ export function gameScreen(app: App, route: Route): Screen {
       }
     }
     setText(manaVal, `${Math.floor(game.mana)}`);
-    manaBar.style.width = `${(game.mana / game.global.maxMana) * 100}%`;
+    setStyle(manaBar, 'width', `${((game.mana / game.global.maxMana) * 100).toFixed(1)}%`);
     setText(waveVal, endless ? `${game.wave}` : `${game.wave}/${game.totalWaves}`);
     const canStart = game.canStartWave() && !finished;
-    waveBtn.disabled = !canStart;
+    if (waveBtn.disabled !== !canStart) waveBtn.disabled = !canStart;
     const label = waveBtn.querySelector('.label') as HTMLElement;
     setText(label, game.phase === 'wave' ? `Llamar (+${10 + game.wave * 2})` : game.wave === 0 ? 'Iniciar oleada' : 'Siguiente oleada');
     toggleClass(waveBtn, 'green', game.phase === 'wave');
@@ -1314,7 +1322,7 @@ export function gameScreen(app: App, route: Route): Screen {
       const cd = game.spellCooldowns[id];
       const total = def.cooldown * Math.max(0.3, 1 + game.global.spellCooldown);
       const p = cd > 0 ? (cd / total) * 100 : game.mana < def.mana ? 100 - (game.mana / def.mana) * 100 : 0;
-      (btn.firstChild as HTMLElement).style.setProperty('--p', `${p}%`);
+      setStyle(btn.firstChild as HTMLElement, '--p', `${p.toFixed(1)}%`);
       toggleClass(btn, 'disabled', !game.spellReady(id));
     }
     // Next wave preview
@@ -1343,6 +1351,13 @@ export function gameScreen(app: App, route: Route): Screen {
   // Debug/test hook (used by automated screenshot tests).
   (window as unknown as { __game?: unknown }).__game = { game, renderer, tap, select };
 
+  /** Fewer frames while nothing moves (between waves, paused) or in battery saver. */
+  function fpsCap(): number {
+    const touching = pointers.size > 0 || !!placing || !!drag;
+    if (game.paused && !touching) return 20;
+    return quality.fpsCap(touching || (game.phase === 'wave' && game.enemies.length > 0));
+  }
+
   let zoomedForPortrait = false;
   let lastW = innerWidth;
   let lastH = innerHeight;
@@ -1358,7 +1373,12 @@ export function gameScreen(app: App, route: Route): Screen {
   return {
     el,
     ownsStage: true,
+    fpsCap,
     update(dt: number) {
+      // Auto graphics: watch how fast frames really arrive.
+      const now = performance.now();
+      if (lastFrameAt > 0 && quality.sample(now - lastFrameAt, 1000 / (fpsCap() || 60))) renderer.setQuality(quality.level);
+      lastFrameAt = now;
       game.update(dt);
       if (placing) setGhost(placing);
       // Drawing problems must never stop the battle itself.

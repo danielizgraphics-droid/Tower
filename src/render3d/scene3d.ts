@@ -14,6 +14,8 @@ import type { Camera } from '../render/projection';
 import { instance, isLoaded, loadModel, model, ownMaterials, toFloatGeometry } from './assets';
 import { BIOMES_3D, biomeModels, tdTile, type Biome3D } from './biomes3d';
 import { ENEMY_LOOKS, type EnemyLook3D } from './looks';
+import { mergeRig } from './merge';
+import { clone as cloneSkinned } from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { towerModels, towerParts, type TowerParts } from './towers3d';
 
 /** Pixels per world unit of the 2D camera scale (isometric axis foreshortening). */
@@ -23,9 +25,23 @@ const GROUND_Y = -0.1;
 const GRASS_TOP = 0.1;
 /** Tiles of countryside drawn around the board. */
 const SCENERY_MARGIN = 14;
+/** Landscape is merged in square chunks of this many tiles (culled as a whole). */
+const CHUNK = 12;
 /** Phones and tablets: fewer pixels and a smaller shadow map keep memory (and the GPU) in check. */
 const MOBILE = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
 const MAX_DPR = MOBILE ? 1.5 : 2;
+
+/**
+ * Graphics level: 0 battery saver, 1 balanced, 2 full. Lower levels render
+ * fewer pixels, refresh shadows less often, animate crowds at a lower rate
+ * and drop the enemies' shadows.
+ */
+export type Quality = 0 | 1 | 2;
+const DPR_CAP: Record<Quality, number> = { 0: 1, 1: 1.25, 2: MAX_DPR };
+const SHADOW_EVERY: Record<Quality, number> = { 0: 3, 1: 2, 2: 1 };
+const FLASH = new THREE.Color('#ffffff');
+const FROZEN = new THREE.Color('#6fc8ff');
+const BLACK = new THREE.Color('#000000');
 
 /** Every terrain model any biome may use (for packaging). */
 export const TILE_MODELS = [...new Set(Object.values(BIOMES_3D).flatMap(biomeModels))];
@@ -52,6 +68,10 @@ interface EnemyObj {
   hitCd: number;
   dist: number;
   leaked: boolean;
+  /** Animation time not yet applied (crowds are animated every other frame). */
+  animDt: number;
+  /** Last emissive state written to the materials. */
+  tone: number;
 }
 
 export class Scene3D {
@@ -74,6 +94,10 @@ export class Scene3D {
   /** True while the WebGL context is lost. */
   lost = false;
   private unsub: (() => void)[] = [];
+  private quality: Quality = MOBILE ? 1 : 2;
+  private frameNo = 0;
+  /** Static shadow casters changed: refresh the shadow map on the next frame. */
+  private shadowDirty = true;
 
   constructor(
     readonly canvas: HTMLCanvasElement,
@@ -91,6 +115,7 @@ export class Scene3D {
     });
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFShadowMap;
+    this.renderer.shadowMap.autoUpdate = false;
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.05;
@@ -143,6 +168,13 @@ export class Scene3D {
     });
   }
 
+  setQuality(q: Quality): void {
+    if (q === this.quality) return;
+    this.quality = q;
+    this.shadowDirty = true;
+    for (const obj of this.enemies.values()) obj.root.traverse((o) => (o.castShadow = q > 0));
+  }
+
   /** Is this enemy drawn in 3D (otherwise the 2D layer keeps drawing it)? */
   handlesEnemy(def: EnemyDef): boolean {
     const look = ENEMY_LOOKS[def.id];
@@ -166,7 +198,7 @@ export class Scene3D {
 
   sync(cam: Camera, width: number, height: number, dpr: number): void {
     const r = this.renderer;
-    const ratio = Math.min(dpr, MAX_DPR);
+    const ratio = Math.min(dpr, DPR_CAP[this.quality]);
     if (r.getPixelRatio() !== ratio) r.setPixelRatio(ratio);
     const size = r.getSize(new THREE.Vector2());
     if (size.x !== width || size.y !== height) r.setSize(width, height, true);
@@ -231,6 +263,12 @@ export class Scene3D {
     this.syncTowers(dt);
     this.syncEnemies(dt);
     this.syncProjectiles();
+    // Shadows are the second most expensive pass: on lower levels they follow moving things a little less often.
+    this.frameNo++;
+    if (this.shadowDirty || this.frameNo % SHADOW_EVERY[this.quality] === 0) {
+      this.renderer.shadowMap.needsUpdate = true;
+      this.shadowDirty = false;
+    }
     this.renderer.render(this.scene, this.camera);
   }
 
@@ -255,7 +293,10 @@ export class Scene3D {
         const mesh = o as THREE.Mesh;
         if (!mesh.isMesh) return;
         const mat = this.biomeMaterial((Array.isArray(mesh.material) ? mesh.material[0] : mesh.material) as THREE.MeshStandardMaterial);
-        const key = `${mat.name}|${mat.map?.source.uuid ?? ''}|${mat.color?.getHexString()}|${tint}`;
+        // Also split into square chunks, so what is off screen (or outside the sun's
+        // shadow box) is skipped as a whole instead of drawing the entire landscape.
+        const chunk = `${Math.floor(x / CHUNK)},${Math.floor(z / CHUNK)}`;
+        const key = `${mat.name}|${mat.map?.source.uuid ?? ''}|${mat.color?.getHexString()}|${tint}|${chunk}`;
         let grp = groups.get(key);
         if (!grp) {
           let m2: THREE.Material = mat;
@@ -396,6 +437,8 @@ export class Scene3D {
         const mesh = new THREE.Mesh(merged, mat);
         mesh.castShadow = true;
         mesh.receiveShadow = true;
+        mesh.matrixAutoUpdate = false;
+        mesh.updateMatrix();
         group.add(mesh);
       }
       for (const g of geos) g.dispose();
@@ -430,6 +473,7 @@ export class Scene3D {
 
     this.scene.add(group);
     this.ground = group;
+    this.shadowDirty = true;
     this.buildCastle();
   }
 
@@ -653,6 +697,7 @@ export class Scene3D {
           obj.petMixer = mixer;
         }
         this.towers.set(t.uid, obj);
+        this.shadowDirty = true;
       }
       this.animateTower(t, obj, dt);
     }
@@ -661,14 +706,14 @@ export class Scene3D {
         this.scene.remove(obj.root);
         release(obj.root, obj.parts.orbMats);
         this.towers.delete(uid);
+        this.shadowDirty = true;
       }
   }
 
   /** A crossbowman standing on top of the tower. */
   private makeUnit(parts: TowerParts): TowerObj['unit'] {
-    const body = instance('chars/Rogue_Hooded.glb');
+    const body = this.enemyBody({ model: 'chars/Rogue_Hooded.glb', height: 0, show: ['2H_Crossbow'] });
     if (!body || !this.clips) return null;
-    hideGear(body, ['2H_Crossbow']);
     const box = new THREE.Box3().setFromObject(body);
     body.scale.setScalar(0.42 / Math.max(0.01, box.max.y - box.min.y));
     const pivot = new THREE.Group();
@@ -791,7 +836,11 @@ export class Scene3D {
     return model(look.model)?.animations ?? null;
   }
 
+  private animStride = 1;
+
   private syncEnemies(dt: number): void {
+    const n = this.enemies.size;
+    this.animStride = this.quality === 0 ? (n > 60 ? 3 : 2) : this.quality === 1 ? (n > 40 ? 2 : 1) : n > 100 ? 2 : 1;
     const seen = new Set<number>();
     for (const e of this.game.enemies) {
       if (!e.alive || !this.handlesEnemy(e.def)) continue;
@@ -849,12 +898,27 @@ export class Scene3D {
     }
   }
 
+  /** One merged template per look, cloned for every enemy that wears it. */
+  private bodies = new Map<string, THREE.Object3D>();
+
+  private enemyBody(look: EnemyLook3D): THREE.Object3D | null {
+    const key = `${look.model}|${look.show?.join() ?? ''}|${look.hide?.join() ?? ''}`;
+    let t = this.bodies.get(key);
+    if (!t) {
+      const body = instance(look.model);
+      if (!body) return null;
+      hideGear(body, look.show ?? [], look.hide);
+      mergeRig(body);
+      this.bodies.set(key, (t = body));
+    }
+    return cloneSkinned(t);
+  }
+
   private makeEnemy(e: Enemy): EnemyObj | null {
     const look = ENEMY_LOOKS[e.def.id]!;
     const clips = this.clipsOf(look);
-    const body = instance(look.model);
+    const body = this.enemyBody(look);
     if (!body || !clips) return null;
-    hideGear(body, look.show ?? [], look.hide);
     const mats = ownMaterials(body);
     if (look.tint) for (const m of mats) m.color.lerp(new THREE.Color(look.tint), look.tintAmount ?? 0.5);
     // Fit to the requested height (models come in very different units).
@@ -896,7 +960,8 @@ export class Scene3D {
       walk.play();
       walk.time = Math.random() * set.walk!.duration;
     }
-    return { root, mixer, walk, mats, look, dying: 0, clips: set, lastFlash: 1, hitCd: 0, dist: e.dist, leaked: false };
+    if (this.quality === 0) root.traverse((o) => (o.castShadow = false));
+    return { root, mixer, walk, mats, look, dying: 0, clips: set, lastFlash: 1, hitCd: 0, dist: e.dist, leaked: false, animDt: 0, tone: -1 };
   }
 
   private updateEnemy(e: Enemy, obj: EnemyObj, dt: number): void {
@@ -923,17 +988,28 @@ export class Scene3D {
       a.reset().setLoop(THREE.LoopOnce, 1).setEffectiveTimeScale(1.6).setEffectiveWeight(0.8).play();
     }
     obj.lastFlash = e.hitFlash;
-    obj.mixer.update(dt);
+    // Big crowds (and the saver level) advance skeletons every other / third frame.
+    obj.animDt += dt;
+    if ((this.frameNo + e.uid) % this.animStride === 0) {
+      obj.mixer.update(obj.animDt);
+      obj.animDt = 0;
+    }
     const flash = e.hitFlash < 0.08;
     const frozen = e.freezeTime > 0;
-    for (const m of obj.mats) {
-      m.emissive.set(flash ? '#ffffff' : frozen ? '#6fc8ff' : (obj.look.glow ?? '#000000'));
-      m.emissiveIntensity = flash ? 0.6 : frozen ? 0.5 : obj.look.glow ? 0.35 : 0;
+    const tone = flash ? 1 : frozen ? 2 : 0;
+    if (tone !== obj.tone) {
+      obj.tone = tone;
+      const glow = obj.look.glow ? new THREE.Color(obj.look.glow) : BLACK;
+      for (const m of obj.mats) {
+        m.emissive.copy(tone === 1 ? FLASH : tone === 2 ? FROZEN : glow);
+        m.emissiveIntensity = tone === 1 ? 0.6 : tone === 2 ? 0.5 : obj.look.glow ? 0.35 : 0;
+      }
     }
     const spawnFade = Math.min(1, e.age / 0.35);
     const base = obj.look.ghost ? 0.7 : 1;
     const want = spawnFade * base;
     const transparent = want < 1;
+    if (!transparent && !obj.mats[0]?.transparent) return;
     for (const m of obj.mats) {
       if (m.transparent !== transparent) {
         m.transparent = transparent;

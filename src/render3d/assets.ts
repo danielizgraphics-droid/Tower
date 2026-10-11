@@ -49,6 +49,60 @@ export function model(path: string): GLTF | null {
 
 export const isLoaded = (path: string) => ready.has(path);
 
+// Every model file embeds its own copy of the pack's texture atlas: share one
+// texture (and one material) per look, so the GPU holds each atlas once and
+// pieces from different files can be merged into a single draw call.
+const textures = new Map<string, THREE.Texture>();
+const materials = new Map<string, THREE.Material>();
+let probe: CanvasRenderingContext2D | null | undefined;
+
+function shareTexture(t: THREE.Texture): THREE.Texture {
+  const img = t.image as (CanvasImageSource & { width: number; height: number }) | undefined;
+  if (!img?.width) return t;
+  let key: string;
+  try {
+    probe ??= document.createElement('canvas').getContext('2d', { willReadFrequently: true });
+    if (!probe) return t;
+    probe.canvas.width = probe.canvas.height = 16;
+    probe.drawImage(img, 0, 0, 16, 16);
+    // A thumbnail tells different atlases with the same name apart.
+    key = `${t.name}|${img.width}x${img.height}|${t.flipY}|${t.wrapS}|${t.wrapT}|${probe.getImageData(0, 0, 16, 16).data.join()}`;
+  } catch {
+    return t;
+  }
+  const hit = textures.get(key);
+  if (hit) {
+    t.dispose();
+    return hit;
+  }
+  textures.set(key, t);
+  return t;
+}
+
+function shareMaterial(mat: THREE.Material): THREE.Material {
+  const s = mat as THREE.MeshStandardMaterial;
+  if (!s.isMeshStandardMaterial || s.normalMap || s.emissiveMap || s.roughnessMap || s.aoMap || s.alphaMap) return mat;
+  const key = [
+    s.name,
+    s.map?.uuid ?? '',
+    s.color.getHexString(),
+    s.emissive.getHexString(),
+    s.emissiveIntensity,
+    s.roughness,
+    s.metalness,
+    s.transparent,
+    s.opacity,
+    s.alphaTest,
+    s.side,
+    s.vertexColors,
+    s.flatShading,
+  ].join('|');
+  const hit = materials.get(key);
+  if (hit) return hit;
+  materials.set(key, mat);
+  return mat;
+}
+
 /** Shadows on, crisp low-poly shading. */
 function prepare(root: THREE.Object3D): void {
   root.traverse((o) => {
@@ -65,9 +119,12 @@ function prepare(root: THREE.Object3D): void {
         if (s.map) {
           s.map.colorSpace = THREE.SRGBColorSpace;
           s.map.anisotropy = 4;
+          s.map = shareTexture(s.map);
         }
       }
     }
+    if (Array.isArray(m.material)) m.material = m.material.map(shareMaterial);
+    else m.material = shareMaterial(m.material);
   });
 }
 

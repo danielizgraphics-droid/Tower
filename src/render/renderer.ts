@@ -11,7 +11,7 @@ import { Fx } from './fx';
 import { animPhase, drawEnemyStatus, enemyHeight, hoverBob, type EnemyLook } from './models/enemies';
 import { CreatureSprites, DIRS, FRAMES } from './creatureSprites';
 import { limb as kitLimb } from './models/kit';
-import { Scene3D } from '../render3d/scene3d';
+import { Scene3D, type Quality } from '../render3d/scene3d';
 import { drawCreature } from './models/creatures';
 import { drawTowerModel } from './models/towers';
 import { Painter } from './painter';
@@ -112,6 +112,14 @@ export class Renderer {
     return this.scene3d !== null;
   }
 
+  private quality: Quality | null = null;
+
+  /** Graphics level of the 3D layer (see Quality). */
+  setQuality(q: Quality): void {
+    this.quality = q;
+    this.scene3d?.setQuality(q);
+  }
+
   /** Creates the WebGL layer; false when WebGL is unavailable (the 2D renderer is used). */
   private create3D(): boolean {
     try {
@@ -120,6 +128,7 @@ export class Renderer {
       gl.style.pointerEvents = 'none';
       if (this.background) gl.style.background = this.background;
       this.scene3d = new Scene3D(gl, this.game);
+      if (this.quality !== null) this.scene3d.setQuality(this.quality);
       this.glCanvas = gl;
       return true;
     } catch (e) {

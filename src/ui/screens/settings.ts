@@ -1,4 +1,4 @@
-import { defaultProfile, exportProfileCode, importProfileCode } from '../../meta/profile';
+import { defaultProfile, exportProfileCode, importProfileCode, type Settings } from '../../meta/profile';
 import type { App } from '../app';
 import { h } from '../dom';
 import { icon } from '../icons';
@@ -19,6 +19,26 @@ function slider(value: number, onInput: (v: number) => void): HTMLInputElement {
   const s = h('input', { type: 'range', min: '0', max: '100', value: String(Math.round(value * 100)) });
   s.oninput = () => onInput(Number(s.value) / 100);
   return s;
+}
+
+const GRAPHICS = [
+  ['auto', 'Auto', 'se adapta'],
+  ['high', 'Alta', 'máxima'],
+  ['saver', 'Ahorro', 'batería'],
+] as const;
+
+function graphicsSeg(value: Settings['graphics'], onChange: (v: Settings['graphics']) => void): HTMLElement {
+  const seg = h('div.seg.graphics-seg');
+  for (const [id, label, sub] of GRAPHICS) {
+    const b = h('button', label, h('small', sub));
+    b.classList.toggle('on', id === value);
+    b.onclick = () => {
+      for (const x of seg.children) x.classList.toggle('on', x === b);
+      onChange(id);
+    };
+    seg.appendChild(b);
+  }
+  return seg;
 }
 
 const CLOUD_TEXT = {
@@ -157,6 +177,12 @@ export function openSettings(app: App, host: HTMLElement, onClose?: () => void, 
           'div.setting',
           h('span', 'Temblor de pantalla'),
           toggle(st.screenShake, (v) => ((st.screenShake = v), apply())),
+        ),
+        h(
+          'div.setting.column',
+          h('span', 'Gráficos'),
+          graphicsSeg(st.graphics ?? 'auto', (v) => ((st.graphics = v), apply())),
+          h('span.muted.tiny', 'Ahorro: menos resolución y 30 imágenes por segundo, para que el móvil no se caliente.'),
         ),
         h('div.setting', h('span', 'Progreso'), cloudBadge(app)),
         extra

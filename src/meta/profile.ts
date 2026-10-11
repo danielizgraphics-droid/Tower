@@ -26,6 +26,8 @@ export interface Settings {
   showDamageNumbers: boolean;
   showRanges: boolean;
   screenShake: boolean;
+  /** Graphics level: automatic, always full quality, or battery saver. */
+  graphics: 'auto' | 'high' | 'saver';
 }
 
 export interface Profile {
@@ -54,7 +56,7 @@ export function defaultProfile(): Profile {
     general: {},
     towers,
     maps: {},
-    settings: { sfxVolume: 0.7, musicVolume: 0.4, showDamageNumbers: true, showRanges: true, screenShake: true },
+    settings: { sfxVolume: 0.7, musicVolume: 0.4, showDamageNumbers: true, showRanges: true, screenShake: true, graphics: 'auto' },
     stats: { runs: 0, wins: 0, kills: 0, bossesKilled: 0 },
     seenEnemies: [],
     tutorialDone: false,

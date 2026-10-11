@@ -6,6 +6,7 @@
 import * as THREE from 'three';
 import type { TowerId } from '../data/types';
 import { instance, loadModel, model, ownMaterials } from './assets';
+import { mergeStatic } from './merge';
 
 export interface TowerParts {
   root: THREE.Group;
@@ -202,15 +203,19 @@ export function towerParts(id: TowerId, tier: number, branch: number): TowerPart
       flash = f;
     }
   }
+  let crystals: THREE.Object3D | null = null;
   if (p.crystals) {
     const cr = objs[i++]!;
     for (const m of ownMaterials(cr)) m.color.lerp(new THREE.Color(p.crystals), 0.5);
     cr.scale.setScalar(0.45);
     cr.position.y = height * 0.98;
     root.add(cr);
+    crystals = cr;
   }
+  const still: THREE.Object3D[] = [base];
   for (const pr of p.props ?? []) {
     const o = objs[i++]!;
+    still.push(o);
     const pb = new THREE.Box3().setFromObject(o).getSize(new THREE.Vector3());
     const s = ((pr.s ?? 1) * 0.3) / Math.max(0.01, Math.max(pb.x, pb.z));
     o.scale.setScalar(s);
@@ -218,6 +223,8 @@ export function towerParts(id: TowerId, tier: number, branch: number): TowerPart
     o.rotation.y = pr.rot ?? (pr.x + pr.z) * 2;
     root.add(o);
   }
+  // The building and its props never move: one mesh per material (a few draw calls instead of dozens).
+  mergeStatic(root, crystals ? [...still, crystals] : still, `${id}:${tier}:${branch}`);
   let orb: THREE.Object3D | null = null;
   const orbMats: THREE.MeshStandardMaterial[] = [];
   const orbY = height + 0.28;

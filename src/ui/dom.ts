@@ -55,6 +55,11 @@ export function setText(el: HTMLElement, text: string): void {
   if (el.textContent !== text) el.textContent = text;
 }
 
+/** Sets a style property only when it changes (avoids restyling the HUD every frame). */
+export function setStyle(el: HTMLElement, prop: string, value: string): void {
+  if (el.style.getPropertyValue(prop) !== value) el.style.setProperty(prop, value);
+}
+
 export function toggleClass(el: HTMLElement, cls: string, on: boolean): void {
   if (el.classList.contains(cls) !== on) el.classList.toggle(cls, on);
 }

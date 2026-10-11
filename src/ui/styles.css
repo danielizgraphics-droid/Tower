@@ -539,6 +539,11 @@ h4 {
   font-size: 11px;
   color: var(--ink-3);
 }
+.setting.column {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+}
 .seg button.on {
   background: var(--surface);
   color: var(--ink);
