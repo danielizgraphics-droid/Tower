@@ -1,5 +1,6 @@
 import { AUGMENTS, AUGMENT_MAP, RARITY_WEIGHT } from '../data/augments';
 import { BIOME_BY_ID } from '../data/biomes';
+import { heroLevel, heroStats } from '../data/heroes';
 import { DAMAGE_TYPES, UNDEAD_HOLY_BONUS } from '../data/damage';
 import { ENEMIES } from '../data/enemies';
 import { DIFFICULTY } from '../data/maps';
@@ -21,6 +22,7 @@ export interface GameEvents {
   damage: { x: number; y: number; z: number; amount: number; crit: boolean; type: DamageType };
   kill: { enemy: Enemy; tower: Tower | null; gold: number };
   leak: { enemy: Enemy; lives: number };
+  heroLevel: { tower: Tower; level: number; power: string | null };
   fire: { tower: Tower; target: Enemy | null };
   explosion: { x: number; y: number; radius: number; color: string; style: string };
   chain: { points: { x: number; y: number; z: number }[]; color: string };
@@ -52,6 +54,8 @@ export interface GameOptions {
   seed?: number;
   /** Special rules of a mission (restrictions and handicaps). */
   rules?: MissionRules;
+  /** The hero tower the player brings (one per battle). */
+  hero?: TowerId | null;
 }
 
 /** Restrictions a mission imposes on a battle. The towers allowed are given by `unlockedTowers`. */
@@ -94,6 +98,9 @@ export class Game {
   readonly difficulty: Difficulty;
   readonly unlockedTowers: TowerId[];
   readonly rules: MissionRules;
+  /** Hero available in this battle, and whether it has been placed (only once). */
+  readonly hero: TowerId | null;
+  heroUsed = false;
   global: GlobalStats;
 
   phase: Phase = 'build';
@@ -140,8 +147,10 @@ export class Game {
     this.rng = new Rng(opts.seed ?? Date.now());
     this.mods = opts.mods;
     this.difficulty = opts.difficulty;
-    this.unlockedTowers = opts.unlockedTowers;
+    this.unlockedTowers = [...opts.unlockedTowers];
     this.rules = opts.rules ?? {};
+    this.hero = opts.hero && TOWERS[opts.hero]?.hero ? opts.hero : null;
+    if (this.hero && !this.unlockedTowers.includes(this.hero)) this.unlockedTowers.push(this.hero);
     this.totalWaves = opts.map.waves;
     this.global = this.mods.global();
     this.gold = Math.round(this.global.startGold);
@@ -201,6 +210,7 @@ export class Game {
     for (const t of this.towers) {
       if (t.statsRev !== this.statsRevision) {
         t.stats = this.mods.towerStats(t.def.id, { tier: t.tier, branch: t.branch });
+        if (t.def.hero) t.stats = heroStats(t.stats, t.def.hero, t.heroLevel);
         t.statsRev = this.statsRevision;
         this.auraDirty = true;
       }
@@ -412,7 +422,8 @@ export class Game {
 
   /** Cost of upgrading to the next tier; `branch` is required when the next tier is the branch tier. */
   upgradeCost(t: Tower, branch = t.branch): number | null {
-    if (t.tier >= this.maxTier) return null;
+    // Heroes grow with kills, not gold.
+    if (t.tier >= this.maxTier || t.def.hero) return null;
     const def = t.def;
     let base: number;
     if (t.tier < BRANCH_TIER) base = def.tiers[t.tier - 1].cost;
@@ -441,11 +452,13 @@ export class Game {
   build(id: TowerId, x: number, y: number): Tower | null {
     if (this.phase === 'victory' || this.phase === 'defeat') return null;
     if (!this.unlockedTowers.includes(id) || !this.canBuildAt(x, y, id) || !this.canBuildMore) return null;
+    if (TOWERS[id].hero && (this.heroUsed || id !== this.hero)) return null;
     const cost = this.buildCost(id);
     if (this.gold < cost) return null;
     if (cost === 0 && this.freeTowersLeft > 0) this.freeTowersUsed++;
     this.gold -= cost;
     const t = new Tower(TOWERS[id], x, y, cost);
+    if (t.def.hero) this.heroUsed = true;
     t.freshBuild = this.phase === 'build';
     this.towers.push(t);
     this.auraDirty = true;
@@ -465,7 +478,7 @@ export class Game {
   }
 
   upgrade(t: Tower, branch?: number): boolean {
-    if (t.tier >= this.maxTier) return false;
+    if (t.tier >= this.maxTier || t.def.hero) return false;
     const b = t.tier >= BRANCH_TIER ? (t.branch >= 0 ? t.branch : (branch ?? -1)) : t.branch;
     if (t.tier >= BRANCH_TIER && b < 0) return false;
     const cost = this.upgradeCost(t, b);
@@ -821,6 +834,18 @@ export class Game {
     e.pushed += d;
   }
 
+  /** A hero levelled up with this kill: stronger stats, maybe a new power. */
+  checkHeroLevel(t: Tower): void {
+    const info = t.def.hero!;
+    const level = heroLevel(t.kills);
+    if (level <= t.heroLevel) return;
+    t.heroLevel = level;
+    t.statsRev = -1;
+    this.refreshStats();
+    const power = info.milestones.find((m) => m.level === level)?.text ?? null;
+    this.events.emit('heroLevel', { tower: t, level, power });
+  }
+
   private creditDamage(e: Enemy, dealt: number, source: Tower | null): void {
     if (!source || dealt <= 0) return;
     source.damageDealt += dealt;
@@ -849,6 +874,7 @@ export class Game {
     if (e.def.boss) gold += this.global.bossGold;
     if (source) {
       source.kills++;
+      if (source.def.hero) this.checkHeroLevel(source);
       const s = source.stats;
       if (s.goldChance > 0 && this.rng.chance(s.goldChance)) {
         gold += s.goldAmount;

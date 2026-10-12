@@ -4,7 +4,8 @@
 // towards the target and magic towers carry a floating focus.
 
 import * as THREE from 'three';
-import type { TowerId } from '../data/types';
+import { TOWERS } from '../data/towers';
+import type { HeroInfo, TowerId } from '../data/types';
 import { instance, loadModel, model, ownMaterials } from './assets';
 import { mergeStatic } from './merge';
 
@@ -20,6 +21,8 @@ export interface TowerParts {
   flash: THREE.Object3D | null;
   /** Height where a crossbowman stands (null = no unit). */
   unitY: number | null;
+  /** Who stands there (default: a hooded crossbowman). */
+  unitLook: HeroInfo['look'] | null;
   /** An animated creature circling above the tower (the falconer's bird). */
   pet: { pivot: THREE.Group; body: THREE.Object3D; clips: THREE.AnimationClip[] } | null;
 }
@@ -58,9 +61,22 @@ interface Plan {
   flash?: string;
   /** Animated model circling above (rigged, with a 'Flying' clip). */
   pet?: string;
+  /** A hero champion instead of the crossbowman. */
+  unitLook?: HeroInfo['look'];
 }
 
 function plan(id: TowerId, tier: number, branch: number): Plan {
+  const heroInfo = TOWERS[id].hero;
+  if (heroInfo) {
+    // Heroes: a golden-roofed building with the champion standing on top.
+    return {
+      base: B(heroInfo.base, 'yellow'),
+      fit: 0.86,
+      unitAt: heroInfo.base === 'church' || heroInfo.base === 'blacksmith' || heroInfo.base === 'mine' ? 0.62 : 0.97,
+      unitLook: heroInfo.look,
+      props: [{ m: PROP('flag_yellow'), x: 0.32, z: -0.3, s: 0.7 }],
+    };
+  }
   const c: Color = branch >= 0 ? BRANCH_COLORS[branch] : 'blue';
   const size = 0.62 + Math.min(tier, 3) * 0.07 + (tier >= 4 ? 0.06 : 0) + (tier >= 5 ? 0.04 : 0);
   const extras: Prop[] = [];
@@ -154,6 +170,8 @@ function plan(id: TowerId, tier: number, branch: number): Plan {
       };
     case 'tide':
       return { base: B('well', c), fit: size + 0.05, orb: branch === 2 ? '#c48cff' : '#5fe0ff', crystals: branch === 0 ? '#9fe8ff' : undefined };
+    default:
+      return { base: B('tower_base', c), fit: size * 0.72, props: extras };
   }
 }
 
@@ -169,6 +187,7 @@ export function towerModels(id: TowerId): string[] {
       if (p.turret) out.add(p.turret);
       if (p.crystals) out.add(CRYSTALS);
       if (p.pet) out.add(p.pet);
+      if (p.unitLook) out.add(p.unitLook.model);
       for (const x of p.props ?? []) out.add(x.m);
     }
   return [...out];
@@ -279,5 +298,5 @@ export function towerParts(id: TowerId, tier: number, branch: number): TowerPart
     root.add(pivot);
     pet = { pivot, body, clips: model(p.pet)?.animations ?? [] };
   }
-  return { root, turret, orb, orbY, orbMats, flash, unitY: p.unitAt !== undefined ? height * p.unitAt : null, pet };
+  return { root, turret, orb, orbY, orbMats, flash, unitY: p.unitAt !== undefined ? height * p.unitAt : null, unitLook: p.unitLook ?? null, pet };
 }

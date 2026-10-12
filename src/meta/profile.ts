@@ -48,6 +48,8 @@ export interface Profile {
   missions: Record<string, { done: boolean }>;
   /** Exclusive regions opened by missions. */
   regions: Biome[];
+  /** Hero tower brought to battles (null = none). */
+  hero: TowerId | null;
   /** When this profile was last saved (ms since epoch) — the newer copy wins when syncing devices. */
   savedAt?: number;
 }
@@ -68,6 +70,7 @@ export function defaultProfile(): Profile {
     tutorialDone: false,
     missions: {},
     regions: [],
+    hero: null,
   };
 }
 
@@ -87,6 +90,7 @@ export function migrateProfile(raw: unknown): Profile {
     seenEnemies: Array.isArray(p.seenEnemies) ? p.seenEnemies : [],
     missions: { ...(p.missions ?? {}) },
     regions: Array.isArray(p.regions) ? p.regions.filter((r) => r in BIOME_BY_ID) : [],
+    hero: p.hero && TOWERS[p.hero]?.hero ? p.hero : null,
     towers: { ...base.towers },
   };
   for (const id of Object.keys(base.towers) as TowerId[]) {
@@ -279,6 +283,8 @@ export function applyRunResult(p: Profile, r: RunResult): RewardSummary {
   p.stats.bossesKilled += r.bossesKilled;
   const levelUps: RewardSummary['levelUps'] = [];
   for (const [id, xp] of Object.entries(r.towerXp) as [TowerId, number][]) {
+    // Heroes have no permanent mastery: their levels only last one battle.
+    if (!p.towers[id]) continue;
     const before = towerLevel(p, id);
     p.towers[id].xp += Math.round(xp * (1 + r.xpGain));
     const after = towerLevel(p, id);
@@ -330,7 +336,7 @@ export function applyMissionResult(
   const levelUps: RewardSummary['levelUps'] = [];
   for (const [id, xp] of Object.entries(r.towerXp) as [TowerId, number][]) {
     // Towers tried in a mission before owning them don't level up.
-    if (!p.towers[id].unlocked) continue;
+    if (!p.towers[id]?.unlocked) continue;
     const before = towerLevel(p, id);
     p.towers[id].xp += Math.round(xp * (1 + r.xpGain));
     const after = towerLevel(p, id);
@@ -353,4 +359,42 @@ export function applyMissionResult(
 /** The mission whose reward is this tower or region, if any. */
 export function missionRewarding(what: { tower?: TowerId; region?: Biome }): MissionDef | undefined {
   return MISSIONS.find((m) => (what.tower && m.reward.tower === what.tower) || (what.region && m.reward.region === what.region));
+}
+
+// ---------------------------------------------------------------- heroes
+
+/** Is a hero unlocked, and how far along is its unlock condition. */
+export function heroProgress(p: Profile, id: TowerId): { done: boolean; text: string; progress?: string } {
+  const u = TOWERS[id].hero!.unlock;
+  const maps = Object.values(p.maps);
+  const count = (have: number, need: number, text: string) => ({
+    done: have >= need,
+    text,
+    progress: `${Math.min(have, need).toLocaleString('es')}/${need.toLocaleString('es')}`,
+  });
+  switch (u.kind) {
+    case 'wins':
+      return count(p.stats.wins, u.amount, u.amount === 1 ? 'Gana una batalla' : `Gana ${u.amount} batallas`);
+    case 'kills':
+      return count(p.stats.kills, u.amount, `Abate ${u.amount.toLocaleString('es')} enemigos en total`);
+    case 'bosses':
+      return count(p.stats.bossesKilled, u.amount, `Derrota ${u.amount} jefes`);
+    case 'endless':
+      return count(Math.max(0, ...maps.map((m) => m.bestEndless ?? 0)), u.amount, `Llega a la oleada ${u.amount} en modo infinito`);
+    case 'hardClear':
+      return { done: maps.some((m) => m.cleared.hard), text: 'Gana una campaña en dificultad Heroico' };
+    case 'mission': {
+      const m = MISSIONS.find((x) => x.id === u.id);
+      return { done: !!p.missions[u.id]?.done, text: `Completa la misión «${m?.name ?? u.id}»` };
+    }
+    case 'missions':
+      return count(Object.values(p.missions).filter((m) => m.done).length, u.amount, `Completa ${u.amount} misiones`);
+    case 'towers':
+      return count(Object.values(p.towers).filter((t) => t.unlocked).length, u.amount, `Ten ${u.amount} torres desbloqueadas`);
+  }
+}
+
+/** The hero to bring into a battle: the chosen one if it is (still) unlocked. */
+export function activeHero(p: Profile): TowerId | null {
+  return p.hero && heroProgress(p, p.hero).done ? p.hero : null;
 }

@@ -19,6 +19,11 @@ function projectileStyle(t: Tower): string {
   if (id === 'obelisk') return 'shadow';
   if (id === 'quake') return 'boulder';
   if (id === 'falconer' || id === 'market' || id === 'warden') return 'arrow';
+  if (id === 'lyra') return 'bolt';
+  if (id === 'brunhild') return 'shard';
+  if (id === 'aurelia') return 'holy';
+  if (id === 'morwen') return 'shadow';
+  if (id === 'brom') return 'ball';
   if (id === 'sawmill') return t.branch === 1 ? 'boulder' : 'bolt';
   return 'orb';
 }
@@ -224,7 +229,9 @@ const ATTACKS: Record<AttackKind, AttackFn> = {
             ? 'tentacle'
             : t.def.id === 'quake'
               ? 'meteor'
-              : 'smite';
+              : t.def.id === 'torvald'
+                ? 'thunder'
+                : 'smite';
     const delay = style === 'meteor' ? 0.8 : style === 'smite' || style === 'tentacle' ? 0.45 : 0.25;
     const p = lead(g, e, delay);
     aimAt(t, p.x, p.y);

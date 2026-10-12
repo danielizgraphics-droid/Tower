@@ -1,3 +1,4 @@
+import { HERO_LIST } from './heroes';
 import type { ModifierDef, StatKey, TalentEffectDef, TowerDef, TowerId } from './types';
 
 /** Tower-scoped percentage modifier helper (pct: 0.1 = +10%). */
@@ -1199,9 +1200,12 @@ const defs: TowerDef[] = [
   },
 ];
 
-export const TOWERS: Record<TowerId, TowerDef> = Object.fromEntries(defs.map((d) => [d.id, d])) as Record<TowerId, TowerDef>;
+/** Every tower, heroes included (heroes are not in TOWER_LIST: they are picked in the settings). */
+export const TOWERS: Record<TowerId, TowerDef> = Object.fromEntries([...defs, ...HERO_LIST].map((d) => [d.id, d])) as Record<TowerId, TowerDef>;
 export const TOWER_LIST: TowerDef[] = defs;
 /** Tier at which the player picks one of the three branches. */
 export const BRANCH_TIER = 3;
 /** Highest tier (1..5). */
 export const MAX_TIER = 5;
+
+export { HERO_LIST };

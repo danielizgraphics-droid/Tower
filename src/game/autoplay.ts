@@ -1,4 +1,4 @@
-import { TOWERS } from '../data/towers';
+import { TOWERS, TOWER_LIST } from '../data/towers';
 import type { TowerId, TowerStats } from '../data/types';
 import { Rng } from '../engine/rng';
 import type { Tower } from './entities';
@@ -164,4 +164,4 @@ export function simulate(game: Game, player: AutoPlayer, maxSeconds = 3600): Gam
   return game;
 }
 
-export const ALL_TOWERS = Object.keys(TOWERS) as TowerId[];
+export const ALL_TOWERS = TOWER_LIST.map((t) => t.id);

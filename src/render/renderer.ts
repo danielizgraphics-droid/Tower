@@ -347,6 +347,11 @@ export class Renderer {
       ev.on('dodge', ({ x, y, z }) => {
         if (this.view.showDamage) fx.label(x, y, z + 0.4, 'esquiva', '#e8eef0', 0.8);
       }),
+      ev.on('heroLevel', ({ tower, level }) => {
+        fx.ring(tower.x, tower.y, 0.05, 0.2, 1.4, '#ffd04a', 0.7, 0.08, true);
+        fx.burst('spark', tower.x, tower.y, 1.4, 18, '#ffe08a', 2.2, 0.06, 0.8);
+        fx.label(tower.x, tower.y, 1.9, `Nv. ${level}`, '#ffd04a', 1.1);
+      }),
       ev.on('exhaust', ({ x, y, z }) => {
         if (this.view.showDamage) fx.label(x, y, z + 0.45, 'agotado', '#ffb08a', 0.8);
       }),

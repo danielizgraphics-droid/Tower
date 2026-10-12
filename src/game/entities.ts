@@ -124,6 +124,8 @@ export class Tower {
   /** Placed during the current build phase (full refund on sale). */
   freshBuild = true;
   kills = 0;
+  /** Hero towers: level reached with kills in this battle (1..10). */
+  heroLevel = 1;
   damageDealt = 0;
   /** Aura buffs received from support towers. */
   buffDamage = 0;

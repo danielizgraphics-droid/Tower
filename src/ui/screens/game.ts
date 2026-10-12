@@ -6,6 +6,7 @@ import { DIFFICULTY } from '../../data/maps';
 import { generateMap, seedCode } from '../../game/mapgen';
 import { SPELLS, SPELL_LIST } from '../../data/spells';
 import { BRANCH_TIER, MAX_TIER, TOWERS, TOWER_LIST } from '../../data/towers';
+import { HERO_LEVEL_KILLS, HERO_MAX_LEVEL } from '../../data/heroes';
 import type { AugmentDef, Difficulty, SpellId, TargetMode, TowerId } from '../../data/types';
 import type { SfxName } from '../../engine/audio';
 import { formatNumber } from '../../engine/math';
@@ -14,7 +15,7 @@ import { Game } from '../../game/game';
 import { effectiveAttack, effectiveDamageType, effectiveTargetsAir } from '../../game/modifiers';
 import { wavePreview } from '../../game/waves';
 import { MISSION_BY_ID, ruleLines, type MissionDef } from '../../data/missions';
-import { applyMissionResult, applyRunResult, isRegionOpen, profileModifiers, type RewardSummary } from '../../meta/profile';
+import { activeHero, applyMissionResult, applyRunResult, isRegionOpen, profileModifiers, type RewardSummary } from '../../meta/profile';
 import { captureRun, clearRun, loadRun, restoreRun, saveRun } from '../../meta/runsave';
 import { enemyPortrait, towerPortrait } from '../../render/portraits';
 import { AutoQuality } from '../../render/quality';
@@ -43,16 +44,24 @@ export function gameScreen(app: App, route: Route): Screen {
   // A mission decides which towers can be built (even ones the player doesn't own yet).
   // Over the clouds only towers that can hit flyers make sense.
   const skyMap = !!BIOMES.find((b) => b.id === run.biome)?.sky;
-  const unlocked = (mission ? mission.towers : TOWER_LIST.filter((t) => profile.towers[t.id].unlocked).map((t) => t.id)).filter(
-    (id) => !skyMap || TOWERS[id].targetsAir,
-  );
-  /** Towers shown in the build bar: exclusive ones only once earned; in missions, only the allowed ones. */
-  const barTowers = TOWER_LIST.filter((t) => (mission ? unlocked.includes(t.id) : !t.exclusive || unlocked.includes(t.id)));
-
-  const game = new Game({ map: mapDef, difficulty, mods: profileModifiers(profile), unlockedTowers: unlocked, rules: mission?.rules });
+  const saved0 = run.resume && !mission ? loadRun(app.storage) : null;
   // Resuming a battle saved between waves (the page was closed or reloaded).
-  const saved = run.resume && !mission ? loadRun(app.storage) : null;
-  if (saved && saved.biome === run.biome && saved.seed === run.seed && saved.difficulty === difficulty) {
+  const saved = saved0 && saved0.biome === run.biome && saved0.seed === run.seed && saved0.difficulty === difficulty ? saved0 : null;
+  /** The hero brought to this battle (none in missions; on sky maps only one that hits flyers). */
+  const heroPick = mission ? null : saved ? (saved.hero ?? null) : activeHero(profile);
+  const heroId = heroPick && (!skyMap || TOWERS[heroPick].targetsAir) ? heroPick : null;
+  const unlocked = [
+    ...(heroId ? [heroId] : []),
+    ...(mission ? mission.towers : TOWER_LIST.filter((t) => profile.towers[t.id].unlocked).map((t) => t.id)),
+  ].filter((id) => !skyMap || TOWERS[id].targetsAir);
+  /** Towers shown in the build bar: the hero first; exclusive ones only once earned; in missions, only the allowed ones. */
+  const barTowers = [
+    ...(heroId ? [TOWERS[heroId]] : []),
+    ...TOWER_LIST.filter((t) => (mission || skyMap ? unlocked.includes(t.id) : !t.exclusive || unlocked.includes(t.id))),
+  ];
+
+  const game = new Game({ map: mapDef, difficulty, mods: profileModifiers(profile), unlockedTowers: unlocked, rules: mission?.rules, hero: heroId });
+  if (saved) {
     restoreRun(game, saved);
     endless = saved.endless;
     continued = saved.continued;
@@ -166,11 +175,20 @@ export function gameScreen(app: App, route: Route): Screen {
       costEl,
     );
     if (!unlocked.includes(t.id)) card.classList.add('locked');
+    if (t.hero) {
+      card.classList.add('hero');
+      card.title = 'Torre heroica: solo una por partida';
+    }
     const noWater = t.placement === 'water' && !game.hasWater;
     if (noWater) card.classList.add('nowater');
     // Pointer: tap to pick (then drag the ghost on the map) or pull the card up onto the map and drop it.
     card.addEventListener('pointerdown', (e) => {
       if (e.button !== 0 || finished || !unlocked.includes(t.id)) return;
+      if (t.hero && game.heroUsed) {
+        sfx('error');
+        toast('Ya has colocado tu torre heroica en esta partida');
+        return;
+      }
       if (drag) cards.get(drag.id)?.classList.remove('dragging');
       lastPointer = e.pointerType;
       if (noWater) {
@@ -280,6 +298,11 @@ export function gameScreen(app: App, route: Route): Screen {
 
   function selectBuild(id: TowerId | null) {
     if (id && !unlocked.includes(id)) return;
+    if (id && TOWERS[id].hero && game.heroUsed) {
+      sfx('error');
+      toast('Ya has colocado tu torre heroica en esta partida');
+      return;
+    }
     sfx('click');
     buildId = id;
     spellId = null;
@@ -331,7 +354,7 @@ export function gameScreen(app: App, route: Route): Screen {
     const nextCost = t.tier >= game.maxTier ? null : t.tier === BRANCH_TIER ? null : game.upgradeCost(t);
     const branchCosts = t.tier === BRANCH_TIER ? [0, 1, 2].map((b) => game.upgradeCost(t, b) ?? 0) : [];
     const afford = [nextCost, ...branchCosts].map((c) => (c !== null && game.gold >= c ? 1 : 0)).join('');
-    const sig = `${t.uid}:${t.tier}:${t.branch}:${t.targetMode}:${afford}:${t.kills}:${game.sellValue(t)}:${Math.round(t.damageDealt / 50)}`;
+    const sig = `${t.uid}:${t.heroLevel}:${t.tier}:${t.branch}:${t.targetMode}:${afford}:${t.kills}:${game.sellValue(t)}:${Math.round(t.damageDealt / 50)}`;
     if (!force && sig === panelSig) return;
     panelSig = sig;
     const def = t.def;
@@ -341,15 +364,17 @@ export function gameScreen(app: App, route: Route): Screen {
     const dmgType = effectiveDamageType(def, t.branch);
     let nextStats = undefined;
     let nextKind = undefined;
-    if (t.tier < BRANCH_TIER || (t.tier > BRANCH_TIER && t.tier < MAX_TIER)) {
+    if (!def.hero && (t.tier < BRANCH_TIER || (t.tier > BRANCH_TIER && t.tier < MAX_TIER))) {
       nextStats = game.previewStats(def.id, t.tier + 1, t.branch);
       nextKind = kind;
     }
     const lines = statLines(stats, kind, nextStats, nextKind);
-    const tierDots = h(
-      'div.tier-dots',
-      [1, 2, 3, 4, 5].map((i) => h(`span${i <= t.tier ? '.on' : ''}${i > BRANCH_TIER ? '.br' : ''}`)),
-    );
+    const tierDots = def.hero
+      ? h('div.muted.tiny', { style: 'margin-top:3px;font-weight:700;color:#b07a10' }, `Torre heroica · nivel ${t.heroLevel}`)
+      : h(
+          'div.tier-dots',
+          [1, 2, 3, 4, 5].map((i) => h(`span${i <= t.tier ? '.on' : ''}${i > BRANCH_TIER ? '.br' : ''}`)),
+        );
     const modes: TargetMode[] = ['first', 'last', 'strong', 'close'];
     const targeting =
       kind === 'pulse' || kind === 'aura'
@@ -369,7 +394,28 @@ export function gameScreen(app: App, route: Route): Screen {
           );
 
     let upgrade: HTMLElement;
-    if (t.tier >= game.maxTier) {
+    if (def.hero) {
+      // Heroes level up with kills during this battle.
+      const lvl = t.heroLevel;
+      const max = lvl >= HERO_MAX_LEVEL;
+      const from = HERO_LEVEL_KILLS[lvl - 1];
+      const to = max ? from : HERO_LEVEL_KILLS[lvl];
+      const frac = max ? 1 : (t.kills - from) / Math.max(1, to - from);
+      upgrade = h(
+        'div.hero-progress',
+        h(
+          'div',
+          { style: 'display:flex;justify-content:space-between;font-weight:700;font-size:13px' },
+          h('span', `${def.name}, ${def.hero.title}`),
+          h('span', max ? 'Nivel máximo' : `${t.kills}/${to} bajas`),
+        ),
+        h('div.bar', h('span', { style: `width:${Math.round(frac * 100)}%` })),
+        h(
+          'ul',
+          def.hero.milestones.map((m) => h(`li${lvl >= m.level ? '.on' : ''}`, `Nv. ${m.level}: ${m.text}`)),
+        ),
+      );
+    } else if (t.tier >= game.maxTier) {
       upgrade = h(
         'div.pill',
         { style: 'justify-content:center;width:100%;padding:8px' },
@@ -416,7 +462,7 @@ export function gameScreen(app: App, route: Route): Screen {
         h(
           'div',
           { style: 'flex:1' },
-          h('h3', branch ? branch.name : def.name),
+          h('h3', branch ? branch.name : def.hero ? `${def.name} ★` : def.name),
           h(
             'div',
             { style: 'margin-top:3px' },
@@ -1105,6 +1151,11 @@ export function gameScreen(app: App, route: Route): Screen {
     livesStat.classList.add('flash-red');
   });
   ev.on('build', () => sfx('build'));
+  ev.on('heroLevel', ({ tower, level, power }) => {
+    sfx('upgrade');
+    banner(`${tower.def.name}: nivel ${level}`, power ?? 'Más daño', false);
+    if (selected === tower) renderPanel(true);
+  });
   ev.on('upgrade', () => sfx('upgrade'));
   ev.on('sell', () => sfx('sell'));
   ev.on('gold', () => sfx('coin'));
@@ -1401,10 +1452,11 @@ export function gameScreen(app: App, route: Route): Screen {
       }
       lastGold = gold;
       setText(goldVal, formatNumber(gold));
-      for (const t of TOWER_LIST) {
+      for (const t of barTowers) {
         const card = cards.get(t.id);
         const costEl = costEls.get(t.id);
         if (!card || !costEl || !unlocked.includes(t.id)) continue;
+        if (t.hero) toggleClass(card, 'used', game.heroUsed);
         const cost = game.buildCost(t.id);
         const txt = costEl.lastChild!;
         const label = cost === 0 ? 'GRATIS' : String(cost);

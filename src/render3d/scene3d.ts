@@ -818,20 +818,26 @@ export class Scene3D {
       }
   }
 
-  /** A crossbowman standing on top of the tower. */
+  /** A crossbowman (or a hero's champion) standing on top of the tower. */
   private makeUnit(parts: TowerParts): TowerObj['unit'] {
-    const body = this.enemyBody({ model: 'chars/Rogue_Hooded.glb', height: 0, show: ['2H_Crossbow'] });
+    const look = parts.unitLook;
+    const body = this.enemyBody({ model: look?.model ?? 'chars/Rogue_Hooded.glb', height: 0, show: look?.show ?? ['2H_Crossbow'] });
     if (!body || !this.clips) return null;
+    if (look?.tint) {
+      const mats = ownMaterials(body);
+      for (const m of mats) m.color.lerp(new THREE.Color(look.tint), 0.35);
+      parts.orbMats.push(...mats);
+    }
     const box = new THREE.Box3().setFromObject(body);
-    body.scale.setScalar(0.42 / Math.max(0.01, box.max.y - box.min.y));
+    body.scale.setScalar((look ? 0.66 : 0.42) / Math.max(0.01, box.max.y - box.min.y));
     const pivot = new THREE.Group();
     pivot.position.y = parts.unitY!;
     pivot.add(body);
     parts.root.add(pivot);
     const mixer = new THREE.AnimationMixer(body);
-    const aim = this.clip(this.clips, ['2H_Ranged_Aiming', 'Idle']);
-    if (aim) mixer.clipAction(aim).play();
-    return { pivot, mixer, shoot: this.clip(this.clips, ['2H_Ranged_Shoot']) };
+    const idle = this.clip(this.clips, look ? [look.idle, 'Idle'] : ['2H_Ranged_Aiming', 'Idle']);
+    if (idle) mixer.clipAction(idle).play();
+    return { pivot, mixer, shoot: this.clip(this.clips, [look?.attack ?? '2H_Ranged_Shoot']) };
   }
 
   private onFire(t: Tower): void {

@@ -1,4 +1,4 @@
-import { TOWERS } from '../data/towers';
+import { TOWERS, TOWER_LIST } from '../data/towers';
 import type { ModifierDef, TowerId } from '../data/types';
 
 export interface TalentNode {
@@ -403,9 +403,10 @@ export function isAnyRequirement(node: TalentNode): boolean {
   return node.id.endsWith('.capstone');
 }
 
-export const TOWER_TREES: Record<TowerId, TalentTree> = Object.fromEntries(
-  (Object.keys(TOWERS) as TowerId[]).map((id) => [id, buildTowerTree(id)]),
-) as Record<TowerId, TalentTree>;
+export const TOWER_TREES: Record<TowerId, TalentTree> = Object.fromEntries(TOWER_LIST.map((t) => [t.id, buildTowerTree(t.id)])) as Record<
+  TowerId,
+  TalentTree
+>;
 
 /** Tower XP needed to reach each mastery level (index = level). Each level grants a talent point. */
 export const TOWER_LEVEL_XP = [0, 40, 100, 180, 280, 400, 550, 730, 940, 1180, 1450, 1750, 2100, 2500, 2950, 3450, 4000, 4600, 5250, 6000, 6800];

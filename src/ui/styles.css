@@ -2441,3 +2441,116 @@ table.dmg td.bad {
 .reward .dot.star {
   background: var(--gold, #e2a01e);
 }
+
+/* ---------------------------------------------------------------- heroes */
+.hero-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 6px;
+}
+.hero-card {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 12px;
+  background: var(--surface-2);
+  text-align: left;
+  box-shadow: inset 0 0 0 2px transparent;
+}
+.hero-card img {
+  width: 40px;
+  height: 40px;
+  flex: none;
+}
+.hero-card.on {
+  background: #fff6dc;
+  box-shadow: inset 0 0 0 2px #e2a01e;
+}
+.hero-card.locked {
+  cursor: not-allowed;
+}
+.hero-card.locked img {
+  filter: grayscale(1) opacity(0.5);
+}
+.hero-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  font-size: 13px;
+  line-height: 1.25;
+}
+.hero-text small {
+  font-size: 11px;
+  color: var(--ink-3);
+}
+.hero-text small.lock {
+  display: flex;
+  gap: 3px;
+  align-items: flex-start;
+  color: var(--ink-2);
+}
+.hero-check {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #e2a01e;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.tcard.hero {
+  box-shadow: inset 0 0 0 2px #e2a01e;
+  background: #fff6dc;
+}
+.tcard.hero.used {
+  opacity: 0.45;
+}
+.hero-badge {
+  position: absolute;
+  top: 3px;
+  left: 4px;
+  font-size: 10px;
+  font-weight: 800;
+  color: #b07a10;
+}
+.hero-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px;
+  border-radius: 12px;
+  background: #fff6dc;
+}
+.hero-progress .bar {
+  height: 8px;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.08);
+  overflow: hidden;
+}
+.hero-progress .bar > span {
+  display: block;
+  height: 100%;
+  background: #e2a01e;
+}
+.hero-progress ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.hero-progress li.on {
+  color: #8a5a00;
+  font-weight: 700;
+}
+.hero-progress li:not(.on) {
+  color: var(--ink-3);
+}

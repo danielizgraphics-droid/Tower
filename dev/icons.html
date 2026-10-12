@@ -33,7 +33,7 @@
       import { towerParts, towerModels } from '../src/render3d/towers3d';
       import { ENEMY_LOOKS } from '../src/render3d/looks';
       import { hideGear } from '../src/render3d/scene3d';
-      import { TOWER_LIST } from '../src/data/towers';
+      import { HERO_LIST, TOWER_LIST } from '../src/data/towers';
       import { ENEMIES } from '../src/data/enemies';
 
       const BIG = 512;
@@ -103,17 +103,19 @@
       }
 
       function crossbowman(parts, clips) {
-        const body = instance('chars/Rogue_Hooded.glb');
-        hideGear(body, ['2H_Crossbow']);
+        const look = parts.unitLook;
+        const body = instance(look?.model ?? 'chars/Rogue_Hooded.glb');
+        hideGear(body, look?.show ?? ['2H_Crossbow']);
+        if (look?.tint) for (const m of ownMaterials(body)) m.color.lerp(new THREE.Color(look.tint), 0.35);
         const box = new THREE.Box3().setFromObject(body);
-        body.scale.setScalar(0.42 / Math.max(0.01, box.max.y - box.min.y));
+        body.scale.setScalar((look ? 0.66 : 0.42) / Math.max(0.01, box.max.y - box.min.y));
         const pivot = new THREE.Group();
         pivot.position.y = parts.unitY;
         pivot.rotation.y = Math.PI / 4;
         pivot.add(body);
         parts.root.add(pivot);
         const mixer = new THREE.AnimationMixer(body);
-        const aim = clip(clips, ['2H_Ranged_Aiming', 'Idle']);
+        const aim = clip(clips, look ? [look.idle, 'Idle'] : ['2H_Ranged_Aiming', 'Idle']);
         if (aim) mixer.clipAction(aim).play();
         mixer.update(0.4);
       }
@@ -185,6 +187,10 @@
           for (const tier of [1, 2, 3, 4, 5])
             for (const br of tier >= 4 ? [0, 1, 2] : [-1])
               show(`t-${t.id}-${tier}-${br}`, towerIcon(t.id, tier, br, t.placement === 'water', shared));
+        }
+        for (const t of HERO_LIST) {
+          await Promise.all(towerModels(t.id).map(loadModel));
+          show(`t-${t.id}-1--1`, towerIcon(t.id, 1, -1, t.placement === 'water', shared));
         }
         for (const [id, look] of Object.entries(ENEMY_LOOKS)) {
           await loadModel(look.model);

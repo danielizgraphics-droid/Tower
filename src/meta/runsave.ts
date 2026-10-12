@@ -32,6 +32,9 @@ export interface RunSave {
   leaked: number;
   towerXp: Partial<Record<TowerId, number>>;
   augments: string[];
+  /** Hero brought to this battle, and whether it was placed. */
+  hero?: TowerId | null;
+  heroUsed?: boolean;
   towers: { id: TowerId; x: number; y: number; tier: number; branch: number; target: TargetMode; kills: number; damage: number; souls: number }[];
 }
 
@@ -56,6 +59,8 @@ export function captureRun(
     leaked: game.leaked,
     towerXp: { ...game.towerXp },
     augments: game.augments.map((a) => a.id),
+    hero: game.hero,
+    heroUsed: game.heroUsed,
     towers: game.towers.map((t) => ({
       id: t.def.id,
       x: t.tx,
@@ -91,7 +96,9 @@ export function restoreRun(game: Game, s: RunSave): void {
     t.damageDealt = st.damage;
     t.souls = st.souls;
     t.buildAnim = 1;
+    if (t.def.hero) game.checkHeroLevel(t);
   }
+  if (s.heroUsed) game.heroUsed = true;
   game.wave = s.wave;
   game.wavesCleared = s.wavesCleared;
   game.gold = s.gold;

@@ -1212,6 +1212,14 @@ const MODELS: Record<TowerId, ModelFn> = {
   warden: (...a) => MODELS.archer(...a),
   sawmill: (...a) => MODELS.ballista(...a),
   hexhut: (...a) => MODELS.obelisk(...a),
+  lyra: (...a) => MODELS.archer(...a),
+  eldrin: (...a) => MODELS.arcane(...a),
+  brunhild: (...a) => MODELS.frost(...a),
+  torvald: (...a) => MODELS.storm(...a),
+  nerea: (...a) => MODELS.tide(...a),
+  aurelia: (...a) => MODELS.sanctum(...a),
+  morwen: (...a) => MODELS.obelisk(...a),
+  brom: (...a) => MODELS.cannon(...a),
 };
 
 /** Draws a tower model with its base at (cx, cy, z). */
