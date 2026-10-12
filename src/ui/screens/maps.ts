@@ -26,6 +26,7 @@ const BIOME_ICON: Record<Biome, string> = {
   sakura: 'sparkle',
   shadow: 'eye',
   gilded: 'coins',
+  sky: 'cloud',
 };
 
 let previewToken = 0;

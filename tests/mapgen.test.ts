@@ -23,7 +23,8 @@ describe('procedural maps', () => {
               ].some(([dx, dy]) => b.isWalkable(x + dx, y + dy))
             )
               buildable++;
-        expect(buildable, `${def.id} buildable`).toBeGreaterThan(25);
+        // Sky maps only have small islands to build on, on purpose.
+        expect(buildable, `${def.id} buildable`).toBeGreaterThan(biome.sky ? 15 : 25);
       }
   });
 

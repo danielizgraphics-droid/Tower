@@ -403,7 +403,8 @@ export type Biome =
   // Exclusive regions (mission rewards)
   | 'sakura'
   | 'shadow'
-  | 'gilded';
+  | 'gilded'
+  | 'sky';
 
 export interface MapDef {
   id: string;

@@ -55,7 +55,8 @@ export function generateMap(opts: MapGenOptions): MapDef {
   const last = tileOf(path[path.length - 1]);
   grid[last.y][last.x] = 'C';
 
-  decorate(grid, rng, opts.water === undefined ? biome : { ...biome, water: opts.water });
+  if (biome.sky) skyIslands(grid, rng);
+  else decorate(grid, rng, opts.water === undefined ? biome : { ...biome, water: opts.water });
 
   const name = `${rng.pick(biome.prefixes)} ${rng.pick(biome.places)}`;
   return {
@@ -134,6 +135,64 @@ function findCoarsePath(rng: Rng, cw: number, ch: number): Node[] {
     for (let j = 0; j < ch; j++) for (let k = 0; k < cw; k++) best.push({ i: j % 2 === 0 ? k : cw - 1 - k, j });
   }
   return best;
+}
+
+/**
+ * Sky maps: everything is open air ('V') except small floating islands
+ * scattered along the flyers' route, where towers can stand.
+ */
+function skyIslands(grid: string[][], rng: Rng): void {
+  const H = grid.length;
+  const W = grid[0].length;
+  const isPath = (x: number, y: number) => ['#', 'S', 'C'].includes(grid[y]?.[x] ?? '');
+  const distToPath = (x: number, y: number) => {
+    for (let r = 0; r <= 3; r++) for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) if (isPath(x + dx, y + dy)) return r;
+    return 4;
+  };
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) if (grid[y][x] === '.') grid[y][x] = 'V';
+  const island = new Map<string, number>();
+  const key = (x: number, y: number) => `${x},${y}`;
+  /** A cell can join island `id` if no other island touches it (keeps a gap of sky between them). */
+  const free = (x: number, y: number, id: number) => {
+    if (grid[y]?.[x] !== 'V') return false;
+    for (const [dx, dy] of [
+      [1, 0],
+      [-1, 0],
+      [0, 1],
+      [0, -1],
+      [1, 1],
+      [-1, -1],
+      [1, -1],
+      [-1, 1],
+    ]) {
+      const o = island.get(key(x + dx, y + dy));
+      if (o !== undefined && o !== id) return false;
+    }
+    return true;
+  };
+  let id = 0;
+  for (let tries = 0; tries < 800 && id < 18; tries++) {
+    const x = rng.int(0, W - 1);
+    const y = rng.int(0, H - 1);
+    const d = distToPath(x, y);
+    if (d < 1 || d > 2 || !free(x, y, id)) continue;
+    const cells = [{ x, y }];
+    const size = rng.int(2, 5);
+    grid[y][x] = '.';
+    island.set(key(x, y), id);
+    for (let k = 0; k < 20 && cells.length < size; k++) {
+      const c = rng.pick(cells);
+      const [dx, dy] = rng.pick(DIRS);
+      const nx = c.x + dx;
+      const ny = c.y + dy;
+      if (nx < 0 || ny < 0 || nx >= W || ny >= H || !free(nx, ny, id) || distToPath(nx, ny) < 1) continue;
+      grid[ny][nx] = '.';
+      island.set(key(nx, ny), id);
+      cells.push({ x: nx, y: ny });
+    }
+    for (const c of cells) if (rng.chance(0.12)) grid[c.y][c.x] = 'F';
+    id++;
+  }
 }
 
 function decorate(grid: string[][], rng: Rng, biome: BiomeDef): void {

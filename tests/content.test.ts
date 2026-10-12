@@ -1,3 +1,4 @@
+import { BIOME_BY_ID } from '../src/data/biomes';
 import { describe, expect, it } from 'vitest';
 import { BIOMES } from '../src/data/biomes';
 import { ENEMIES, ENEMY_LIST } from '../src/data/enemies';
@@ -103,7 +104,8 @@ describe('regional content', () => {
       for (let w = 1; w <= 30; w++)
         for (const gr of generateWave(map, w).groups) {
           const def = ENEMIES[gr.enemy];
-          if (def.biomes && !def.boss) expect(def.biomes, `${gr.enemy} in ${biome.id}`).toContain(biome.id);
+          // Sky maps draw flyers from every region.
+          if (def.biomes && !def.boss && !BIOME_BY_ID[map.theme].sky) expect(def.biomes, `${gr.enemy} in ${biome.id}`).toContain(biome.id);
         }
     }
   });
@@ -118,7 +120,7 @@ describe('regional content', () => {
 
   it('every enemy and biome is wired up', () => {
     expect(ENEMY_LIST.length).toBeGreaterThanOrEqual(30);
-    expect(BIOMES).toHaveLength(14);
+    expect(BIOMES).toHaveLength(15);
     for (const b of BIOMES) if (b.requires) expect(BIOMES.some((o) => o.id === b.requires)).toBe(true);
     for (const b of BIOMES) if (b.boss) expect(ENEMIES[b.boss].boss).toBe(true);
   });

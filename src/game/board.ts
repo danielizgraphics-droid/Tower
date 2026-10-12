@@ -1,6 +1,7 @@
 import type { MapDef } from '../data/types';
 
-export type TileKind = 'grass' | 'flowers' | 'path' | 'spawn' | 'castle' | 'tree' | 'rock' | 'water' | 'lava';
+/** 'void': open sky (sky maps) — nothing to stand on. */
+export type TileKind = 'grass' | 'flowers' | 'path' | 'spawn' | 'castle' | 'tree' | 'rock' | 'water' | 'lava' | 'void';
 
 export interface Tile {
   kind: TileKind;
@@ -22,6 +23,7 @@ const CHAR_TO_KIND: Record<string, TileKind> = {
   R: 'rock',
   W: 'water',
   L: 'lava',
+  V: 'void',
 };
 
 export interface PathPoint {

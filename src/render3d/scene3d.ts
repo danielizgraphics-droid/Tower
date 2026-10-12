@@ -6,6 +6,7 @@
 
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { BIOME_BY_ID } from '../data/biomes';
 import type { EnemyDef, TowerId } from '../data/types';
 import type { Enemy, Tower } from '../game/entities';
 import type { Game } from '../game/game';
@@ -358,7 +359,8 @@ export class Scene3D {
         );
       }
     };
-    this.buildScenery(add, addFit, addH, grove);
+    const sky = !!BIOME_BY_ID[b.def.theme]?.sky;
+    if (!sky) this.buildScenery(add, addFit, addH, grove);
     const isPath = (x: number, y: number) => b.isWalkable(x, y);
     const rnd = (t: Tile, i: number) => {
       const v = Math.sin(t.seed * 9301 + i * 49297) * 233280;
@@ -410,7 +412,14 @@ export class Scene3D {
           case 'lava':
             waterTiles.push(t);
             break;
+          case 'void':
+            break;
           default: {
+            // Sky maps: the road is open air (drawn as a cloud trail); spawn and castle stand on islands.
+            if (sky) {
+              if (t.kind !== 'path') add(tdTile(bio, 'tile'), x, z);
+              break;
+            }
             // Path piece chosen from its open sides.
             const n = isPath(t.x, t.y - 1);
             const s = isPath(t.x, t.y + 1);
@@ -471,10 +480,109 @@ export class Scene3D {
       group.add(surf);
     }
 
+    if (sky) this.buildSky(group);
     this.scene.add(group);
     this.ground = group;
     this.shadowDirty = true;
     this.buildCastle();
+  }
+
+  /**
+   * Sky maps: rocky undersides for the floating islands, a soft trail of
+   * clouds where the flyers travel, and clouds drifting all around.
+   */
+  private buildSky(group: THREE.Group): void {
+    const b = this.game.board;
+    const rocks: THREE.BufferGeometry[] = [];
+    const puffs: THREE.BufferGeometry[] = [];
+    const farPuffs: THREE.BufferGeometry[] = [];
+    let seed = 7;
+    const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+    const solid = (x: number, y: number) => {
+      const k = b.tile(x, y)?.kind;
+      return !!k && k !== 'void' && k !== 'path';
+    };
+    // Each island tile hangs a jagged rock cone; edges get shorter ones.
+    for (const row of b.tiles)
+      for (const t of row) {
+        if (!solid(t.x, t.y)) continue;
+        const inner = [
+          [1, 0],
+          [-1, 0],
+          [0, 1],
+          [0, -1],
+        ].filter(([dx, dy]) => solid(t.x + dx, t.y + dy)).length;
+        const depth = 0.55 + inner * 0.22 + rnd() * 0.35;
+        const g = new THREE.ConeGeometry(0.62, depth, 6, 1);
+        g.rotateX(Math.PI);
+        g.rotateY(rnd() * Math.PI);
+        g.translate(t.x + 0.5, -depth / 2 + 0.02, t.y + 0.5);
+        rocks.push(g);
+      }
+    // Cloud trail along the flyers' route.
+    const len = b.length;
+    for (let d = 0; d < len; d += 0.32) {
+      const p = b.pointAt(d);
+      const g = new THREE.IcosahedronGeometry(1, 1);
+      const s = 0.22 + rnd() * 0.16;
+      g.scale(s * 1.4, s * 0.55, s * 1.4);
+      g.translate(p.x + (rnd() - 0.5) * 0.45, 0.05 + rnd() * 0.08, p.y + (rnd() - 0.5) * 0.45);
+      puffs.push(g);
+    }
+    // Clouds around and below the archipelago.
+    const W = b.width;
+    const H = b.height;
+    for (let i = 0; i < 70; i++) {
+      const cx = -10 + rnd() * (W + 20);
+      const cz = -10 + rnd() * (H + 20);
+      if (cx > -1 && cx < W + 1 && cz > -1 && cz < H + 1 && rnd() < 0.7) continue;
+      const y = -1.5 - rnd() * 4;
+      for (let k = 0; k < 4; k++) {
+        const g = new THREE.IcosahedronGeometry(1, 1);
+        const s = 0.7 + rnd() * 1.1;
+        g.scale(s * 1.5, s * 0.6, s * 1.2);
+        g.translate(cx + (rnd() - 0.5) * 2.4, y + rnd() * 0.4, cz + (rnd() - 0.5) * 1.8);
+        farPuffs.push(g);
+      }
+    }
+    const mesh = (geos: THREE.BufferGeometry[], mat: THREE.Material, shadows: boolean) => {
+      const merged = mergeGeometries(geos, false);
+      for (const g of geos) g.dispose();
+      if (!merged) return;
+      const m = new THREE.Mesh(merged, mat);
+      m.castShadow = shadows;
+      m.receiveShadow = shadows;
+      m.matrixAutoUpdate = false;
+      m.updateMatrix();
+      group.add(m);
+    };
+    mesh(rocks, new THREE.MeshStandardMaterial({ color: '#8a7466', roughness: 1, flatShading: true }), true);
+    mesh(
+      puffs,
+      new THREE.MeshStandardMaterial({
+        color: '#ffffff',
+        roughness: 1,
+        transparent: true,
+        opacity: 0.6,
+        depthWrite: false,
+        emissive: '#dfefff',
+        emissiveIntensity: 0.25,
+      }),
+      false,
+    );
+    mesh(
+      farPuffs,
+      new THREE.MeshStandardMaterial({
+        color: '#ffffff',
+        roughness: 1,
+        transparent: true,
+        opacity: 0.85,
+        emissive: '#e8f4ff',
+        emissiveIntensity: 0.3,
+        flatShading: true,
+      }),
+      false,
+    );
   }
 
   /**

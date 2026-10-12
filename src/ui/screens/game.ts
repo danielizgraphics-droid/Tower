@@ -41,7 +41,11 @@ export function gameScreen(app: App, route: Route): Screen {
   const difficulty: Difficulty = route.difficulty;
   const profile = app.profile;
   // A mission decides which towers can be built (even ones the player doesn't own yet).
-  const unlocked = mission ? mission.towers : TOWER_LIST.filter((t) => profile.towers[t.id].unlocked).map((t) => t.id);
+  // Over the clouds only towers that can hit flyers make sense.
+  const skyMap = !!BIOMES.find((b) => b.id === run.biome)?.sky;
+  const unlocked = (mission ? mission.towers : TOWER_LIST.filter((t) => profile.towers[t.id].unlocked).map((t) => t.id)).filter(
+    (id) => !skyMap || TOWERS[id].targetsAir,
+  );
   /** Towers shown in the build bar: exclusive ones only once earned; in missions, only the allowed ones. */
   const barTowers = TOWER_LIST.filter((t) => (mission ? unlocked.includes(t.id) : !t.exclusive || unlocked.includes(t.id)));
 

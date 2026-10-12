@@ -243,6 +243,18 @@ export const BIOMES_3D: Record<Biome, Biome3D> = {
     water: '#3ab8d6',
     light: { sky: '#fff4d8', ground: '#7a6a3a', hemi: 1.65, sun: '#fff0c8', sunI: 2.75 },
   },
+  sky: {
+    ground: ['#a6e68e', '#5aa458'],
+    path: ['#ffffff', '#dfeaf6'],
+    trees: [],
+    treeH: [1, 1],
+    props: [],
+    flowers: [N('flower_yellowA'), N('flower_redA'), N('grass_large')],
+    far: [],
+    woods: 0,
+    water: '#6ac8ff',
+    light: { sky: '#eaf6ff', ground: '#8ab0d0', hemi: 1.75, sun: '#fffaf0', sunI: 2.6 },
+  },
 };
 
 /** Kenney tower-defense tile in the biome's variant (snow or default). */

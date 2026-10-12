@@ -13,6 +13,8 @@ export interface BiomeDef {
   exclusive?: boolean;
   /** Multiplier on gold dropped by enemies. */
   goldMult?: number;
+  /** Floating islands in the sky: the road is open air, only flyers come. */
+  sky?: boolean;
   /** Decoration densities. */
   trees: number;
   rocks: number;
@@ -220,6 +222,20 @@ export const BIOMES: BiomeDef[] = [
     flowers: 0.06,
     prefixes: ['Valle de', 'Campos de', 'Tesoro de', 'Ruta de'],
     places: ['Oro', 'Trigo Real', 'El Dorado', 'Sol de Ámbar', 'Corona', 'Miel'],
+  },
+  {
+    id: 'sky',
+    name: 'Islas del Cielo',
+    description: 'Islotes flotando entre las nubes. Solo llegan enemigos voladores, y solo se construye en las islas.',
+    hpScale: 1.25,
+    exclusive: true,
+    sky: true,
+    trees: 0,
+    rocks: 0,
+    water: 0,
+    flowers: 0.12,
+    prefixes: ['Islas de', 'Archipiélago de', 'Cumbres de', 'Nubes de'],
+    places: ['Aire', 'Viento Alto', 'Algodón', 'Halcón', 'Cielo Abierto', 'Altamar'],
   },
 ];
 

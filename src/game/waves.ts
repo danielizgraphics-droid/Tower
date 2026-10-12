@@ -34,6 +34,8 @@ const BOSS_CYCLE: EnemyId[] = ['warlord', 'lich', 'dragon'];
 export function bossFor(wave: number, biome?: Biome): EnemyId | undefined {
   if (wave % 10 !== 0) return undefined;
   const slot = (wave / 10 - 1) % BOSS_CYCLE.length;
+  // Over the clouds only winged bosses can reach the castle.
+  if (biome && BIOME_BY_ID[biome]?.sky) return slot === 2 ? 'dragon' : 'hiveQueen';
   if (slot === 1 && biome) {
     const regional = BIOME_BY_ID[biome]?.boss;
     if (regional) return regional;
@@ -61,9 +63,13 @@ export function generateWave(map: MapDef, wave: number): WaveDef {
     budget *= 0.45;
   }
 
-  const eligible = ENEMY_LIST.filter((e) => e.minWave <= wave && !e.boss && e.threat > 0 && (!e.biomes || e.biomes.includes(map.theme)));
+  // Sky maps: only flyers (any region's), introduced a few waves earlier.
+  const sky = !!BIOME_BY_ID[map.theme]?.sky;
+  const eligible = sky
+    ? ENEMY_LIST.filter((e) => e.flying && !e.boss && e.threat > 0 && Math.max(1, e.minWave - 3) <= wave)
+    : ENEMY_LIST.filter((e) => e.minWave <= wave && !e.boss && e.threat > 0 && (!e.biomes || e.biomes.includes(map.theme)));
   // Newly introduced enemy types get the spotlight on their debut wave.
-  const debut = eligible.filter((e) => e.minWave === wave);
+  const debut = eligible.filter((e) => (sky ? Math.max(1, e.minWave - 3) : e.minWave) === wave);
   const groupCount = Math.min(eligible.length, wave < 4 ? 1 : wave < 12 ? rng.int(2, 3) : rng.int(2, 4));
   const chosen: EnemyId[] = debut.map((e) => e.id);
   // Regional enemies show up more often in their home biome.

@@ -3,6 +3,7 @@
 // (towers and regions that can't be bought with stars).
 
 import type { MissionRules } from '../game/game';
+import { BIOME_BY_ID } from './biomes';
 import type { Biome, Difficulty, TowerId } from './types';
 
 export interface MissionReward {
@@ -141,6 +142,20 @@ export const MISSIONS: MissionDef[] = [
     rules: {},
     requires: ['mages'],
     reward: { stars: 8 },
+  },
+  {
+    id: 'skies',
+    chapter: 1,
+    name: 'Islas del Cielo',
+    story: 'Un archipiélago flota sobre las nubes. Los enemigos llegan volando por el aire y solo puedes construir en los islotes.',
+    biome: 'sky',
+    seed: 4243,
+    difficulty: 'normal',
+    waves: 20,
+    towers: ['arcane', 'frost', 'storm', 'sanctum', 'obelisk', 'falconer'],
+    rules: { hpMult: 1.4 },
+    requires: ['mages'],
+    reward: { region: 'sky' },
   },
   {
     id: 'elements',
@@ -290,6 +305,7 @@ export function ruleLines(m: MissionDef): string[] {
   if (r.noBlessings) out.push('Sin bendiciones');
   if (r.startGold !== undefined) out.push(`Empiezas con ${r.startGold} de oro`);
   if (r.groundOnly) out.push('Sin enemigos voladores');
+  if (BIOME_BY_ID[m.biome].sky) out.push('Solo enemigos voladores');
   if (r.hpMult && r.hpMult > 1) out.push(`Enemigos +${Math.round((r.hpMult - 1) * 100)}% de vida`);
   return out;
 }
