@@ -34,7 +34,7 @@ for (const m of MISSIONS) {
   const lives: number[] = [];
   for (let r = 0; r < runs; r++) {
     const g = new Game({
-      map: generateMap({ biome: m.biome, seed: m.seed, waves: m.waves }),
+      map: generateMap({ biome: m.biome, seed: m.seed, waves: m.waves, water: m.water }),
       difficulty: m.difficulty,
       mods: mods(),
       unlockedTowers: baseline ? ALL_TOWERS : m.towers,

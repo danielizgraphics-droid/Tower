@@ -37,7 +37,7 @@ export function gameScreen(app: App, route: Route): Screen {
   /** Set when a won campaign continues in endless mode: what was already rewarded. */
   let continued: { waves: number; kills: number; bosses: number; xp: Partial<Record<TowerId, number>> } | null = null;
   const mission = run.mission ? (MISSION_BY_ID[run.mission] ?? null) : null;
-  const mapDef = generateMap({ biome: run.biome, seed: run.seed, waves: mission ? mission.waves : endless ? Infinity : 30 });
+  const mapDef = generateMap({ biome: run.biome, seed: run.seed, waves: mission ? mission.waves : endless ? Infinity : 30, water: mission?.water });
   const difficulty: Difficulty = route.difficulty;
   const profile = app.profile;
   // A mission decides which towers can be built (even ones the player doesn't own yet).
@@ -1434,9 +1434,11 @@ export function gameScreen(app: App, route: Route): Screen {
         preview.style.display = '';
         preview.replaceChildren(
           h('span', 'Siguiente:'),
-          ...wavePreview(next).map((p) =>
-            h('span.e', h('img', { src: enemyPortrait(p.enemy, 48), alt: ENEMIES[p.enemy].name, title: ENEMIES[p.enemy].name }), `×${p.count}`),
-          ),
+          ...wavePreview(next)
+            .filter((p) => !(game.rules.groundOnly && ENEMIES[p.enemy].flying))
+            .map((p) =>
+              h('span.e', h('img', { src: enemyPortrait(p.enemy, 48), alt: ENEMIES[p.enemy].name, title: ENEMIES[p.enemy].name }), `×${p.count}`),
+            ),
         );
       } else preview.style.display = 'none';
     }

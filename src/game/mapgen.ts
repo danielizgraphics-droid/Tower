@@ -9,6 +9,8 @@ export interface MapGenOptions {
   size?: number;
   /** Number of waves; Infinity for endless mode. */
   waves?: number;
+  /** Amount of ponds and lagoons (replaces the biome's; missions use it for flooded maps). */
+  water?: number;
 }
 
 /** Short shareable code for a seed. */
@@ -53,7 +55,7 @@ export function generateMap(opts: MapGenOptions): MapDef {
   const last = tileOf(path[path.length - 1]);
   grid[last.y][last.x] = 'C';
 
-  decorate(grid, rng, biome);
+  decorate(grid, rng, opts.water === undefined ? biome : { ...biome, water: opts.water });
 
   const name = `${rng.pick(biome.prefixes)} ${rng.pick(biome.places)}`;
   return {

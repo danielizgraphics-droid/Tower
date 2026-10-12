@@ -32,7 +32,6 @@ describe('missions', () => {
     const m = MISSION_BY_ID.nomagic;
     expect(missionAvailable(p, m)).toBe(false);
     p.missions.archers = { done: true };
-    p.missions.few = { done: true };
     expect(missionAvailable(p, m)).toBe(true);
     const base = { towerXp: {}, kills: 10, bossesKilled: 0, xpGain: 0 };
     expect(applyMissionResult(p, m, { ...base, victory: false }).reward).toBeNull();
@@ -67,5 +66,27 @@ describe('missions', () => {
     expect(g.upgrade(a)).toBe(true);
     expect(g.upgrade(a)).toBe(false);
     expect(g.upgradeCost(a)).toBeNull();
+  });
+
+  it('ground-only missions never field flying enemies', () => {
+    const g = new Game({
+      map: generateMap({ biome: 'coast', seed: 2207, waves: 15, water: 6 }),
+      difficulty: 'easy',
+      mods: new ModifierSet(),
+      unlockedTowers: ['harbor', 'tide'],
+      rules: { groundOnly: true },
+      seed: 1,
+    });
+    g.lives = 1e6;
+    let flyers = 0;
+    let guard = 0;
+    while (g.phase !== 'victory' && guard++ < 60 * 3000) {
+      if (g.phase === 'augment') g.pickAugment(g.augmentOffer[0].id);
+      if (g.canStartWave()) g.startNextWave();
+      g.step(1 / 60);
+      flyers += g.enemies.filter((e) => e.alive && e.def.flying).length;
+    }
+    expect(g.phase).toBe('victory');
+    expect(flyers).toBe(0);
   });
 });

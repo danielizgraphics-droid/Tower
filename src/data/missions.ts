@@ -22,6 +22,8 @@ export interface MissionDef {
   seed: number;
   difficulty: Difficulty;
   waves: number;
+  /** Amount of ponds (flooded maps for naval missions); default: the region's. */
+  water?: number;
   /** Towers that may be built (they can be tried even if not unlocked yet). */
   towers: TowerId[];
   rules: MissionRules;
@@ -32,7 +34,11 @@ export interface MissionDef {
 
 export const CHAPTERS = ['Pruebas del Reino', 'Maestros de la Guerra', 'Leyendas'];
 
-const BASIC: TowerId[] = ['archer', 'cannon', 'arcane', 'frost'];
+/** Tower sets for themed missions. */
+const NAVAL: TowerId[] = ['harbor', 'tide'];
+const MAGIC: TowerId[] = ['arcane', 'frost', 'storm', 'sanctum', 'obelisk'];
+const SIEGE: TowerId[] = ['ballista', 'cannon', 'alchemist', 'quake'];
+const ELEMENTAL: TowerId[] = ['pyre', 'frost', 'storm', 'alchemist', 'tide', 'quake'];
 
 export const MISSIONS: MissionDef[] = [
   // ---------------------------------------------------------------- chapter 1
@@ -51,75 +57,105 @@ export const MISSIONS: MissionDef[] = [
     reward: { stars: 5 },
   },
   {
-    id: 'few',
+    id: 'tides',
     chapter: 0,
-    name: 'Pocas manos',
-    story: 'Media guarnición está de permiso. Defiende el valle con muy pocas torres.',
-    biome: 'meadow',
-    seed: 2203,
+    name: 'Mareas',
+    story: 'La costa se ha inundado: solo se puede construir sobre el agua. Por suerte la tormenta mantiene lejos a los voladores.',
+    biome: 'coast',
+    seed: 2207,
+    water: 6,
     difficulty: 'normal',
     waves: 15,
-    towers: BASIC,
-    rules: { maxTowers: 6 },
+    towers: NAVAL,
+    rules: { groundOnly: true },
     requires: [],
     reward: { stars: 6 },
   },
   {
-    id: 'nomagic',
+    id: 'fireice',
     chapter: 0,
-    name: 'Sin magia',
-    story: 'Los magos de la corte han perdido la voz: no hay hechizos. Solo acero, pólvora y alquimia.',
+    name: 'Fuego y hielo',
+    story: 'Dos hermanas hechiceras, una de fuego y otra de hielo, defienden juntas el paso.',
+    biome: 'snow',
+    seed: 3301,
+    difficulty: 'normal',
+    waves: 18,
+    towers: ['pyre', 'frost'],
+    rules: {},
+    requires: [],
+    reward: { stars: 6 },
+  },
+  {
+    id: 'mages',
+    chapter: 0,
+    name: 'Escuela de magos',
+    story: 'Examen final de la academia: solo torres mágicas contra la ciénaga.',
+    biome: 'swamp',
+    seed: 6603,
+    difficulty: 'normal',
+    waves: 20,
+    towers: MAGIC,
+    rules: { hpMult: 1.45, maxTowers: 12 },
+    requires: ['fireice'],
+    reward: { tower: 'hexhut' },
+  },
+  // ---------------------------------------------------------------- chapter 2
+  {
+    id: 'nomagic',
+    chapter: 1,
+    name: 'Acero y pólvora',
+    story: 'Los magos de la corte han perdido la voz: no hay hechizos. Solo flechas, acero, pólvora y alquimia.',
     biome: 'autumn',
     seed: 3307,
-    difficulty: 'easy',
+    difficulty: 'normal',
     waves: 18,
-    towers: ['archer', 'ballista', 'cannon', 'alchemist'],
+    towers: ['archer', 'ballista', 'cannon', 'alchemist', 'falconer'],
     rules: { noSpells: true },
-    requires: ['archers', 'few'],
+    requires: ['archers'],
     reward: { tower: 'sawmill' },
   },
   {
     id: 'flawless',
-    chapter: 0,
+    chapter: 1,
     name: 'Defensa perfecta',
     story: 'El rey visita el castillo. Ni un solo enemigo puede cruzar la puerta.',
     biome: 'coast',
     seed: 4409,
     difficulty: 'easy',
     waves: 12,
-    towers: ['archer', 'cannon', 'arcane', 'frost', 'storm', 'harbor'],
+    towers: ['cannon', 'arcane', 'frost', 'storm', 'harbor', 'tide'],
     rules: { noLeaks: true },
-    requires: ['archers'],
+    requires: ['tides'],
     reward: { region: 'sakura' },
   },
-  // ---------------------------------------------------------------- chapter 2
   {
-    id: 'basics',
+    id: 'wild',
     chapter: 1,
-    name: 'Vuelta a lo básico',
-    story: 'La academia está cerrada: nada de especializaciones, solo torres de nivel 3.',
-    biome: 'desert',
-    seed: 5501,
+    name: 'Tierras salvajes',
+    story: 'En el cañón no hay canteros ni magos: solo geomantes, halconeros y mercaderes.',
+    biome: 'canyon',
+    seed: 7713,
     difficulty: 'normal',
-    waves: 20,
-    towers: ['archer', 'ballista', 'cannon', 'arcane', 'frost', 'storm', 'alchemist'],
-    rules: { maxTier: 3 },
-    requires: ['nomagic'],
-    reward: { stars: 10 },
+    waves: 18,
+    towers: ['quake', 'falconer', 'market'],
+    rules: {},
+    requires: ['mages'],
+    reward: { stars: 8 },
   },
   {
-    id: 'mages',
+    id: 'elements',
     chapter: 1,
-    name: 'Escuela de magos',
-    story: 'Una prueba para los aprendices: solo torres mágicas contra la ciénaga.',
+    name: 'Los cuatro elementos',
+    story: 'Fuego, hielo, rayo y tierra (y algo de veneno): solo torres elementales.',
     biome: 'swamp',
-    seed: 6603,
+    seed: 5521,
+    water: 3,
     difficulty: 'normal',
     waves: 20,
-    towers: ['arcane', 'frost', 'storm', 'sanctum', 'obelisk'],
+    towers: ELEMENTAL,
     rules: {},
-    requires: ['nomagic'],
-    reward: { tower: 'hexhut' },
+    requires: ['fireice', 'tides'],
+    reward: { stars: 10 },
   },
   {
     id: 'poor',
@@ -130,9 +166,9 @@ export const MISSIONS: MissionDef[] = [
     seed: 7707,
     difficulty: 'normal',
     waves: 20,
-    towers: ['archer', 'ballista', 'cannon', 'arcane', 'frost', 'storm', 'alchemist', 'pyre'],
+    towers: ['ballista', 'cannon', 'arcane', 'frost', 'storm', 'alchemist', 'pyre', 'market'],
     rules: { startGold: 110, maxTowers: 9 },
-    requires: ['flawless', 'basics'],
+    requires: ['flawless', 'nomagic'],
     reward: { region: 'gilded' },
   },
   {
@@ -144,12 +180,27 @@ export const MISSIONS: MissionDef[] = [
     seed: 8803,
     difficulty: 'normal',
     waves: 20,
-    towers: ['ballista', 'cannon', 'alchemist', 'quake'],
+    towers: SIEGE,
     rules: {},
-    requires: ['basics'],
+    requires: ['nomagic'],
     reward: { stars: 12 },
   },
   // ---------------------------------------------------------------- chapter 3
+  {
+    id: 'opensea',
+    chapter: 2,
+    name: 'Mar abierto',
+    story: 'La gran inundación: otra vez solo sobre el agua, más lejos y durante más oleadas.',
+    biome: 'coast',
+    seed: 9127,
+    water: 7,
+    difficulty: 'normal',
+    waves: 22,
+    towers: NAVAL,
+    rules: { groundOnly: true, hpMult: 1.7 },
+    requires: ['elements'],
+    reward: { stars: 15 },
+  },
   {
     id: 'lastwall',
     chapter: 2,
@@ -159,10 +210,24 @@ export const MISSIONS: MissionDef[] = [
     seed: 9901,
     difficulty: 'easy',
     waves: 20,
-    towers: ['archer', 'ballista', 'cannon', 'arcane', 'pyre', 'frost', 'storm', 'alchemist', 'sanctum', 'obelisk'],
+    towers: ['ballista', 'cannon', 'arcane', 'pyre', 'frost', 'storm', 'alchemist', 'sanctum', 'obelisk', 'falconer'],
     rules: { lives: 20, maxTowers: 12 },
     requires: ['poor', 'siege'],
     reward: { tower: 'warden' },
+  },
+  {
+    id: 'lightdark',
+    chapter: 2,
+    name: 'Luz y sombra',
+    story: 'Sacerdotes y brujos, por una vez del mismo lado: solo torres sagradas y oscuras.',
+    biome: 'dusk',
+    seed: 1319,
+    difficulty: 'normal',
+    waves: 25,
+    towers: ['sanctum', 'obelisk', 'hexhut'],
+    rules: { hpMult: 1.8, maxTowers: 8 },
+    requires: ['mages', 'wild'],
+    reward: { stars: 15 },
   },
   {
     id: 'blossom',
@@ -173,8 +238,8 @@ export const MISSIONS: MissionDef[] = [
     seed: 1213,
     difficulty: 'normal',
     waves: 22,
-    towers: ['archer', 'frost', 'storm', 'sanctum', 'sawmill', 'hexhut'],
-    rules: {},
+    towers: ['frost', 'storm', 'sanctum', 'sawmill', 'hexhut', 'tide'],
+    rules: { hpMult: 1.4 },
     requires: ['mages', 'flawless'],
     reward: { stars: 15 },
   },
@@ -187,7 +252,7 @@ export const MISSIONS: MissionDef[] = [
     seed: 1415,
     difficulty: 'normal',
     waves: 25,
-    towers: ['archer', 'ballista', 'cannon', 'arcane', 'pyre', 'frost', 'storm', 'alchemist', 'sanctum', 'obelisk', 'warden', 'sawmill', 'hexhut'],
+    towers: ['ballista', 'cannon', 'arcane', 'pyre', 'frost', 'storm', 'alchemist', 'sanctum', 'obelisk', 'warden', 'sawmill', 'hexhut'],
     rules: { maxTowers: 14 },
     requires: ['lastwall', 'blossom'],
     reward: { region: 'shadow' },
@@ -224,6 +289,7 @@ export function ruleLines(m: MissionDef): string[] {
   if (r.noSpells) out.push('Sin hechizos');
   if (r.noBlessings) out.push('Sin bendiciones');
   if (r.startGold !== undefined) out.push(`Empiezas con ${r.startGold} de oro`);
+  if (r.groundOnly) out.push('Sin enemigos voladores');
   if (r.hpMult && r.hpMult > 1) out.push(`Enemigos +${Math.round((r.hpMult - 1) * 100)}% de vida`);
   return out;
 }

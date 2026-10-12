@@ -22,6 +22,7 @@ export class AutoPlayer {
   private pathCells: { x: number; y: number }[] = [];
   private rng: Rng;
   private timer = 0;
+  private airLeaks = 0;
   /** Lower skill → worse choices (used for the casual backdrop). */
   skill = 1;
 
@@ -31,6 +32,10 @@ export class AutoPlayer {
     seed = 1,
   ) {
     this.rng = new Rng(seed);
+    // Flyers getting through means anti-air is short: value it more from then on.
+    game.events.on('leak', ({ enemy }) => {
+      if (enemy.def.flying) this.airLeaks++;
+    });
     const b = game.board;
     for (let y = 0; y < b.height; y++) for (let x = 0; x < b.width; x++) if (b.isWalkable(x, y)) this.pathCells.push({ x: x + 0.5, y: y + 0.5 });
   }
@@ -106,6 +111,7 @@ export class AutoPlayer {
       if (!spot) continue;
       let value = (this.eff(s, id, -1) * Math.sqrt(best)) / Math.max(1, cost);
       if (airSoon && !hasAir && TOWERS[id].targetsAir) value *= 2.5;
+      if (TOWERS[id].targetsAir) value *= 1 + Math.min(4, this.airLeaks * 0.4);
       const sx = spot.x;
       const sy = spot.y;
       actions.push({ value, cost, run: () => g.build(id, sx, sy) });

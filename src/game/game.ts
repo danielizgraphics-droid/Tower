@@ -71,6 +71,8 @@ export interface MissionRules {
   lives?: number;
   /** Extra enemy health multiplier. */
   hpMult?: number;
+  /** No flying enemies. */
+  groundOnly?: boolean;
 }
 
 const FIXED_DT = 1 / 60;
@@ -283,7 +285,8 @@ export class Game {
       let allDone = true;
       sp.wave.groups.forEach((g, i) => {
         while (sp.spawned[i] < g.count && sp.time >= g.start + sp.spawned[i] * g.interval) {
-          this.spawnEnemy(g.enemy, sp.wave.index, -SPAWN_LEAD);
+          // Missions may keep flying enemies away (naval maps).
+          if (!(this.rules.groundOnly && ENEMIES[g.enemy].flying)) this.spawnEnemy(g.enemy, sp.wave.index, -SPAWN_LEAD);
           sp.spawned[i]++;
         }
         if (sp.spawned[i] < g.count) allDone = false;
