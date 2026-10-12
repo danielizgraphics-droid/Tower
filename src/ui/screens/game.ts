@@ -904,7 +904,8 @@ export function gameScreen(app: App, route: Route): Screen {
           ),
           h(
             'button.btn',
-            { onclick: () => (sfx('click'), app.go({ name: 'game', biome: run.biome, seed: run.seed, difficulty, endless })) },
+            // Same battle from the start: a mission stays a mission (with its rules and towers).
+            { onclick: () => (sfx('click'), app.go({ ...run, endless, resume: false })) },
             icon('refresh', 18),
             'Reiniciar',
           ),
