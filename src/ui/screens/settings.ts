@@ -1,6 +1,4 @@
-import { HERO_LIST } from '../../data/towers';
-import { defaultProfile, exportProfileCode, heroProgress, importProfileCode, type Settings } from '../../meta/profile';
-import { towerPortrait } from '../../render/portraits';
+import { defaultProfile, exportProfileCode, importProfileCode, type Settings } from '../../meta/profile';
 import type { App } from '../app';
 import { h } from '../dom';
 import { icon } from '../icons';
@@ -41,40 +39,6 @@ function graphicsSeg(value: Settings['graphics'], onChange: (v: Settings['graphi
     seg.appendChild(b);
   }
   return seg;
-}
-
-/** Pick the hero tower to bring to battles (locked ones show what unlocks them). */
-function heroPicker(app: App, onPick: () => void): HTMLElement {
-  const p = app.profile;
-  const grid = h('div.hero-grid');
-  const render = () =>
-    grid.replaceChildren(
-      ...HERO_LIST.map((def) => {
-        const prog = heroProgress(p, def.id);
-        const chosen = p.hero === def.id && prog.done;
-        const card = h(
-          `button.hero-card${chosen ? '.on' : ''}${prog.done ? '' : '.locked'}`,
-          { disabled: !prog.done, title: def.description },
-          h('img', { src: towerPortrait(def.id, 1, -1, 64), alt: '' }),
-          h(
-            'span.hero-text',
-            h('b', def.name),
-            h('small', def.hero!.title),
-            prog.done ? null : h('small.lock', icon('lock', 11), prog.text, prog.progress ? ` (${prog.progress})` : ''),
-          ),
-          chosen ? h('span.hero-check', icon('check', 14)) : null,
-        );
-        card.onclick = () => {
-          app.sfx('click');
-          p.hero = chosen ? null : def.id;
-          render();
-          onPick();
-        };
-        return card;
-      }),
-    );
-  render();
-  return grid;
 }
 
 const CLOUD_TEXT = {
@@ -219,12 +183,6 @@ export function openSettings(app: App, host: HTMLElement, onClose?: () => void, 
           h('span', 'Gráficos'),
           graphicsSeg(st.graphics ?? 'auto', (v) => ((st.graphics = v), apply())),
           h('span.muted.tiny', 'Ahorro: menos resolución y 30 imágenes por segundo, para que el móvil no se caliente.'),
-        ),
-        h(
-          'div.setting.column',
-          h('span', 'Torre heroica'),
-          h('span.muted.tiny', 'Puedes poner una por partida. Sube de nivel con cada enemigo que abate, pero empieza de cero en cada partida.'),
-          heroPicker(app, () => apply()),
         ),
         h('div.setting', h('span', 'Progreso'), cloudBadge(app)),
         extra

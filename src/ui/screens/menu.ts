@@ -8,6 +8,7 @@ import { BIOME_BY_ID } from '../../data/biomes';
 import { loadRun } from '../../meta/runsave';
 import { cloudBadge, openSettings } from './settings';
 import { pendingMissions } from './missions';
+import { newHeroes } from './heroes';
 
 /** True when the player can buy at least one talent somewhere. */
 export function hasAffordableTalent(app: App): boolean {
@@ -53,6 +54,11 @@ export function menuScreen(app: App): Screen {
     talentsBtn.append(
       h('span', { style: 'position:absolute;top:-6px;right:-6px;width:16px;height:16px;border-radius:50%;background:#e5484d;border:3px solid #fff' }),
     );
+  const heroesBtn = h('button.btn.big.gold', { onclick: click(() => app.go({ name: 'heroes' })) }, icon('crown', 22), 'Héroes');
+  if (newHeroes(app) > 0)
+    heroesBtn.append(
+      h('span', { style: 'position:absolute;top:-6px;right:-6px;width:16px;height:16px;border-radius:50%;background:#e5484d;border:3px solid #fff' }),
+    );
   const missionsBtn = h('button.btn.big.green', { onclick: click(() => app.go({ name: 'missions' })) }, icon('scroll', 22), 'Misiones');
   const pending = pendingMissions(app);
   if (pending > 0)
@@ -81,6 +87,7 @@ export function menuScreen(app: App): Screen {
         resumeButton(app, click),
         h('button.btn.big.primary', { onclick: click(() => app.go({ name: 'maps' })) }, icon('play', 22), 'Jugar'),
         missionsBtn,
+        heroesBtn,
         talentsBtn,
         h('button.btn.big', { onclick: click(() => app.go({ name: 'codex' })) }, icon('book', 22), 'Códice'),
         h('button.btn.big.wood', { onclick: click(() => openSettings(app, el)) }, icon('gear', 22), 'Ajustes'),

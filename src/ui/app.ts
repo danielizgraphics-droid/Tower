@@ -30,6 +30,7 @@ export type Route =
   | { name: 'talents'; tab?: string }
   | { name: 'codex' }
   | { name: 'missions' }
+  | { name: 'heroes' }
   | { name: 'game'; biome: Biome; seed: number; difficulty: Difficulty; endless: boolean; resume?: boolean; mission?: string };
 
 type ScreenFactory = (app: App, route: Route) => Screen;
