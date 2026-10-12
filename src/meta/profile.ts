@@ -7,6 +7,11 @@ import { GENERAL_TREE, TOWER_TREES, isAnyRequirement, towerLevelFromXp, type Tal
 
 export const SAVE_KEY = 'bastion-arcano.save';
 export const SAVE_VERSION = 3;
+/**
+ * Bumping this wipes everyone's progress the next time they open the game
+ * (local saves, cloud saves and old transfer codes alike); settings are kept.
+ */
+export const PROGRESS_EPOCH = 2;
 
 export interface TowerProgress {
   unlocked: boolean;
@@ -34,6 +39,8 @@ export interface Settings {
 
 export interface Profile {
   version: number;
+  /** Progress generation (see PROGRESS_EPOCH). */
+  epoch: number;
   stars: number;
   starsEarned: number;
   general: Record<string, number>;
@@ -59,6 +66,7 @@ export function defaultProfile(): Profile {
   for (const t of TOWER_LIST) towers[t.id] = { unlocked: t.unlockCost === 0 && !t.exclusive, xp: 0, talents: {} };
   return {
     version: SAVE_VERSION,
+    epoch: PROGRESS_EPOCH,
     stars: 0,
     starsEarned: 0,
     general: {},
@@ -79,6 +87,8 @@ export function migrateProfile(raw: unknown): Profile {
   const base = defaultProfile();
   if (!raw || typeof raw !== 'object') return base;
   const p = raw as Partial<Profile> & { version?: number };
+  // Progress from before the last global reset: start over, keeping only the settings.
+  if (p.epoch !== PROGRESS_EPOCH) return { ...base, settings: { ...base.settings, ...(p.settings ?? {}) } };
   const out: Profile = {
     ...base,
     ...p,

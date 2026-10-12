@@ -6,12 +6,14 @@ import { AUGMENT_MAP } from '../data/augments';
 import { TOWERS } from '../data/towers';
 import type { Biome, Difficulty, TargetMode, TowerId } from '../data/types';
 import type { Game } from '../game/game';
-import type { Storage } from './profile';
+import { PROGRESS_EPOCH, type Storage } from './profile';
 
 const KEY = 'bastion-arcano.run';
 
 export interface RunSave {
   v: 1;
+  /** Progress generation it belongs to (battles from before a global reset are dropped). */
+  epoch?: number;
   savedAt: number;
   biome: Biome;
   seed: number;
@@ -44,6 +46,7 @@ export function captureRun(
 ): RunSave {
   return {
     v: 1,
+    epoch: PROGRESS_EPOCH,
     savedAt: Date.now(),
     ...run,
     wave: game.wave,
@@ -117,7 +120,7 @@ export function loadRun(storage: Storage | undefined): RunSave | null {
   try {
     const txt = storage?.getItem(KEY);
     const s = txt ? (JSON.parse(txt) as RunSave) : null;
-    return s && s.v === 1 && Array.isArray(s.towers) ? s : null;
+    return s && s.v === 1 && s.epoch === PROGRESS_EPOCH && Array.isArray(s.towers) ? s : null;
   } catch {
     return null;
   }

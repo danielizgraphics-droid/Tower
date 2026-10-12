@@ -12,6 +12,7 @@ import {
   saveProfile,
   towerPointsAvailable,
   unlockTower,
+  PROGRESS_EPOCH,
 } from '../src/meta/profile';
 import { GENERAL_TREE, TOWER_TREES, towerLevelFromXp } from '../src/meta/talentTrees';
 
@@ -106,7 +107,7 @@ describe('profile & talents', () => {
 
   it('migrates partial / corrupt saves safely', () => {
     expect(migrateProfile(null).version).toBeGreaterThan(0);
-    const m = migrateProfile({ stars: 5, towers: { archer: { unlocked: true, xp: 50 } }, settings: { sfxVolume: 0.1 } });
+    const m = migrateProfile({ epoch: PROGRESS_EPOCH, stars: 5, towers: { archer: { unlocked: true, xp: 50 } }, settings: { sfxVolume: 0.1 } });
     expect(m.stars).toBe(5);
     expect(m.towers.archer.xp).toBe(50);
     expect(m.towers.obelisk.unlocked).toBe(false);
@@ -118,5 +119,26 @@ describe('profile & talents', () => {
     expect(loadProfile(storage).stars).toBe(5);
     mem.set('bastion-arcano.save', '{not json');
     expect(loadProfile(storage).stars).toBe(0);
+  });
+
+  it('a global reset wipes older progress (local, cloud or codes) but keeps the settings', () => {
+    const old = {
+      stars: 160,
+      towers: { ballista: { unlocked: true, xp: 900 } },
+      missions: { tides: { done: true } },
+      regions: ['sky'],
+      hero: 'lyra',
+      stats: { runs: 9, wins: 5, kills: 3000, bossesKilled: 9 },
+      settings: { sfxVolume: 0.2 },
+    };
+    const m = migrateProfile(old);
+    expect(m.epoch).toBe(PROGRESS_EPOCH);
+    expect(m.stars).toBe(0);
+    expect(m.towers.ballista.unlocked).toBe(false);
+    expect(m.missions).toEqual({});
+    expect(m.regions).toEqual([]);
+    expect(m.hero).toBeNull();
+    expect(m.stats.wins).toBe(0);
+    expect(m.settings.sfxVolume).toBe(0.2);
   });
 });
