@@ -193,6 +193,38 @@ export function towerModels(id: TowerId): string[] {
   return [...out];
 }
 
+const goldMats = new WeakMap<THREE.Material, THREE.Material>();
+
+/** Golden variant of a material (shared by every golden tower). */
+function goldOf(m: THREE.Material): THREE.Material {
+  let g = goldMats.get(m);
+  if (!g) {
+    const s = m as THREE.MeshStandardMaterial;
+    if (!s.isMeshStandardMaterial) return m;
+    const c = s.clone();
+    // Keep a hint of the original shading, mostly gold; a warm glow instead of metal (no reflections to show).
+    const lum = c.color.r * 0.3 + c.color.g * 0.59 + c.color.b * 0.11;
+    c.color.setRGB(1, 0.78, 0.25).multiplyScalar(0.55 + lum * 0.6);
+    c.metalness = 0.1;
+    c.roughness = 0.45;
+    c.emissive = new THREE.Color('#8a5a00');
+    c.emissiveIntensity = 0.38;
+    goldMats.set(m, (g = c));
+  }
+  return g;
+}
+
+/** Mastered towers: gold all over (the champion, the bird and the magic orb keep their colours). */
+export function gild(parts: TowerParts): void {
+  const keep = new Set<THREE.Object3D>();
+  for (const o of [parts.orb, parts.flash, parts.pet?.pivot]) o?.traverse((x) => keep.add(x));
+  parts.root.traverse((o) => {
+    const m = o as THREE.Mesh;
+    if (!m.isMesh || keep.has(m) || (m as THREE.SkinnedMesh).isSkinnedMesh) return;
+    m.material = Array.isArray(m.material) ? m.material.map(goldOf) : goldOf(m.material);
+  });
+}
+
 /** Builds the tower, or returns null (and starts loading) while its pieces are not ready. */
 export function towerParts(id: TowerId, tier: number, branch: number): TowerParts | null {
   const p = plan(id, tier, branch);

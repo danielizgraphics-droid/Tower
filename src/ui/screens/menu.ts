@@ -1,6 +1,6 @@
 import { TOWER_LIST } from '../../data/towers';
 import { GENERAL_TREE, TOWER_TREES } from '../../meta/talentTrees';
-import { nodeState } from '../../meta/profile';
+import { nodeState, RANKS, rankOf } from '../../meta/profile';
 import type { App, Screen } from '../app';
 import { h } from '../dom';
 import { icon } from '../icons';
@@ -43,6 +43,28 @@ function resumeButton(app: App, click: (fn: () => void) => () => void): HTMLElem
   );
 }
 
+/** The player's medieval rank, with its phrase and the way to the next one. */
+function rankPanel(app: App): HTMLElement {
+  const p = app.profile;
+  const { index, score } = rankOf(p);
+  const rank = RANKS[index];
+  const next = RANKS[index + 1];
+  const promoted = index > (p.rankSeen ?? 0);
+  if (promoted) {
+    p.rankSeen = index;
+    app.save();
+  }
+  const frac = next ? (score - rank.at) / (next.at - rank.at) : 1;
+  return h(
+    `div.rank${promoted ? '.promoted' : ''}`,
+    h('div.rank-title', promoted ? `¡Ascendido a ${rank.title}!` : rank.title),
+    h('div.rank-phrase', rank.phrase),
+    next
+      ? h('div.rank-next', h('span.bar', h('span', { style: `width:${Math.round(frac * 100)}%` })), h('span', `Siguiente rango: ${next.title}`))
+      : null,
+  );
+}
+
 export function menuScreen(app: App): Screen {
   const p = app.profile;
   const click = (fn: () => void) => () => {
@@ -76,12 +98,7 @@ export function menuScreen(app: App): Screen {
     'div.screen.dim',
     h(
       'div.menu-wrap',
-      h(
-        'div.logo',
-        h('div.kicker', 'Tower Defense'),
-        h('h1', 'Bastión Arcano'),
-        h('div.tagline', 'Defiende el reino. Cada batalla, un campo distinto.'),
-      ),
+      h('div.logo', h('div.kicker', 'Tower Defense'), h('h1', 'Bastión Arcano'), rankPanel(app)),
       h(
         'div.menu-buttons.panel.ornate',
         resumeButton(app, click),

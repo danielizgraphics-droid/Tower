@@ -4,12 +4,15 @@
 
 import type { MissionRules } from '../game/game';
 import { BIOME_BY_ID } from './biomes';
+import { masteryMissions } from './mastery';
 import type { Biome, Difficulty, TowerId } from './types';
 
 export interface MissionReward {
   stars?: number;
   tower?: TowerId;
   region?: Biome;
+  /** Completes a tower's mastery series: its golden look. */
+  mastery?: TowerId;
 }
 
 export interface MissionDef {
@@ -31,9 +34,13 @@ export interface MissionDef {
   /** Missions to complete first. */
   requires: string[];
   reward: MissionReward;
+  /** Part of a tower's mastery series (step 1..4). */
+  mastery?: { tower: TowerId; step: number };
+  /** Only playable once this tower is owned. */
+  needsTower?: TowerId;
 }
 
-export const CHAPTERS = ['Pruebas del Reino', 'Maestros de la Guerra', 'Leyendas'];
+export const CHAPTERS = ['Pruebas del Reino', 'Maestros de la Guerra', 'Leyendas', 'Tierras Lejanas'];
 
 /** Tower sets for themed missions. */
 const NAVAL: TowerId[] = ['harbor', 'tide'];
@@ -41,7 +48,7 @@ const MAGIC: TowerId[] = ['arcane', 'frost', 'storm', 'sanctum', 'obelisk'];
 const SIEGE: TowerId[] = ['ballista', 'cannon', 'alchemist', 'quake'];
 const ELEMENTAL: TowerId[] = ['pyre', 'frost', 'storm', 'alchemist', 'tide', 'quake'];
 
-export const MISSIONS: MissionDef[] = [
+const STORY: MissionDef[] = [
   // ---------------------------------------------------------------- chapter 1
   {
     id: 'archers',
@@ -286,7 +293,111 @@ export const MISSIONS: MissionDef[] = [
     requires: ['veil'],
     reward: { stars: 25 },
   },
+  // ---------------------------------------------------------------- chapter 4
+  {
+    id: 'dragonsky',
+    chapter: 3,
+    name: 'Cielo de dragones',
+    story: 'Las islas del cielo vuelven a llenarse de alas. Esta vez vienen más, y más fuertes.',
+    biome: 'sky',
+    seed: 4243,
+    difficulty: 'normal',
+    waves: 22,
+    towers: ['arcane', 'frost', 'storm', 'sanctum', 'obelisk', 'falconer', 'hexhut', 'warden'],
+    rules: { hpMult: 1.4 },
+    requires: ['skies', 'darkcrown'],
+    reward: { stars: 20 },
+  },
+  {
+    id: 'goldrush',
+    chapter: 3,
+    name: 'Fiebre del oro',
+    story: 'En el Valle Dorado todo se compra. Empiezas casi sin nada y con sitio para pocas torres: los mercados son la clave.',
+    biome: 'gilded',
+    seed: 2713,
+    difficulty: 'normal',
+    waves: 22,
+    towers: ['market', 'archer', 'cannon', 'arcane', 'frost', 'alchemist', 'ballista'],
+    rules: { startGold: 90, maxTowers: 11 },
+    requires: ['darkcrown'],
+    reward: { stars: 20 },
+  },
+  {
+    id: 'blackwater',
+    chapter: 3,
+    name: 'Aguas negras',
+    story: 'La ciénaga se ha envenenado. Dificultad heroica: solo venenos, sombras y agua.',
+    biome: 'swamp',
+    seed: 2717,
+    water: 4,
+    difficulty: 'hard',
+    waves: 20,
+    towers: ['alchemist', 'obelisk', 'tide', 'harbor', 'frost', 'hexhut'],
+    rules: {},
+    requires: ['darkcrown'],
+    reward: { stars: 22 },
+  },
+  {
+    id: 'crystalcrown',
+    chapter: 3,
+    name: 'La corona de cristal',
+    story: 'En el Páramo de Cristal las maestrías no funcionan: torres hasta nivel 4 y 25 oleadas.',
+    biome: 'crystal',
+    seed: 2719,
+    difficulty: 'normal',
+    waves: 25,
+    towers: ['archer', 'ballista', 'cannon', 'arcane', 'pyre', 'frost', 'storm', 'alchemist', 'sanctum', 'obelisk', 'quake', 'falconer'],
+    rules: { maxTier: 4 },
+    requires: ['goldrush', 'blackwater'],
+    reward: { stars: 25 },
+  },
+  {
+    id: 'eternalnight',
+    chapter: 3,
+    name: 'Noche eterna',
+    story: 'El reino de las sombras contraataca: sin hechizos y con sus criaturas más duras que nunca.',
+    biome: 'shadow',
+    seed: 2729,
+    difficulty: 'normal',
+    waves: 25,
+    towers: ['warden', 'sawmill', 'hexhut', 'sanctum', 'frost', 'storm', 'arcane', 'pyre'],
+    rules: { noSpells: true, hpMult: 1.1 },
+    requires: ['dragonsky', 'crystalcrown'],
+    reward: { stars: 25 },
+  },
+  {
+    id: 'lastking',
+    chapter: 3,
+    name: 'El último rey',
+    story: 'La batalla final por el reino: dificultad heroica, 30 oleadas y sitio para 16 torres. Todo lo que has aprendido, a la vez.',
+    biome: 'volcano',
+    seed: 2731,
+    difficulty: 'hard',
+    waves: 30,
+    towers: [
+      'archer',
+      'ballista',
+      'cannon',
+      'arcane',
+      'pyre',
+      'frost',
+      'storm',
+      'alchemist',
+      'sanctum',
+      'obelisk',
+      'quake',
+      'falconer',
+      'warden',
+      'sawmill',
+      'hexhut',
+    ],
+    rules: { maxTowers: 16 },
+    requires: ['eternalnight'],
+    reward: { stars: 40 },
+  },
 ];
+
+export const MISSIONS: MissionDef[] = [...STORY, ...masteryMissions()];
 
 export const MISSION_BY_ID: Record<string, MissionDef> = Object.fromEntries(MISSIONS.map((m) => [m.id, m]));
 

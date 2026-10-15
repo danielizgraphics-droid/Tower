@@ -57,6 +57,8 @@ export interface Profile {
   regions: Biome[];
   /** Hero tower brought to battles (null = none). */
   hero: TowerId | null;
+  /** Highest rank already announced on the menu. */
+  rankSeen: number;
   /** When this profile was last saved (ms since epoch) — the newer copy wins when syncing devices. */
   savedAt?: number;
 }
@@ -79,6 +81,7 @@ export function defaultProfile(): Profile {
     missions: {},
     regions: [],
     hero: null,
+    rankSeen: 0,
   };
 }
 
@@ -322,7 +325,17 @@ export const UNLOCK_WAVE = 15;
 // ---------------------------------------------------------------- missions
 
 export function missionAvailable(p: Profile, m: MissionDef): boolean {
+  if (m.needsTower && !p.towers[m.needsTower]?.unlocked) return false;
   return m.requires.every((id) => p.missions[id]?.done);
+}
+
+/** A tower whose four mastery missions are done wears its golden look. */
+export function towerMastered(p: Profile, id: TowerId): boolean {
+  return !!p.missions[`m-${id}-4`]?.done;
+}
+
+export function masteredTowers(p: Profile): TowerId[] {
+  return (Object.keys(p.towers) as TowerId[]).filter((id) => towerMastered(p, id));
 }
 
 export interface MissionOutcome {
@@ -407,4 +420,43 @@ export function heroProgress(p: Profile, id: TowerId): { done: boolean; text: st
 /** The hero to bring into a battle: the chosen one if it is (still) unlocked. */
 export function activeHero(p: Profile): TowerId | null {
   return p.hero && heroProgress(p, p.hero).done ? p.hero : null;
+}
+
+// ---------------------------------------------------------------- ranks
+
+/** Medieval ranks earned with progress (missions, masteries, towers, regions, heroes, victories). */
+export const RANKS: { at: number; title: string; phrase: string }[] = [
+  { at: 0, title: 'Campesino', phrase: 'Una horca, un sombrero de paja y muchas ganas de defender el reino.' },
+  { at: 6, title: 'Escudero', phrase: 'Ya cargas con el escudo de un caballero. Sigue así.' },
+  { at: 14, title: 'Soldado', phrase: 'La guarnición empieza a fiarse de ti.' },
+  { at: 24, title: 'Sargento', phrase: 'Tus hombres te siguen sin dudar.' },
+  { at: 36, title: 'Capitán', phrase: 'Las torres del reino obedecen tus órdenes.' },
+  { at: 50, title: 'Caballero', phrase: 'Te han armado caballero. Los bardos ya cantan tus hazañas.' },
+  { at: 66, title: 'Barón', phrase: 'Tienes tierras propias y un castillo que defender.' },
+  { at: 84, title: 'Vizconde', phrase: 'Los nobles susurran tu nombre en la corte.' },
+  { at: 104, title: 'Conde', phrase: 'Gobiernas un condado entero y nadie osa atacarlo.' },
+  { at: 126, title: 'Marqués', phrase: 'Custodias las fronteras del reino.' },
+  { at: 150, title: 'Duque', phrase: 'Solo la corona está por encima de ti.' },
+  { at: 180, title: 'Príncipe', phrase: 'El trono te espera.' },
+  { at: 215, title: 'Rey', phrase: 'Larga vida al rey. El reino es tuyo.' },
+];
+
+export function rankScore(p: Profile): number {
+  const done = Object.entries(p.missions)
+    .filter(([, m]) => m.done)
+    .map(([id]) => id);
+  const story = done.filter((id) => !id.startsWith('m-')).length;
+  const mastery = done.length - story;
+  const masteries = done.filter((id) => /^m-.*-4$/.test(id)).length;
+  const towers = Object.values(p.towers).filter((t) => t.unlocked).length;
+  const heroes = (Object.keys(TOWERS) as TowerId[]).filter((id) => TOWERS[id].hero && heroProgress(p, id).done).length;
+  return story * 2 + mastery + masteries * 3 + towers + p.regions.length * 2 + heroes * 2 + Math.min(30, p.stats.wins);
+}
+
+/** Current rank (index into RANKS) and progress towards the next. */
+export function rankOf(p: Profile): { index: number; score: number } {
+  const score = rankScore(p);
+  let index = 0;
+  while (index + 1 < RANKS.length && score >= RANKS[index + 1].at) index++;
+  return { index, score };
 }

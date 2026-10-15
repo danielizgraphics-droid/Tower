@@ -2625,3 +2625,130 @@ table.dmg td.bad {
   background: var(--surface-2);
   color: var(--ink-2);
 }
+.tcard.gold {
+  background: linear-gradient(180deg, #fff3c4, #ffe08a);
+  box-shadow: inset 0 0 0 2px #e2a01e;
+}
+.tcard.gold .name::after {
+  content: ' ★';
+  color: #c48a10;
+}
+
+.mastery-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(92px, 1fr));
+  gap: 6px;
+}
+.mastery-tile {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 8px 4px;
+  border-radius: 12px;
+  background: var(--surface-2);
+  font-size: 12px;
+  font-weight: 600;
+  box-shadow: inset 0 0 0 2px transparent;
+}
+.mastery-tile img {
+  width: 48px;
+  height: 48px;
+}
+.mastery-tile.on {
+  background: var(--surface);
+  box-shadow: inset 0 0 0 2px var(--forest);
+}
+.mastery-tile.gold {
+  background: linear-gradient(180deg, #fff3c4, #ffe08a);
+}
+.mastery-tile.gold.on {
+  box-shadow: inset 0 0 0 2px #e2a01e;
+}
+.mastery-tile.locked img {
+  filter: grayscale(1) opacity(0.5);
+}
+.mastery-tile .name {
+  text-align: center;
+  line-height: 1.15;
+}
+.mastery-tile .pips {
+  display: flex;
+  gap: 3px;
+}
+.mastery-tile .pips span {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.12);
+}
+.mastery-tile .pips span.on {
+  background: #e2a01e;
+}
+.mastery-tile .crown {
+  position: absolute;
+  top: 4px;
+  right: 6px;
+  color: #c48a10;
+}
+
+.rank {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  color: #fff;
+  text-shadow: 0 1px 3px rgba(20, 30, 25, 0.6);
+}
+.rank-title {
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #ffe08a;
+}
+.rank.promoted .rank-title {
+  animation: rankPop 1.2s ease;
+}
+@keyframes rankPop {
+  0% {
+    transform: scale(0.6);
+    opacity: 0;
+  }
+  40% {
+    transform: scale(1.25);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+.rank-phrase {
+  font-size: 13px;
+  font-style: italic;
+  max-width: 340px;
+  text-align: center;
+  line-height: 1.35;
+}
+.rank-next {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  font-weight: 600;
+  opacity: 0.9;
+}
+.rank-next .bar {
+  width: 90px;
+  height: 6px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.3);
+  overflow: hidden;
+}
+.rank-next .bar > span {
+  display: block;
+  height: 100%;
+  background: #ffe08a;
+}

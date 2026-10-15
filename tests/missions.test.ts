@@ -90,3 +90,33 @@ describe('missions', () => {
     expect(flyers).toBe(0);
   });
 });
+
+describe('tower mastery and ranks', () => {
+  it('every tower has a chained series of four, the last one granting its mastery', async () => {
+    const { MASTERY_TOWERS } = await import('../src/data/mastery');
+    const { TOWER_LIST } = await import('../src/data/towers');
+    expect(MASTERY_TOWERS.length).toBe(TOWER_LIST.length);
+    for (const id of MASTERY_TOWERS) {
+      const steps = MISSIONS.filter((m) => m.mastery?.tower === id);
+      expect(steps.map((m) => m.mastery!.step)).toEqual([1, 2, 3, 4]);
+      expect(steps[3].reward.mastery).toBe(id);
+      expect(steps[1].requires).toEqual([steps[0].id]);
+      for (const m of steps) expect(m.towers[0]).toBe(id);
+    }
+  });
+
+  it('mastery needs the tower and all four missions; ranks only go up', async () => {
+    const { rankOf, towerMastered, RANKS } = await import('../src/meta/profile');
+    const p = defaultProfile();
+    const first = MISSION_BY_ID['m-ballista-1'];
+    expect(missionAvailable(p, first)).toBe(false);
+    p.towers.ballista.unlocked = true;
+    expect(missionAvailable(p, first)).toBe(true);
+    const r0 = rankOf(p).index;
+    for (let s = 1; s <= 4; s++)
+      applyMissionResult(p, MISSION_BY_ID[`m-ballista-${s}`], { victory: true, towerXp: {}, kills: 0, bossesKilled: 0, xpGain: 0 });
+    expect(towerMastered(p, 'ballista')).toBe(true);
+    expect(rankOf(p).index).toBeGreaterThanOrEqual(r0);
+    for (let i = 1; i < RANKS.length; i++) expect(RANKS[i].at).toBeGreaterThan(RANKS[i - 1].at);
+  });
+});

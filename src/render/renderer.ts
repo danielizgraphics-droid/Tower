@@ -113,6 +113,13 @@ export class Renderer {
   }
 
   private quality: Quality | null = null;
+  private golden: TowerId[] = [];
+
+  /** Towers drawn with their golden mastery look. */
+  setGolden(ids: TowerId[]): void {
+    this.golden = ids;
+    if (this.scene3d) this.scene3d.golden = new Set(ids);
+  }
 
   /** Graphics level of the 3D layer (see Quality). */
   setQuality(q: Quality): void {
@@ -129,6 +136,7 @@ export class Renderer {
       if (this.background) gl.style.background = this.background;
       this.scene3d = new Scene3D(gl, this.game);
       if (this.quality !== null) this.scene3d.setQuality(this.quality);
+      this.scene3d.golden = new Set(this.golden);
       this.glCanvas = gl;
       return true;
     } catch (e) {

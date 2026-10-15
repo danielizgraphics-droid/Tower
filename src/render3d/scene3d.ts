@@ -17,7 +17,7 @@ import { BIOMES_3D, biomeModels, tdTile, type Biome3D } from './biomes3d';
 import { ENEMY_LOOKS, type EnemyLook3D } from './looks';
 import { mergeRig } from './merge';
 import { clone as cloneSkinned } from 'three/examples/jsm/utils/SkeletonUtils.js';
-import { towerModels, towerParts, type TowerParts } from './towers3d';
+import { gild, towerModels, towerParts, type TowerParts } from './towers3d';
 
 /** Pixels per world unit of the 2D camera scale (isometric axis foreshortening). */
 const K = Math.SQRT2 * Math.cos(Math.PI / 6);
@@ -108,6 +108,8 @@ export class Scene3D {
   lost = false;
   private unsub: (() => void)[] = [];
   private quality: Quality = MOBILE ? 1 : 2;
+  /** Towers whose mastery the player earned: drawn in gold (cosmetic only). */
+  golden = new Set<TowerId>();
   private frameNo = 0;
   /** Static shadow casters changed: refresh the shadow map on the next frame. */
   private shadowDirty = true;
@@ -802,11 +804,13 @@ export class Scene3D {
     const seen = new Set<number>();
     for (const t of this.game.towers) {
       seen.add(t.uid);
-      const key = `${t.def.id}:${t.tier}:${t.branch}`;
+      const gold = this.golden.has(t.def.id);
+      const key = `${t.def.id}:${t.tier}:${t.branch}:${gold}`;
       let obj = this.towers.get(t.uid);
       if (!obj || obj.key !== key) {
         const parts = towerParts(t.def.id as TowerId, t.tier, t.branch);
         if (!parts) continue;
+        if (gold) gild(parts);
         if (obj) {
           this.scene.remove(obj.root);
           release(obj.root, obj.parts.orbMats);

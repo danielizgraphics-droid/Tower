@@ -15,7 +15,16 @@ import { Game } from '../../game/game';
 import { effectiveAttack, effectiveDamageType, effectiveTargetsAir } from '../../game/modifiers';
 import { wavePreview } from '../../game/waves';
 import { MISSION_BY_ID, ruleLines, type MissionDef } from '../../data/missions';
-import { activeHero, applyMissionResult, applyRunResult, isRegionOpen, profileModifiers, type RewardSummary } from '../../meta/profile';
+import {
+  activeHero,
+  applyMissionResult,
+  masteredTowers,
+  towerMastered,
+  applyRunResult,
+  isRegionOpen,
+  profileModifiers,
+  type RewardSummary,
+} from '../../meta/profile';
 import { captureRun, clearRun, loadRun, restoreRun, saveRun } from '../../meta/runsave';
 import { enemyPortrait, towerPortrait } from '../../render/portraits';
 import { AutoQuality } from '../../render/quality';
@@ -70,6 +79,7 @@ export function gameScreen(app: App, route: Route): Screen {
   const renderer = new Renderer(canvas, game);
   renderer.view.showDamage = profile.settings.showDamageNumbers;
   renderer.view.shakeEnabled = profile.settings.screenShake;
+  renderer.setGolden(masteredTowers(profile));
   let quality = new AutoQuality(profile.settings.graphics ?? 'auto');
   renderer.setQuality(quality.level);
   let lastFrameAt = 0;
@@ -175,6 +185,10 @@ export function gameScreen(app: App, route: Route): Screen {
       costEl,
     );
     if (!unlocked.includes(t.id)) card.classList.add('locked');
+    if (towerMastered(profile, t.id)) {
+      card.classList.add('gold');
+      card.title = 'Maestría completada';
+    }
     if (t.hero) {
       card.classList.add('hero');
       card.title = 'Torre heroica: solo una por partida';
@@ -1260,6 +1274,7 @@ export function gameScreen(app: App, route: Route): Screen {
                   `¡Nueva torre exclusiva: ${TOWERS[rw.tower].name}!`,
                 )
               : null,
+            rw?.mastery ? rewardLine('crown', `¡Maestría de ${TOWERS[rw.mastery].name}! Ahora luce dorada en tus partidas.`) : null,
             rw?.region ? rewardLine('map', `¡Nueva región exclusiva: ${BIOMES.find((b) => b.id === rw.region)!.name}!`) : null,
             victory && !out.firstTime
               ? h('p.muted.tiny', { style: 'margin-top:8px' }, 'Ya habías cumplido esta misión: la recompensa solo se entrega una vez.')

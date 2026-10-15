@@ -28,7 +28,7 @@ const mods = () => (level ? veteran(Number(level)) : new ModifierSet());
 const baseline = free === 'free';
 const runs = Number(runsArg ?? 4);
 for (const m of MISSIONS) {
-  if (only && only !== 'all' && m.id !== only) continue;
+  if (only && only !== 'all' && !only.split(',').includes(m.id)) continue;
   let wins = 0;
   const waves: number[] = [];
   const lives: number[] = [];
