@@ -804,7 +804,8 @@ export class Scene3D {
     const seen = new Set<number>();
     for (const t of this.game.towers) {
       seen.add(t.uid);
-      const gold = this.golden.has(t.def.id);
+      // Mastered towers, and Midas himself, are golden.
+      const gold = this.golden.has(t.def.id) || t.def.id === 'midas';
       const key = `${t.def.id}:${t.tier}:${t.branch}:${gold}`;
       let obj = this.towers.get(t.uid);
       if (!obj || obj.key !== key) {

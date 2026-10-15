@@ -1,5 +1,6 @@
 import { TOWERS, TOWER_LIST } from '../data/towers';
 import { BIOME_BY_ID } from '../data/biomes';
+import { MASTERY_TOWERS } from '../data/mastery';
 import { MISSIONS, type MissionDef, type MissionReward } from '../data/missions';
 import type { Biome, Difficulty, TowerId } from '../data/types';
 import { ModifierSet } from '../game/modifiers';
@@ -412,6 +413,12 @@ export function heroProgress(p: Profile, id: TowerId): { done: boolean; text: st
     }
     case 'missions':
       return count(Object.values(p.missions).filter((m) => m.done).length, u.amount, `Completa ${u.amount} misiones`);
+    case 'masteries':
+      return count(
+        MASTERY_TOWERS.filter((t) => towerMastered(p, t)).length,
+        MASTERY_TOWERS.length,
+        'Consigue la maestría dorada de todas las torres',
+      );
     case 'towers':
       return count(Object.values(p.towers).filter((t) => t.unlocked).length, u.amount, `Ten ${u.amount} torres desbloqueadas`);
   }

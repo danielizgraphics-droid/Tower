@@ -138,6 +138,7 @@ export const ICON_KEYS = new Set<string>([
   't-market-5-0',
   't-market-5-1',
   't-market-5-2',
+  't-midas-1--1',
   't-morwen-1--1',
   't-nerea-1--1',
   't-obelisk-1--1',

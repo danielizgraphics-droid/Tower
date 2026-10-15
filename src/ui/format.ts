@@ -72,6 +72,7 @@ const SPECS: StatSpec[] = [
     show: (s) => s.goldChance > 0,
     value: (s) => s.goldChance,
   },
+  { key: 'goldMark', label: 'Oro extra', fmt: (s) => `+${Math.round(s.goldMark * 100)}%`, show: (s) => s.goldMark > 0, value: (s) => s.goldMark },
   { key: 'waveGold', label: 'Oro/oleada', fmt: (s) => `+${Math.round(s.waveGold)}`, show: (s) => s.waveGold > 0, value: (s) => s.waveGold },
   { key: 'soulStacks', label: 'Almas', fmt: (s) => `+${num(s.soulStacks)}/baja`, show: (s) => s.soulStacks > 0, value: (s) => s.soulStacks },
   { key: 'bossDamage', label: 'vs Jefes', fmt: (s) => `+${pct(s.bossDamage)}`, show: (s) => s.bossDamage > 0, value: (s) => s.bossDamage },

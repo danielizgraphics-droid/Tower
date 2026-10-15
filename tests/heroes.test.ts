@@ -107,3 +107,30 @@ describe('hero towers', () => {
     expect(g2.heroUsed).toBe(true);
   });
 });
+
+describe('Midas', () => {
+  it('unlocks with every tower mastered; marked enemies drop more gold and level him up', async () => {
+    const { MASTERY_TOWERS } = await import('../src/data/mastery');
+    const p = defaultProfile();
+    expect(heroProgress(p, 'midas').done).toBe(false);
+    for (const id of MASTERY_TOWERS) p.missions[`m-${id}-4`] = { done: true };
+    expect(heroProgress(p, 'midas').done).toBe(true);
+
+    const g = newGame('midas');
+    g.gold = 1e5;
+    const s = spots(g);
+    const midas = g.build('midas', ...s[0])!;
+    expect(g.liveStats(midas).damage).toBeLessThan(5);
+    const plain = g.spawnEnemy('goblin', 5, 3);
+    const marked = g.spawnEnemy('goblin', 5, 3);
+    g.applyHit(marked, { tower: midas, stats: g.liveStats(midas), damage: 1, type: 'holy' });
+    expect(marked.goldMark).toBeGreaterThan(0);
+    let a = g.gold;
+    g.killEnemy(plain, null);
+    const plainGold = g.gold - a;
+    a = g.gold;
+    g.killEnemy(marked, null);
+    expect(g.gold - a).toBeGreaterThan(plainGold);
+    expect(midas.kills).toBe(1);
+  });
+});

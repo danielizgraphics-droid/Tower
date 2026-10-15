@@ -258,4 +258,31 @@ export const HERO_LIST: TowerDef[] = [
       base: 'blacksmith',
     },
   }),
+  hero({
+    id: 'midas',
+    name: 'Midas',
+    description:
+      'El rey del oro apenas hace daño, pero todo enemigo que toca suelta mucho más oro al morir, lo mate quien lo mate. Sube de nivel con cada enemigo marcado que cae: cuanto más nivel, más oro.',
+    role: 'Héroe · oro',
+    tags: ['support'],
+    cost: 150,
+    attack: 'projectile',
+    damageType: 'holy',
+    targetsGround: true,
+    targetsAir: true,
+    base: { damage: 3, range: 3.4, rate: 1.6, projectileSpeed: 12, goldMark: 0.3 },
+    visual: { body: '#fff2c0', accent: '#e2a01e', fx: '#ffd04a' },
+    hero: {
+      title: 'el Rey Dorado',
+      perLevel: { goldMark: 0.25, damage: 0.05 },
+      milestones: [
+        { level: 3, add: { multishot: 1 }, text: 'Toca a 2 enemigos a la vez' },
+        { level: 6, add: { multishot: 1, range: 0.6 }, text: 'Más alcance, 3 enemigos' },
+        { level: 9, add: { goldMark: 0.5 }, text: 'Toque dorado: +50% de oro más' },
+      ],
+      unlock: { kind: 'masteries' },
+      look: { model: C + 'Knight.glb', show: ['1H_Sword'], tint: '#ffd04a', attack: '1H_Melee_Attack_Chop', idle: 'Idle' },
+      base: 'market',
+    },
+  }),
 ];

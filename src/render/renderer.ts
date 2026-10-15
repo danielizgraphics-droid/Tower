@@ -1038,6 +1038,18 @@ export class Renderer {
       if (!e.alive) continue;
       const total = e.maxHp + e.maxArmor + e.maxShield;
       const damaged = e.totalHp < total - 0.5;
+      if (e.goldMark > 0) {
+        // Midas' mark: a small gold coin over the enemy.
+        const c = this.cam.project(e.x, e.y, enemyHeight(e.def) + 0.6 * Math.max(1, e.def.size));
+        const r = Math.max(3, s * 0.07);
+        ctx.fillStyle = '#ffd04a';
+        ctx.strokeStyle = '#8a5a00';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.arc(c.x, c.y - r, r, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+      }
       if (!damaged && !e.def.boss && e.maxArmor === 0 && e.maxShield === 0) continue;
       const pos = this.cam.project(e.x, e.y, enemyHeight(e.def) + 0.35 * Math.max(1, e.def.size));
       const w = s * (e.def.boss ? 1.1 : 0.55);

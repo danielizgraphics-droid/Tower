@@ -50,6 +50,8 @@ export interface TowerStats {
   knockback: number;
   /** Chance per kill to drop extra gold. */
   goldChance: number;
+  /** Midas: enemies hit drop this much more gold when they die (0.5 = +50%). */
+  goldMark: number;
   goldAmount: number;
   /** Execute non-boss enemies under this fraction of max hp. */
   execute: number;
@@ -134,7 +136,8 @@ export type TowerId =
   | 'nerea'
   | 'aurelia'
   | 'morwen'
-  | 'brom';
+  | 'brom'
+  | 'midas';
 
 export type TowerTag = 'physical' | 'magic' | 'siege' | 'elemental' | 'support' | 'dark';
 
@@ -204,7 +207,8 @@ export type HeroUnlock =
   | { kind: 'hardClear' }
   | { kind: 'mission'; id: string }
   | { kind: 'missions'; amount: number }
-  | { kind: 'towers'; amount: number };
+  | { kind: 'towers'; amount: number }
+  | { kind: 'masteries' };
 
 export interface HeroInfo {
   /** Short epithet, e.g. 'la Cazadora'. */

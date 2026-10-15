@@ -42,6 +42,7 @@ export const STAT_DEFAULTS: TowerStats = {
   armorShred: 0,
   knockback: 0,
   goldChance: 0,
+  goldMark: 0,
   goldAmount: 0,
   execute: 0,
   beamRamp: 0,

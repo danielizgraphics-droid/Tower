@@ -72,7 +72,7 @@ function plan(id: TowerId, tier: number, branch: number): Plan {
     return {
       base: B(heroInfo.base, 'yellow'),
       fit: 0.86,
-      unitAt: heroInfo.base === 'church' || heroInfo.base === 'blacksmith' || heroInfo.base === 'mine' ? 0.62 : 0.97,
+      unitAt: heroInfo.base === 'church' || heroInfo.base === 'blacksmith' || heroInfo.base === 'mine' || heroInfo.base === 'market' ? 0.62 : 0.97,
       unitLook: heroInfo.look,
       props: [{ m: PROP('flag_yellow'), x: 0.32, z: -0.3, s: 0.7 }],
     };

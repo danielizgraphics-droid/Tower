@@ -733,6 +733,10 @@ export class Game {
       dmg *= s.critMult;
       crit = true;
     }
+    if (s.goldMark > 0 && s.goldMark >= e.goldMark) {
+      e.goldMark = s.goldMark;
+      e.markedBy = p.tower;
+    }
     if (s.bonusVsSlowed && e.isSlowed) dmg *= 1 + s.bonusVsSlowed;
     if (s.bossDamage && e.def.boss) dmg *= 1 + s.bossDamage;
     if (s.airDamage && e.flying) dmg *= 1 + s.airDamage;
@@ -872,6 +876,13 @@ export class Game {
     let gold =
       e.def.gold * KILL_GOLD * DIFFICULTY[this.difficulty].gold * (1 + this.global.killGold) * (BIOME_BY_ID[this.board.def.theme]?.goldMult ?? 1);
     if (e.def.boss) gold += this.global.bossGold;
+    // Gold touched by Midas; whoever finishes the enemy, Midas gets the credit for its level.
+    gold *= 1 + e.goldMark;
+    const marker = e.markedBy;
+    if (marker && marker !== source && marker.def.hero && this.towers.includes(marker)) {
+      marker.kills++;
+      this.checkHeroLevel(marker);
+    }
     if (source) {
       source.kills++;
       if (source.def.hero) this.checkHeroLevel(source);

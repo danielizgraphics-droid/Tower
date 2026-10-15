@@ -53,6 +53,10 @@ export class Enemy {
   age = 0;
   /** Tiles this enemy has been pushed back so far (knockback and rifts lose effect as it adds up). */
   pushed = 0;
+  /** Touched by Midas: extra gold when it dies. */
+  goldMark = 0;
+  /** The hero that marked it (credited when it dies). */
+  markedBy: Tower | null = null;
   /** Seconds before allies can heal it again (one healer's worth at a time). */
   healLock = 0;
   exhaustNoted = false;
