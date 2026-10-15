@@ -29,6 +29,9 @@ export function creatureBounds(def: EnemyDef): { w: number; top: number } {
  * once at the current zoom with a crisp outline, so the detailed vector art
  * costs one drawImage per enemy per frame.
  */
+/** Most creature sprites kept at once (each is a small canvas). */
+const MAX_SPRITES = 240;
+
 export class CreatureSprites {
   private cache = new Map<string, Sprite>();
   private scale = 0;
@@ -74,6 +77,10 @@ export class CreatureSprites {
       outlineCanvas(s.canvas, Math.max(1, this.scale * this.dpr * 0.022));
     }
     this.cache.set(key, s);
+    // Phones cap the memory all canvases may use: forget the oldest sprites past a limit.
+    while (this.cache.size > MAX_SPRITES) {
+      this.cache.delete(this.cache.keys().next().value!);
+    }
     return s;
   }
 }

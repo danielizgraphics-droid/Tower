@@ -40,6 +40,16 @@ const MAX_DPR = MOBILE ? 1.5 : 2;
 export type Quality = 0 | 1 | 2;
 const DPR_CAP: Record<Quality, number> = { 0: 1, 1: 1.25, 2: MAX_DPR };
 const SHADOW_EVERY: Record<Quality, number> = { 0: 3, 1: 2, 2: 1 };
+/**
+ * Most enemies animated in 3D at once. Each one holds a skeleton (with its
+ * own GPU texture) and its own materials; huge late waves used to exhaust a
+ * phone's memory and the system closed the app. Extra enemies are drawn by
+ * the light 2D layer until a 3D slot frees up.
+ */
+const MAX_3D_ENEMIES: Record<Quality, number> = { 0: 45, 1: MOBILE ? 70 : 110, 2: MOBILE ? 90 : 160 };
+/** Finished enemy models kept for reuse (per enemy type, and in total). */
+const POOL_PER_TYPE = 8;
+const POOL_TOTAL = 48;
 const FLASH = new THREE.Color('#ffffff');
 const FROZEN = new THREE.Color('#6fc8ff');
 const BLACK = new THREE.Color('#000000');
@@ -73,6 +83,8 @@ interface EnemyObj {
   animDt: number;
   /** Last emissive state written to the materials. */
   tone: number;
+  /** Enemy type it was built for (models are recycled per type). */
+  kind: string;
 }
 
 export class Scene3D {
@@ -161,6 +173,8 @@ export class Scene3D {
 
   destroy(): void {
     for (const u of this.unsub) u();
+    for (const list of this.pool.values()) for (const o of list) release(o.root, o.mats);
+    this.pool.clear();
     this.renderer.dispose();
     this.renderer.forceContextLoss();
     this.scene.traverse((o) => {
@@ -174,6 +188,11 @@ export class Scene3D {
     this.quality = q;
     this.shadowDirty = true;
     for (const obj of this.enemies.values()) obj.root.traverse((o) => (o.castShadow = q > 0));
+  }
+
+  /** Is this enemy currently drawn by the 3D layer (otherwise the 2D layer draws it)? */
+  drawsEnemy(uid: number): boolean {
+    return this.enemies.has(uid);
   }
 
   /** Is this enemy drawn in 3D (otherwise the 2D layer keeps drawing it)? */
@@ -961,6 +980,8 @@ export class Scene3D {
       seen.add(e.uid);
       let obj = this.enemies.get(e.uid);
       if (!obj) {
+        // Over the budget: the 2D layer draws this one for now.
+        if (this.enemies.size >= MAX_3D_ENEMIES[this.quality]) continue;
         const made = this.makeEnemy(e);
         if (!made) continue;
         obj = made;
@@ -1000,8 +1021,8 @@ export class Scene3D {
       }
       if (obj.dying > fadeStart + 0.45) {
         this.scene.remove(obj.root);
-        release(obj.root, obj.mats);
         this.enemies.delete(uid);
+        this.recycle(obj);
       }
     }
     if (this.castle) {
@@ -1028,7 +1049,51 @@ export class Scene3D {
     return cloneSkinned(t);
   }
 
+  /** Finished enemy models waiting to be reused, per enemy type. */
+  private pool = new Map<string, EnemyObj[]>();
+  private pooled = 0;
+  /** Model scale and lift per enemy type (measuring a skinned model is costly). */
+  private fits = new Map<string, { k: number; y: number }>();
+
+  private recycle(obj: EnemyObj): void {
+    const list = this.pool.get(obj.kind) ?? [];
+    if (list.length >= POOL_PER_TYPE || this.pooled >= POOL_TOTAL) {
+      release(obj.root, obj.mats);
+      return;
+    }
+    obj.mixer.stopAllAction();
+    list.push(obj);
+    this.pool.set(obj.kind, list);
+    this.pooled++;
+  }
+
+  /** A pooled model of this enemy type, reset to fresh. */
+  private reuseEnemy(e: Enemy): EnemyObj | null {
+    const obj = this.pool.get(e.def.id)?.pop();
+    if (!obj) return null;
+    this.pooled--;
+    obj.root.rotation.set(0, 0, 0);
+    obj.root.position.set(e.x, 0, e.y);
+    obj.dying = 0;
+    obj.leaked = false;
+    obj.lastFlash = 1;
+    obj.hitCd = 0;
+    obj.animDt = 0;
+    obj.tone = -1;
+    obj.dist = e.dist;
+    for (const m of obj.mats) m.opacity = 0;
+    if (obj.walk) {
+      obj.walk.reset().play();
+      obj.walk.time = Math.random() * obj.walk.getClip().duration;
+    }
+    obj.root.traverse((o) => (o.castShadow = this.quality > 0));
+    this.scene.add(obj.root);
+    return obj;
+  }
+
   private makeEnemy(e: Enemy): EnemyObj | null {
+    const reused = this.reuseEnemy(e);
+    if (reused) return reused;
     const look = ENEMY_LOOKS[e.def.id]!;
     const clips = this.clipsOf(look);
     const body = this.enemyBody(look);
@@ -1037,11 +1102,16 @@ export class Scene3D {
     if (look.tint) for (const m of mats) m.color.lerp(new THREE.Color(look.tint), look.tintAmount ?? 0.5);
     // Fit to the requested height (models come in very different units).
     // Fit the model's largest dimension (bosses grow, but not without limit).
-    const box = new THREE.Box3().setFromObject(body);
-    const sz = box.getSize(new THREE.Vector3());
-    const k = (look.height * Math.min(e.def.size, 1.45)) / Math.max(0.01, sz.x, sz.y, sz.z);
-    body.scale.setScalar(k);
-    body.position.y = -box.min.y * k;
+    let fit = this.fits.get(e.def.id);
+    if (!fit) {
+      const box = new THREE.Box3().setFromObject(body);
+      const sz = box.getSize(new THREE.Vector3());
+      const k = (look.height * Math.min(e.def.size, 1.45)) / Math.max(0.01, sz.x, sz.y, sz.z);
+      fit = { k, y: -box.min.y * k };
+      this.fits.set(e.def.id, fit);
+    }
+    body.scale.setScalar(fit.k);
+    body.position.y = fit.y;
     body.rotation.y = look.yaw ?? 0;
     const root = new THREE.Group();
     root.add(body);
@@ -1075,7 +1145,22 @@ export class Scene3D {
       walk.time = Math.random() * set.walk!.duration;
     }
     if (this.quality === 0) root.traverse((o) => (o.castShadow = false));
-    return { root, mixer, walk, mats, look, dying: 0, clips: set, lastFlash: 1, hitCd: 0, dist: e.dist, leaked: false, animDt: 0, tone: -1 };
+    return {
+      root,
+      mixer,
+      walk,
+      mats,
+      look,
+      dying: 0,
+      clips: set,
+      lastFlash: 1,
+      hitCd: 0,
+      dist: e.dist,
+      leaked: false,
+      animDt: 0,
+      tone: -1,
+      kind: e.def.id,
+    };
   }
 
   private updateEnemy(e: Enemy, obj: EnemyObj, dt: number): void {
