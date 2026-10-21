@@ -19,6 +19,8 @@ export interface ExpertDef {
   hp: number;
   /** Sky: floating islands of one or two tiles; flyers only. */
   islandMax?: number;
+  /** Number of floating islands (sky). */
+  islands?: number;
   /** Open sea: only naval towers (and the hero, on a raft). */
   allWater?: boolean;
   rules?: MissionRules;
@@ -88,6 +90,7 @@ export const EXPERT_MAPS: ExpertDef[] = [
     forks: 1,
     hp: 1,
     islandMax: 2,
+    islands: 12,
     tags: ['Celeste', 'Solo voladores', '2 entradas'],
   },
   {
@@ -138,6 +141,7 @@ export function expertMap(x: ExpertDef, waves: number): MapDef {
     waves,
     lanes: { spawns: x.spawns, forks: x.forks },
     islandMax: x.islandMax,
+    islands: x.islands,
     allWater: x.allWater,
   });
   return { ...def, id: x.id, name: x.name, hpScale: def.hpScale * x.hp };

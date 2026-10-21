@@ -15,6 +15,8 @@ export interface MapGenOptions {
   lanes?: { spawns: number; forks: number };
   /** Largest floating island in tiles (sky maps). */
   islandMax?: number;
+  /** How many floating islands (sky maps). */
+  islands?: number;
   /** Nothing but open water around the road: only naval towers can be built. */
   allWater?: boolean;
 }
@@ -81,7 +83,7 @@ export function generateMap(opts: MapGenOptions): MapDef {
     return cells;
   });
 
-  if (biome.sky) skyIslands(grid, rng, opts.islandMax ?? 5);
+  if (biome.sky) skyIslands(grid, rng, opts.islandMax ?? 5, opts.islands);
   else if (opts.allWater) {
     for (const row of grid) for (let x = 0; x < W; x++) if (row[x] === '.') row[x] = 'W';
   } else decorate(grid, rng, opts.water === undefined ? biome : { ...biome, water: opts.water });
@@ -351,7 +353,7 @@ function tryNetwork(rng: Rng, cw: number, ch: number, lanes: { spawns: number; f
  * Sky maps: everything is open air ('V') except small floating islands
  * scattered along the flyers' route, where towers can stand.
  */
-function skyIslands(grid: string[][], rng: Rng, maxSize: number): void {
+function skyIslands(grid: string[][], rng: Rng, maxSize: number, islands?: number): void {
   const H = grid.length;
   const W = grid[0].length;
   const isPath = (x: number, y: number) => ['#', 'S', 'C'].includes(grid[y]?.[x] ?? '');
@@ -382,7 +384,7 @@ function skyIslands(grid: string[][], rng: Rng, maxSize: number): void {
   };
   let id = 0;
   // Smaller islands come in greater numbers.
-  const count = maxSize <= 2 ? 30 : 18;
+  const count = islands ?? (maxSize <= 2 ? 30 : 18);
   for (let tries = 0; tries < 1500 && id < count; tries++) {
     const x = rng.int(0, W - 1);
     const y = rng.int(0, H - 1);
