@@ -11,6 +11,12 @@ export interface MapGenOptions {
   waves?: number;
   /** Amount of ponds and lagoons (replaces the biome's; missions use it for flooded maps). */
   water?: number;
+  /** Expert layouts: extra entrances that join the road, and stretches where it splits in two. */
+  lanes?: { spawns: number; forks: number };
+  /** Largest floating island in tiles (sky maps). */
+  islandMax?: number;
+  /** Nothing but open water around the road: only naval towers can be built. */
+  allWater?: boolean;
 }
 
 /** Short shareable code for a seed. */
@@ -37,26 +43,48 @@ export function generateMap(opts: MapGenOptions): MapDef {
   const cw = (W - 1) / 2; // coarse columns
   const ch = (H - 1) / 2;
 
-  const path = findCoarsePath(rng, cw, ch);
   const grid: string[][] = Array.from({ length: H }, () => Array.from({ length: W }, () => '.'));
   const tileOf = (n: { i: number; j: number }) => ({ x: 1 + 2 * n.i, y: 1 + 2 * n.j });
-  for (let k = 0; k < path.length; k++) {
-    const a = tileOf(path[k]);
-    grid[a.y][a.x] = '#';
-    if (k > 0) {
-      const b = tileOf(path[k - 1]);
-      grid[(a.y + b.y) / 2][(a.x + b.x) / 2] = '#';
-    }
+  /** Spawn tile on the map's border next to an edge node. */
+  const edgeTile = (n: Node) => {
+    const t = tileOf(n);
+    return n.i === 0 ? { x: 0, y: t.y } : n.j === 0 ? { x: t.x, y: 0 } : n.i === cw - 1 ? { x: W - 1, y: t.y } : { x: t.x, y: H - 1 };
+  };
+  const lanes = opts.lanes && (opts.lanes.spawns > 1 || opts.lanes.forks > 0) ? opts.lanes : null;
+  const net = lanes ? buildNetwork(rng, cw, ch, lanes) : null;
+  const main = net ? net.main : findCoarsePath(rng, cw, ch);
+  const links: [Node, Node][] = net ? net.links : main.slice(1).map((n, k) => [main[k], n]);
+  for (const [na, nb] of links) {
+    const a = tileOf(na);
+    const b = tileOf(nb);
+    grid[a.y][a.x] = grid[b.y][b.x] = '#';
+    grid[(a.y + b.y) / 2][(a.x + b.x) / 2] = '#';
   }
-  // Spawn on the back edge next to the first node, castle on the last node.
-  const first = tileOf(path[0]);
-  const spawn = path[0].i === 0 ? { x: 0, y: first.y } : { x: first.x, y: 0 };
-  grid[spawn.y][spawn.x] = 'S';
-  const last = tileOf(path[path.length - 1]);
+  // Spawns on the border next to the first nodes, castle on the last node.
+  for (const n of net ? net.spawns : [main[0]]) {
+    const sp = edgeTile(n);
+    grid[sp.y][sp.x] = 'S';
+  }
+  const last = tileOf(main[main.length - 1]);
   grid[last.y][last.x] = 'C';
+  // Several ways to the castle: list each one tile by tile.
+  const routes = net?.routes.map((nodes) => {
+    const cells = [edgeTile(nodes[0])];
+    nodes.forEach((n, k) => {
+      const t = tileOf(n);
+      if (k > 0) {
+        const b = tileOf(nodes[k - 1]);
+        cells.push({ x: (t.x + b.x) / 2, y: (t.y + b.y) / 2 });
+      }
+      cells.push(t);
+    });
+    return cells;
+  });
 
-  if (biome.sky) skyIslands(grid, rng);
-  else decorate(grid, rng, opts.water === undefined ? biome : { ...biome, water: opts.water });
+  if (biome.sky) skyIslands(grid, rng, opts.islandMax ?? 5);
+  else if (opts.allWater) {
+    for (const row of grid) for (let x = 0; x < W; x++) if (row[x] === '.') row[x] = 'W';
+  } else decorate(grid, rng, opts.water === undefined ? biome : { ...biome, water: opts.water });
 
   const name = `${rng.pick(biome.prefixes)} ${rng.pick(biome.places)}`;
   return {
@@ -67,6 +95,7 @@ export function generateMap(opts: MapGenOptions): MapDef {
     waves: opts.waves ?? 30,
     hpScale: biome.hpScale,
     tiles: grid.map((r) => r.join('')),
+    routes,
   };
 }
 
@@ -77,8 +106,8 @@ type Node = { i: number; j: number };
  * j=0) to a front edge (i=cw-1 or j=ch-1). Keeps the longest of many tries
  * within a target length so maps are winding but not maze-like.
  */
-function findCoarsePath(rng: Rng, cw: number, ch: number): Node[] {
-  const target = Math.round(cw * ch * 0.55);
+function findCoarsePath(rng: Rng, cw: number, ch: number, fill = 0.55): Node[] {
+  const target = Math.round(cw * ch * fill);
   let best: Node[] | null = null;
   let bestScore = -Infinity;
   for (let attempt = 0; attempt < 400; attempt++) {
@@ -137,11 +166,192 @@ function findCoarsePath(rng: Rng, cw: number, ch: number): Node[] {
   return best;
 }
 
+const nkey = (n: Node) => `${n.i},${n.j}`;
+const manhattan = (a: Node, b: Node) => Math.abs(a.i - b.i) + Math.abs(a.j - b.j);
+
+interface Network {
+  /** Main road from the first spawn to the castle (its last node). */
+  main: Node[];
+  spawns: Node[];
+  /** Directed links (towards the castle). */
+  links: [Node, Node][];
+  /** Every way from a spawn to the castle, spawn by spawn. */
+  routes: Node[][];
+}
+
+/**
+ * Road network for expert maps, on the same coarse grid as single roads (so
+ * corridors stay one tile wide): a main road, extra entrances whose roads join
+ * it (or each other) far from their start, and forks where it splits in two
+ * and comes back together.
+ */
+function buildNetwork(rng: Rng, cw: number, ch: number, lanes: { spawns: number; forks: number }): Network {
+  let best: Network | null = null;
+  let bestScore = -1;
+  for (let attempt = 0; attempt < 30; attempt++) {
+    const net = tryNetwork(rng, cw, ch, lanes);
+    const score = net.spawns.length * 10 + (net.routes.length - net.spawns.length) * 4;
+    if (score > bestScore) {
+      best = net;
+      bestScore = score;
+    }
+    if (net.spawns.length === lanes.spawns && net.routes.length >= lanes.spawns + lanes.forks) break;
+  }
+  return best!;
+}
+
+function tryNetwork(rng: Rng, cw: number, ch: number, lanes: { spawns: number; forks: number }): Network {
+  const main = findCoarsePath(rng, cw, ch, lanes.spawns > 1 ? 0.3 : 0.42);
+  const castle = main[main.length - 1];
+  /** Road nodes: `rest` = nodes left to the castle; others may join where `mergeable`. */
+  const used = new Map<string, { rest: number; mergeable: boolean }>();
+  // Entrances join late, so each road needs its own defenders for most of the way.
+  main.forEach((n, k) => used.set(nkey(n), { rest: main.length - 1 - k, mergeable: k >= main.length * 0.6 }));
+  // No entrance may be much shorter than the main road (it would leave no time to react).
+  const minRoute = main.length * 0.65;
+  const links: [Node, Node][] = main.slice(1).map((n, k) => [main[k], n]);
+  const spawns = [main[0]];
+  const inBounds = (n: Node) => n.i >= 0 && n.j >= 0 && n.i < cw && n.j < ch;
+  const around = (n: Node) => DIRS.map(([di, dj]) => ({ i: n.i + di, j: n.j + dj })).filter(inBounds);
+  const spread = (cw + ch) / 3;
+
+  // Extra entrances.
+  for (let s = 1; s < lanes.spawns; s++) {
+    for (let tries = 0; tries < 300; tries++) {
+      const side = rng.int(0, 3);
+      const start: Node =
+        side === 0
+          ? { i: 0, j: rng.int(0, ch - 1) }
+          : side === 1
+            ? { i: rng.int(0, cw - 1), j: 0 }
+            : side === 2
+              ? { i: cw - 1, j: rng.int(0, ch - 1) }
+              : { i: rng.int(0, cw - 1), j: ch - 1 };
+      if (used.has(nkey(start)) || around(start).some((n) => used.has(nkey(n)))) continue;
+      if (spawns.some((sp) => manhattan(sp, start) < spread) || manhattan(start, castle) < spread) continue;
+      const walk = [start];
+      const seen = new Set([nkey(start)]);
+      const minLen = Math.round((cw + ch) * 0.3);
+      let join: Node | null = null;
+      while (walk.length < cw * ch) {
+        const cur = walk[walk.length - 1];
+        const nbrs = around(cur);
+        if (walk.length >= minLen) {
+          const joins = nbrs.filter((n) => {
+            const u = used.get(nkey(n));
+            return !!u?.mergeable && walk.length + 1 + u.rest >= minRoute;
+          });
+          if (joins.length) {
+            join = rng.pick(joins);
+            break;
+          }
+        }
+        const free = nbrs.filter((n) => !used.has(nkey(n)) && !seen.has(nkey(n)));
+        if (!free.length) break;
+        const weights = free.map((n) => {
+          const room = around(n).filter((m) => !used.has(nkey(m)) && !seen.has(nkey(m))).length;
+          // Head for the castle, but not in a straight line.
+          return (1 + room * 0.6) * (manhattan(n, castle) < manhattan(cur, castle) ? 1.7 : 1);
+        });
+        const next = free[rng.weighted(weights)];
+        walk.push(next);
+        seen.add(nkey(next));
+      }
+      if (!join) continue;
+      const rest = used.get(nkey(join))!.rest + 1;
+      walk.forEach((n, k) => used.set(nkey(n), { rest: rest + walk.length - 1 - k, mergeable: k >= 3 }));
+      for (let k = 1; k < walk.length; k++) links.push([walk[k - 1], walk[k]]);
+      links.push([walk[walk.length - 1], join]);
+      spawns.push(start);
+      break;
+    }
+  }
+
+  // Forks: a detour leaves the main road and rejoins it further on.
+  for (let f = 0; f < lanes.forks; f++) {
+    for (let tries = 0; tries < 200; tries++) {
+      const a = rng.int(Math.round(main.length * 0.1), Math.round(main.length * 0.7));
+      const gap = rng.int(3, 7);
+      const b = a + gap;
+      if (b > main.length - 2) continue;
+      const from = main[a];
+      const to = main[b];
+      const goal = new Set(around(to).map(nkey));
+      const maxLen = gap * 2 + 2;
+      let found: Node[] | null = null;
+      let budget = 3000;
+      const seen = new Set<string>();
+      const dfs = (path: Node[]): boolean => {
+        if (--budget < 0) return false;
+        const cur = path[path.length - 1];
+        if (path.length >= 2 && goal.has(nkey(cur))) {
+          found = [...path];
+          return true;
+        }
+        if (path.length >= maxLen) return false;
+        const opts = around(cur).filter((n) => !used.has(nkey(n)) && !seen.has(nkey(n)));
+        for (let k = opts.length - 1; k > 0; k--) {
+          const r = rng.int(0, k);
+          [opts[k], opts[r]] = [opts[r], opts[k]];
+        }
+        for (const n of opts) {
+          seen.add(nkey(n));
+          path.push(n);
+          if (dfs(path)) return true;
+          path.pop();
+          seen.delete(nkey(n));
+        }
+        return false;
+      };
+      for (const n0 of around(from).filter((n) => !used.has(nkey(n)))) {
+        seen.add(nkey(n0));
+        if (dfs([n0])) break;
+        seen.delete(nkey(n0));
+      }
+      const detour = found as Node[] | null;
+      if (!detour) continue;
+      for (const n of detour) used.set(nkey(n), { rest: 0, mergeable: false });
+      links.push([from, detour[0]]);
+      for (let k = 1; k < detour.length; k++) links.push([detour[k - 1], detour[k]]);
+      links.push([detour[detour.length - 1], to]);
+      break;
+    }
+  }
+
+  // Every way to the castle, following the links forward.
+  const out = new Map<string, Node[]>();
+  for (const [x, y] of links) {
+    const list = out.get(nkey(x)) ?? [];
+    list.push(y);
+    out.set(nkey(x), list);
+  }
+  const routes: Node[][] = [];
+  for (const sp of spawns) {
+    const mine: Node[][] = [];
+    const walk = (path: Node[]) => {
+      if (mine.length >= 6) return;
+      const cur = path[path.length - 1];
+      if (cur.i === castle.i && cur.j === castle.j) {
+        mine.push([...path]);
+        return;
+      }
+      for (const n of out.get(nkey(cur)) ?? []) {
+        path.push(n);
+        walk(path);
+        path.pop();
+      }
+    };
+    walk([sp]);
+    routes.push(...mine);
+  }
+  return { main, spawns, links, routes };
+}
+
 /**
  * Sky maps: everything is open air ('V') except small floating islands
  * scattered along the flyers' route, where towers can stand.
  */
-function skyIslands(grid: string[][], rng: Rng): void {
+function skyIslands(grid: string[][], rng: Rng, maxSize: number): void {
   const H = grid.length;
   const W = grid[0].length;
   const isPath = (x: number, y: number) => ['#', 'S', 'C'].includes(grid[y]?.[x] ?? '');
@@ -171,13 +381,15 @@ function skyIslands(grid: string[][], rng: Rng): void {
     return true;
   };
   let id = 0;
-  for (let tries = 0; tries < 800 && id < 18; tries++) {
+  // Smaller islands come in greater numbers.
+  const count = maxSize <= 2 ? 30 : 18;
+  for (let tries = 0; tries < 1500 && id < count; tries++) {
     const x = rng.int(0, W - 1);
     const y = rng.int(0, H - 1);
     const d = distToPath(x, y);
     if (d < 1 || d > 2 || !free(x, y, id)) continue;
     const cells = [{ x, y }];
-    const size = rng.int(2, 5);
+    const size = rng.int(Math.min(2, maxSize) - (maxSize <= 2 ? 1 : 0), maxSize);
     grid[y][x] = '.';
     island.set(key(x, y), id);
     for (let k = 0; k < 20 && cells.length < size; k++) {

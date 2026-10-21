@@ -20,8 +20,10 @@ export class Enemy {
   maxArmor: number;
   shield: number;
   maxShield: number;
-  /** Distance travelled along the path. */
+  /** Distance travelled along its route. */
   dist: number;
+  /** Which of the map's routes it follows. */
+  route = 0;
   x = 0;
   y = 0;
   angle = 0;

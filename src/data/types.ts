@@ -458,6 +458,8 @@ export interface MapDef {
    *  L  lava
    */
   tiles: string[];
+  /** Tile-by-tile routes from each spawn to the castle (maps with several entrances or forks). */
+  routes?: { x: number; y: number }[][];
   waves: number;
   /** Multiplies enemy hp; lets later maps scale up. */
   hpScale: number;

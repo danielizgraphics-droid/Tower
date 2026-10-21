@@ -15,6 +15,7 @@ import { mapsScreen } from './ui/screens/maps';
 import { menuScreen } from './ui/screens/menu';
 import { missionsScreen } from './ui/screens/missions';
 import { heroesScreen } from './ui/screens/heroes';
+import { expertScreen } from './ui/screens/expert';
 import { talentsScreen } from './ui/screens/talents';
 
 // 3D renderer (WebGL + CC0 models) by default; ?r=2d forces the classic 2D renderer.
@@ -29,6 +30,7 @@ app.register('menu', menuScreen);
 app.register('maps', mapsScreen);
 app.register('missions', missionsScreen);
 app.register('heroes', heroesScreen);
+app.register('expert', expertScreen);
 app.register('talents', talentsScreen);
 app.register('codex', codexScreen);
 app.register('game', gameScreen);
@@ -44,8 +46,10 @@ if (screen === 'game')
     difficulty: (params.get('difficulty') as Difficulty) ?? 'normal',
     endless: params.get('endless') === '1',
     mission: params.get('mission') ?? undefined,
+    expert: params.get('expert') ?? undefined,
   });
-else if (screen === 'maps' || screen === 'talents' || screen === 'codex' || screen === 'missions' || screen === 'heroes') app.go({ name: screen });
+else if (screen === 'maps' || screen === 'talents' || screen === 'codex' || screen === 'missions' || screen === 'heroes' || screen === 'expert')
+  app.go({ name: screen });
 else app.go({ name: 'menu' });
 
 (window as unknown as { __app: App }).__app = app;

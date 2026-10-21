@@ -1,6 +1,6 @@
 import { BIOMES, BIOME_BY_ID, type Biome } from '../../data/biomes';
 import { DIFFICULTY } from '../../data/maps';
-import type { Difficulty } from '../../data/types';
+import type { Difficulty, MapDef } from '../../data/types';
 import { Game } from '../../game/game';
 import { generateMap, seedCode } from '../../game/mapgen';
 import { ModifierSet } from '../../game/modifiers';
@@ -11,7 +11,7 @@ import type { App, Screen } from '../app';
 import { h } from '../dom';
 import { icon } from '../icons';
 
-const BIOME_ICON: Record<Biome, string> = {
+export const BIOME_ICON: Record<Biome, string> = {
   meadow: 'clover',
   coast: 'wave',
   autumn: 'flame',
@@ -35,10 +35,9 @@ let previewToken = 0;
  * Renders a still image of a generated map (in 3D when available, compositing
  * the WebGL layer under the 2D overlay). Older pending requests are dropped.
  */
-function mapPreview(biome: Biome, seed: number, done: (url: string) => void): void {
+export function mapPreview(def: MapDef, done: (url: string) => void): void {
   const token = ++previewToken;
   const canvas = document.createElement('canvas');
-  const def = generateMap({ biome, seed });
   const game = new Game({ map: def, difficulty: 'normal', mods: new ModifierSet(), unlockedTowers: [] });
   const r = new Renderer(canvas, game);
   r.insets = { top: 10, bottom: 70, left: 10, right: 10 };
@@ -101,7 +100,7 @@ export function mapsScreen(app: App): Screen {
     const def = generateMap({ biome: state.biome!, seed: state.seed });
     mapName.textContent = def.name;
     seedEl.textContent = `Mapa #${seedCode(state.seed)}`;
-    mapPreview(state.biome!, state.seed, (url) => (img.src = url));
+    mapPreview(def, (url) => (img.src = url));
   }
 
   function render() {

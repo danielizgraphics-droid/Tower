@@ -15,6 +15,7 @@ import { Game } from '../../game/game';
 import { effectiveAttack, effectiveDamageType, effectiveTargetsAir } from '../../game/modifiers';
 import { wavePreview } from '../../game/waves';
 import { MISSION_BY_ID, ruleLines, type MissionDef } from '../../data/missions';
+import { EXPERT_BY_ID, expertMap } from '../../data/expert';
 import {
   activeHero,
   applyMissionResult,
@@ -47,7 +48,12 @@ export function gameScreen(app: App, route: Route): Screen {
   /** Set when a won campaign continues in endless mode: what was already rewarded. */
   let continued: { waves: number; kills: number; bosses: number; xp: Partial<Record<TowerId, number>> } | null = null;
   const mission = run.mission ? (MISSION_BY_ID[run.mission] ?? null) : null;
-  const mapDef = generateMap({ biome: run.biome, seed: run.seed, waves: mission ? mission.waves : endless ? Infinity : 30, water: mission?.water });
+  const expert = run.expert ? (EXPERT_BY_ID[run.expert] ?? null) : null;
+  const mapDef = expert
+    ? expertMap(expert, endless ? Infinity : 30)
+    : generateMap({ biome: run.biome, seed: run.seed, waves: mission ? mission.waves : endless ? Infinity : 30, water: mission?.water });
+  /** Open sea: only naval towers (the hero stands on a raft). */
+  const seaMap = !!expert?.allWater;
   const difficulty: Difficulty = route.difficulty;
   const profile = app.profile;
   // A mission decides which towers can be built (even ones the player doesn't own yet).
@@ -55,21 +61,35 @@ export function gameScreen(app: App, route: Route): Screen {
   const skyMap = !!BIOMES.find((b) => b.id === run.biome)?.sky;
   const saved0 = run.resume && !mission ? loadRun(app.storage) : null;
   // Resuming a battle saved between waves (the page was closed or reloaded).
-  const saved = saved0 && saved0.biome === run.biome && saved0.seed === run.seed && saved0.difficulty === difficulty ? saved0 : null;
+  const saved =
+    saved0 &&
+    saved0.biome === run.biome &&
+    saved0.seed === run.seed &&
+    saved0.difficulty === difficulty &&
+    (saved0.expert ?? null) === (run.expert ?? null)
+      ? saved0
+      : null;
   /** The hero brought to this battle (none in missions; on sky maps only one that hits flyers). */
   const heroPick = mission ? null : saved ? (saved.hero ?? null) : activeHero(profile);
   const heroId = heroPick && (!skyMap || TOWERS[heroPick].targetsAir) ? heroPick : null;
   const unlocked = [
     ...(heroId ? [heroId] : []),
     ...(mission ? mission.towers : TOWER_LIST.filter((t) => profile.towers[t.id].unlocked).map((t) => t.id)),
-  ].filter((id) => !skyMap || TOWERS[id].targetsAir);
+  ].filter((id) => (!skyMap || TOWERS[id].targetsAir) && (!seaMap || TOWERS[id].hero || TOWERS[id].placement === 'water'));
   /** Towers shown in the build bar: the hero first; exclusive ones only once earned; in missions, only the allowed ones. */
   const barTowers = [
     ...(heroId ? [TOWERS[heroId]] : []),
-    ...TOWER_LIST.filter((t) => (mission || skyMap ? unlocked.includes(t.id) : !t.exclusive || unlocked.includes(t.id))),
+    ...TOWER_LIST.filter((t) => (mission || skyMap || seaMap ? unlocked.includes(t.id) : !t.exclusive || unlocked.includes(t.id))),
   ];
 
-  const game = new Game({ map: mapDef, difficulty, mods: profileModifiers(profile), unlockedTowers: unlocked, rules: mission?.rules, hero: heroId });
+  const game = new Game({
+    map: mapDef,
+    difficulty,
+    mods: profileModifiers(profile),
+    unlockedTowers: unlocked,
+    rules: mission?.rules ?? expert?.rules,
+    hero: heroId,
+  });
   if (saved) {
     restoreRun(game, saved);
     endless = saved.endless;
@@ -583,7 +603,7 @@ export function gameScreen(app: App, route: Route): Screen {
 
   function buildFailReason(x: number, y: number): string {
     if (game.towerAt(x, y)) return 'Ya hay una torre ahí';
-    const naval = !!buildId && TOWERS[buildId].placement === 'water';
+    const naval = !!buildId && game.onWater(buildId);
     if (naval) return 'Las torres navales se construyen sobre el agua';
     if (game.board.isWater(x, y)) return 'Solo las torres navales pueden ir sobre el agua';
     if (game.board.isWalkable(x, y)) return 'No se puede construir sobre el camino';
@@ -993,7 +1013,7 @@ export function gameScreen(app: App, route: Route): Screen {
     const targets = def.targetsGround && def.targetsAir ? 'Tierra y aire' : def.targetsAir ? 'Solo aire' : 'Solo tierra';
     const stats = statLines(game.previewStats(id, 1, -1), def.attack);
     const canAfford = game.gold >= game.buildCost(id);
-    const naval = def.placement === 'water';
+    const naval = game.onWater(def.id);
     const buildBtn = h(
       'button.btn.primary',
       {
@@ -1201,7 +1221,7 @@ export function gameScreen(app: App, route: Route): Screen {
   function persist() {
     // Missions are short and fixed: they are not resumed.
     if (finished || mission || game.phase !== 'build') return;
-    saveRun(app.storage, captureRun(game, { biome: run.biome, seed: run.seed, difficulty, endless, continued }));
+    saveRun(app.storage, captureRun(game, { biome: run.biome, seed: run.seed, difficulty, endless, continued, expert: run.expert }));
   }
   for (const e of ['build', 'upgrade', 'sell'] as const) ev.on(e, () => persist());
   persist();
@@ -1312,7 +1332,7 @@ export function gameScreen(app: App, route: Route): Screen {
     const mapsBefore = new Set(BIOMES.filter((m) => isRegionOpen(profile, m.id)).map((m) => m.id));
     const g = game.global;
     const reward: RewardSummary = applyRunResult(profile, {
-      mapId: run.biome,
+      mapId: expert ? expert.id : run.biome,
       endless,
       difficulty,
       wavesCleared: game.wavesCleared,
@@ -1322,7 +1342,8 @@ export function gameScreen(app: App, route: Route): Screen {
       kills: game.kills - (continued?.kills ?? 0),
       bossesKilled: game.bossesKilled - (continued?.bosses ?? 0),
       rewardedWaves: continued?.waves ?? 0,
-      starGain: g.starGain,
+      // Expert maps pay half as much again.
+      starGain: g.starGain + (expert ? 0.5 : 0),
       xpGain: g.xpGain,
     });
     profile.tutorialDone = true;
@@ -1398,11 +1419,13 @@ export function gameScreen(app: App, route: Route): Screen {
               : null,
             h(
               'div.actions',
-              h('button.btn', { onclick: () => (sfx('click'), app.go({ name: 'maps' })) }, icon('map', 18), 'Mapas'),
+              h('button.btn', { onclick: () => (sfx('click'), app.go({ name: expert ? 'expert' : 'maps' })) }, icon('map', 18), 'Mapas'),
               h('button.btn.purple', { onclick: () => (sfx('click'), app.go({ name: 'talents' })) }, icon('star', 18), 'Talentos'),
               h(
                 'button.btn.primary',
-                { onclick: () => (sfx('click'), app.go({ name: 'game', biome: run.biome, seed: run.seed, difficulty, endless })) },
+                {
+                  onclick: () => (sfx('click'), app.go({ name: 'game', biome: run.biome, seed: run.seed, difficulty, endless, expert: run.expert })),
+                },
                 icon('refresh', 18),
                 victory ? 'Jugar de nuevo' : 'Reintentar',
               ),

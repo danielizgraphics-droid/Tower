@@ -1,10 +1,11 @@
 import { TOWER_LIST } from '../../data/towers';
 import { GENERAL_TREE, TOWER_TREES } from '../../meta/talentTrees';
-import { nodeState, RANKS, rankOf } from '../../meta/profile';
+import { expertOpen, nodeState, RANKS, rankOf } from '../../meta/profile';
 import type { App, Screen } from '../app';
 import { h } from '../dom';
 import { icon } from '../icons';
 import { BIOME_BY_ID } from '../../data/biomes';
+import { EXPERT_BY_ID } from '../../data/expert';
 import { loadRun } from '../../meta/runsave';
 import { cloudBadge, openSettings } from './settings';
 import { pendingMissions } from './missions';
@@ -32,13 +33,21 @@ function resumeButton(app: App, click: (fn: () => void) => () => void): HTMLElem
   const wave = s.endless ? `Oleada ${s.wavesCleared + 1}` : `Oleada ${s.wavesCleared + 1}/30`;
   return h(
     'button.btn.big.green.resume',
-    { onclick: click(() => app.go({ name: 'game', biome: s.biome, seed: s.seed, difficulty: s.difficulty, endless: s.endless, resume: true })) },
+    {
+      onclick: click(() =>
+        app.go({ name: 'game', biome: s.biome, seed: s.seed, difficulty: s.difficulty, endless: s.endless, resume: true, expert: s.expert }),
+      ),
+    },
     icon('refresh', 22),
     h(
       'span',
       { style: 'display:flex;flex-direction:column;align-items:flex-start;line-height:1.15' },
       'Continuar partida',
-      h('small', { style: 'font-size:12px;font-weight:500;opacity:.85' }, `${BIOME_BY_ID[s.biome]?.name ?? ''} · ${wave}`),
+      h(
+        'small',
+        { style: 'font-size:12px;font-weight:500;opacity:.85' },
+        `${(s.expert ? EXPERT_BY_ID[s.expert]?.name : BIOME_BY_ID[s.biome]?.name) ?? ''} · ${wave}`,
+      ),
     ),
   );
 }
@@ -104,6 +113,12 @@ export function menuScreen(app: App): Screen {
         resumeButton(app, click),
         h('button.btn.big.primary', { onclick: click(() => app.go({ name: 'maps' })) }, icon('play', 22), 'Jugar'),
         missionsBtn,
+        h(
+          `button.btn.big.red${expertOpen(p) ? '' : '.locked'}`,
+          { onclick: click(() => app.go({ name: 'expert' })) },
+          icon(expertOpen(p) ? 'skull' : 'lock', 22),
+          'Modo experto',
+        ),
         heroesBtn,
         talentsBtn,
         h('button.btn.big', { onclick: click(() => app.go({ name: 'codex' })) }, icon('book', 22), 'Códice'),

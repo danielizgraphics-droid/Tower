@@ -19,6 +19,8 @@ export interface RunSave {
   seed: number;
   difficulty: Difficulty;
   endless: boolean;
+  /** Expert map id (expert mode). */
+  expert?: string;
   /** A won campaign continued in endless mode: what had already been rewarded. */
   continued: { waves: number; kills: number; bosses: number; xp: Partial<Record<TowerId, number>> } | null;
   wave: number;
@@ -42,7 +44,7 @@ export interface RunSave {
 
 export function captureRun(
   game: Game,
-  run: { biome: Biome; seed: number; difficulty: Difficulty; endless: boolean; continued: RunSave['continued'] },
+  run: { biome: Biome; seed: number; difficulty: Difficulty; endless: boolean; continued: RunSave['continued']; expert?: string },
 ): RunSave {
   return {
     v: 1,

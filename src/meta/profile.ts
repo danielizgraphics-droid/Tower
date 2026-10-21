@@ -1,5 +1,5 @@
 import { TOWERS, TOWER_LIST } from '../data/towers';
-import { BIOME_BY_ID } from '../data/biomes';
+import { BIOMES, BIOME_BY_ID } from '../data/biomes';
 import { MASTERY_TOWERS } from '../data/mastery';
 import { MISSIONS, type MissionDef, type MissionReward } from '../data/missions';
 import type { Biome, Difficulty, TowerId } from '../data/types';
@@ -322,6 +322,16 @@ export function isMapUnlocked(p: Profile, mapRequires: string | undefined): bool
 
 /** Waves to reach in a region to open the next one. */
 export const UNLOCK_WAVE = 15;
+
+/** Expert mode opens once the player has reached this wave in any region's campaign. */
+export const EXPERT_UNLOCK_WAVE = 20;
+
+export function expertOpen(p: Profile): boolean {
+  return BIOMES.some((b) => {
+    const m = p.maps[b.id];
+    return !!m && (Object.values(m.cleared).some(Boolean) || m.bestWave >= EXPERT_UNLOCK_WAVE || (m.bestEndless ?? 0) >= EXPERT_UNLOCK_WAVE);
+  });
+}
 
 // ---------------------------------------------------------------- missions
 

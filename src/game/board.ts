@@ -26,6 +26,13 @@ const CHAR_TO_KIND: Record<string, TileKind> = {
   V: 'void',
 };
 
+/** One way from a spawn to the castle (maps with several entrances or forks have several). */
+export interface Route {
+  path: PathPoint[];
+  length: number;
+  spawn: { x: number; y: number };
+}
+
 export interface PathPoint {
   x: number;
   y: number;
@@ -41,10 +48,18 @@ export class Board {
   readonly width: number;
   readonly height: number;
   readonly tiles: Tile[][];
+  /** Every route enemies can take; the first one is the main road. */
+  readonly routes: Route[];
+  /** Main route (shortcuts for maps with a single road). */
   readonly path: PathPoint[];
   readonly length: number;
   readonly spawn: { x: number; y: number };
+  readonly spawns: { x: number; y: number }[];
+  /** Route indices starting at each spawn. */
+  readonly spawnRoutes: number[][];
   readonly castle: { x: number; y: number };
+  /** Land where ordinary towers stand (an all-water map has none). */
+  readonly hasLand: boolean;
 
   constructor(readonly def: MapDef) {
     this.height = def.tiles.length;
@@ -62,11 +77,30 @@ export class Board {
       for (const row of this.tiles) for (const t of row) if (t.kind === k) return { x: t.x, y: t.y };
       throw new Error(`Map ${def.id}: missing ${k}`);
     };
-    this.spawn = find('spawn');
     this.castle = find('castle');
-    const cells = tracePath(this, this.spawn, this.castle);
-    this.path = simplify(cells);
-    this.length = this.path[this.path.length - 1].d;
+    this.hasLand = this.tiles.some((row) => row.some((t) => t.kind === 'grass' || t.kind === 'flowers'));
+    const lists = def.routes?.length ? def.routes : [tracePath(this, find('spawn'), this.castle)];
+    this.routes = lists.map((cells) => {
+      const path = simplify(cells);
+      return { path, length: path[path.length - 1].d, spawn: { x: cells[0].x, y: cells[0].y } };
+    });
+    this.path = this.routes[0].path;
+    this.length = this.routes[0].length;
+    this.spawn = this.routes[0].spawn;
+    this.spawns = [];
+    this.spawnRoutes = [];
+    this.routes.forEach((r, i) => {
+      let k = this.spawns.findIndex((s) => s.x === r.spawn.x && s.y === r.spawn.y);
+      if (k < 0) {
+        k = this.spawns.push(r.spawn) - 1;
+        this.spawnRoutes.push([]);
+      }
+      this.spawnRoutes[k].push(i);
+    });
+  }
+
+  routeLength(route: number): number {
+    return (this.routes[route] ?? this.routes[0]).length;
   }
 
   tile(x: number, y: number): Tile | undefined {
@@ -88,9 +122,9 @@ export class Board {
     return k === 'grass' || k === 'flowers';
   }
 
-  /** Position along the path at distance d (clamped). */
-  pointAt(d: number, out = { x: 0, y: 0, angle: 0 }): { x: number; y: number; angle: number } {
-    const p = this.path;
+  /** Position along a route at distance d (clamped). */
+  pointAt(d: number, route = 0, out = { x: 0, y: 0, angle: 0 }): { x: number; y: number; angle: number } {
+    const p = (this.routes[route] ?? this.routes[0]).path;
     if (d <= 0) {
       out.x = p[0].x;
       out.y = p[0].y;

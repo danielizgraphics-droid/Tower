@@ -5,6 +5,7 @@ import type { SpellId, TowerId } from '../data/types';
 import { clamp, easeOutBack } from '../engine/math';
 import type { Enemy, Projectile, Tower } from '../game/entities';
 import type { Game } from '../game/game';
+import type { Route } from '../game/board';
 import { effectiveAttack } from '../game/modifiers';
 import { rgba, shade } from './color';
 import { Fx } from './fx';
@@ -561,7 +562,10 @@ export class Renderer {
       }
       out.push({ depth: depthOf(b.castle.x + 0.5, b.castle.y + 0.5), draw: () => this.drawCastle() });
     }
-    out.push({ depth: depthOf(b.spawn.x + 0.5, b.spawn.y + 0.5), draw: () => this.drawPortal() });
+    for (const list of b.spawnRoutes) {
+      const r = b.routes[list[0]];
+      out.push({ depth: depthOf(r.spawn.x + 0.5, r.spawn.y + 0.5), draw: () => this.drawPortal(r) });
+    }
     for (const t of g.towers) if (!s3?.hasTower(t.uid)) out.push({ depth: depthOf(t.x, t.y), draw: () => this.drawTower(t) });
     for (const e of g.enemies) if (e.alive && !s3?.drawsEnemy(e.uid)) out.push({ depth: depthOf(e.x, e.y) + 0.01, draw: () => this.drawEnemy(e) });
     for (const pr of g.projectiles)
@@ -849,14 +853,13 @@ export class Renderer {
     this.painter.flag(cx, cy - 0.05, 1.3, 0.3, 0.17, '#e0544a', this.time * 3);
   }
 
-  private drawPortal(): void {
+  private drawPortal(route: Route): void {
     const p = this.painter;
     const ctx = this.ctx;
-    const b = this.game.board;
-    const cx = b.spawn.x + 0.5;
-    const cy = b.spawn.y + 0.5;
-    const start = b.path[0];
-    const next = b.path[1];
+    const cx = route.spawn.x + 0.5;
+    const cy = route.spawn.y + 0.5;
+    const start = route.path[0];
+    const next = route.path[1];
     const dir = Math.atan2(next.y - start.y, next.x - start.x);
     // Portal plane is perpendicular to the path direction.
     const nx = -Math.sin(dir);
@@ -968,7 +971,7 @@ export class Renderer {
   private drawPlacementGrid(id: TowerId): void {
     const g = this.game;
     const ctx = this.ctx;
-    const naval = TOWERS[id].placement === 'water';
+    const naval = this.game.onWater(id);
     const z = naval ? -0.09 : GRASS_H + 0.004;
     const inset = 0.09;
     const pulse = 0.5 + 0.5 * Math.sin(performance.now() / 380);

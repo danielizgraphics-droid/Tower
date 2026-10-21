@@ -77,6 +77,7 @@ interface EnemyObj {
   clips: { walk: THREE.AnimationClip | null; death: THREE.AnimationClip | null; hit: THREE.AnimationClip | null; attack: THREE.AnimationClip | null };
   lastFlash: number;
   hitCd: number;
+  /** Distance along the route minus its length (reaches 0 at the castle). */
   dist: number;
   leaked: boolean;
   /** Animation time not yet applied (crowds are animated every other frame). */
@@ -452,6 +453,11 @@ export class Scene3D {
               // Open side: +z (s) θ=0, +x (e) π/2, -z (n) π, -x (w) -π/2
               const rot = s ? 0 : e ? Math.PI / 2 : n ? Math.PI : -Math.PI / 2;
               add(end, x, z, rot);
+            } else if (count === 4) add(tdTile(bio, 'tile-crossing'), x, z);
+            else if (count === 3) {
+              // Junction (maps with several roads): the T piece is closed towards -x at θ=0.
+              const rot = !w ? 0 : !s ? Math.PI / 2 : !e ? Math.PI : -Math.PI / 2;
+              add(tdTile(bio, 'tile-split'), x, z, rot);
             } else if ((n && s) || (e && w)) add(tdTile(bio, 'tile-straight'), x, z, n && s ? 0 : Math.PI / 2);
             else {
               // Corner pieces open +x/+z at θ=0.
@@ -541,15 +547,20 @@ export class Scene3D {
         rocks.push(g);
       }
     // Cloud trail along the flyers' route.
-    const len = b.length;
-    for (let d = 0; d < len; d += 0.32) {
-      const p = b.pointAt(d);
-      const g = new THREE.IcosahedronGeometry(1, 1);
-      const s = 0.22 + rnd() * 0.16;
-      g.scale(s * 1.4, s * 0.55, s * 1.4);
-      g.translate(p.x + (rnd() - 0.5) * 0.45, 0.05 + rnd() * 0.08, p.y + (rnd() - 0.5) * 0.45);
-      puffs.push(g);
-    }
+    // (Routes share stretches: each tile of air road gets its puffs only once.)
+    const puffed = new Set<string>();
+    for (let r = 0; r < b.routes.length; r++)
+      for (let d = 0; d < b.routeLength(r); d += 0.32) {
+        const p = b.pointAt(d, r);
+        const cell = `${Math.floor(p.x * 3)},${Math.floor(p.y * 3)}`;
+        if (r > 0 && puffed.has(cell)) continue;
+        puffed.add(cell);
+        const g = new THREE.IcosahedronGeometry(1, 1);
+        const s = 0.22 + rnd() * 0.16;
+        g.scale(s * 1.4, s * 0.55, s * 1.4);
+        g.translate(p.x + (rnd() - 0.5) * 0.45, 0.05 + rnd() * 0.08, p.y + (rnd() - 0.5) * 0.45);
+        puffs.push(g);
+      }
     // Clouds around and below the archipelago.
     const W = b.width;
     const H = b.height;
@@ -631,13 +642,16 @@ export class Scene3D {
     };
     const smooth = (x: number, y: number) => (Math.sin(x * 0.45 + y * 0.2) + Math.sin(x * 0.17 - y * 0.38) + 2) / 4;
     // Road coming from outside towards the spawn portal.
-    const road = new Set<string>();
-    const sp = b.spawn;
-    const dir = sp.x === 0 ? [-1, 0] : sp.y === 0 ? [0, -1] : sp.x === W - 1 ? [1, 0] : [0, 1];
-    for (let i = 1; i <= M; i++) road.add(`${sp.x + dir[0] * i},${sp.y + dir[1] * i}`);
+    // Road tile → rotation (every entrance has its own road).
+    const road = new Map<string, number>();
+    for (const sp of b.spawns) {
+      const dir = sp.x === 0 ? [-1, 0] : sp.y === 0 ? [0, -1] : sp.x === W - 1 ? [1, 0] : [0, 1];
+      for (let i = 1; i <= M; i++) road.set(`${sp.x + dir[0] * i},${sp.y + dir[1] * i}`, dir[0] !== 0 ? Math.PI / 2 : 0);
+    }
     const OUT = 0.9;
     // Sea beyond the bottom and right shores (the board's own sea lies along them).
-    const isSea = (x: number, y: number) => !!bio.ocean && (x >= W || y >= H);
+    // (A map with no land at all is open sea to the horizon.)
+    const isSea = (x: number, y: number) => !b.hasLand || (!!bio.ocean && (x >= W || y >= H));
     const pond = (x: number, y: number, d: number) =>
       !!bio.pools && d >= 2 && (Math.sin(x * 0.61 + y * 0.37) + Math.sin(x * 0.23 - y * 0.52 + 1.3) + 2) / 4 > (bio.pools === 'lava' ? 0.86 : 0.8);
     const liquid: [number, number][] = [];
@@ -663,8 +677,9 @@ export class Scene3D {
         if (x >= 0 && y >= 0 && x < W && y < H) continue;
         const cx = x + 0.5;
         const cz = y + 0.5;
-        if (road.has(`${x},${y}`)) {
-          add(tdTile(bio, 'tile-straight'), cx, cz, dir[0] !== 0 ? Math.PI / 2 : 0, 1, 0, OUT);
+        const roadRot = road.get(`${x},${y}`);
+        if (roadRot !== undefined) {
+          add(tdTile(bio, 'tile-straight'), cx, cz, roadRot, 1, 0, OUT);
           continue;
         }
         const d = Math.max(x < 0 ? -x : x >= W ? x - W + 1 : 0, y < 0 ? -y : y >= H ? y - H + 1 : 0);
@@ -818,7 +833,7 @@ export class Scene3D {
         }
         const root = new THREE.Group();
         root.add(parts.root);
-        root.position.set(t.x, GRASS_TOP + (t.def.placement === 'water' ? -0.12 : 0), t.y);
+        root.position.set(t.x, GRASS_TOP + (this.game.onWater(t.def.id) ? -0.12 : 0), t.y);
         this.scene.add(root);
         obj = { key, root, parts, kick: 0, unit: null, petMixer: null };
         if (parts.unitY !== null) obj.unit = this.makeUnit(parts);
@@ -994,12 +1009,11 @@ export class Scene3D {
       }
       this.updateEnemy(e, obj, dt);
     }
-    const end = this.game.board.length;
     for (const [uid, obj] of this.enemies) {
       if (seen.has(uid)) continue;
       if (obj.dying === 0) {
         obj.dying = 0.0001;
-        obj.leaked = obj.dist >= end - 0.35;
+        obj.leaked = obj.dist >= -0.35;
         // Leaked enemies strike the castle; the fallen play their death.
         const clip = obj.leaked ? obj.clips.attack : obj.clips.death;
         if (clip) {
@@ -1085,7 +1099,7 @@ export class Scene3D {
     obj.hitCd = 0;
     obj.animDt = 0;
     obj.tone = -1;
-    obj.dist = e.dist;
+    obj.dist = e.dist - this.game.board.routeLength(e.route);
     for (const m of obj.mats) m.opacity = 0;
     if (obj.walk) {
       obj.walk.reset().play();
@@ -1160,7 +1174,7 @@ export class Scene3D {
       clips: set,
       lastFlash: 1,
       hitCd: 0,
-      dist: e.dist,
+      dist: e.dist - this.game.board.routeLength(e.route),
       leaked: false,
       animDt: 0,
       tone: -1,
@@ -1170,7 +1184,7 @@ export class Scene3D {
 
   private updateEnemy(e: Enemy, obj: EnemyObj, dt: number): void {
     const hover = e.def.flying ? 0.75 + Math.sin(e.age * 4) * 0.06 : 0;
-    obj.dist = e.dist;
+    obj.dist = e.dist - this.game.board.routeLength(e.route);
     obj.root.position.set(e.x, hover, e.y);
     // Smoothly turn to face the walking direction.
     const target = Math.PI / 2 - e.angle;

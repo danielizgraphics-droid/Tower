@@ -139,6 +139,9 @@ export class Game {
   goldEarned = 0;
 
   private accumulator = 0;
+  /** Round-robin over the map's entrances, and over each entrance's branches. */
+  private nextSpawn = 0;
+  private nextBranch: number[] = [];
   private auraDirty = true;
   private statsRevision = -1;
 
@@ -305,17 +308,31 @@ export class Game {
     }
   }
 
-  spawnEnemy(id: EnemyId, wave: number, dist: number): Enemy {
+  /**
+   * Spawns an enemy on a route (by default the next one in turn, so every
+   * entrance and branch of the map gets its share of each wave).
+   */
+  spawnEnemy(id: EnemyId, wave: number, dist: number, route = -1): Enemy {
     const def = ENEMIES[id];
     const hpMult = waveHpMultiplier(wave) * this.board.def.hpScale * DIFFICULTY[this.difficulty].hp * (this.rules.hpMult ?? 1);
     const e = new Enemy(def, wave, hpMult, dist);
-    const p = this.board.pointAt(Math.max(0, dist));
+    e.route = route >= 0 ? route : this.pickRoute();
+    const p = this.board.pointAt(Math.max(0, dist), e.route);
     e.x = p.x;
     e.y = p.y;
     e.angle = p.angle;
     this.enemies.push(e);
     this.events.emit('spawn', { enemy: e });
     return e;
+  }
+
+  private pickRoute(): number {
+    const b = this.board;
+    if (b.routes.length === 1) return 0;
+    const s = this.nextSpawn++ % b.spawns.length;
+    const list = b.spawnRoutes[s];
+    const k = (this.nextBranch[s] = (this.nextBranch[s] ?? -1) + 1);
+    return list[k % list.length];
   }
 
   private checkWaveClears(): void {
@@ -437,7 +454,12 @@ export class Game {
   /** Free tile for a tower: grass for land towers, open water for naval ones (default: land). */
   canBuildAt(x: number, y: number, id?: TowerId): boolean {
     if (this.towerAt(x, y)) return false;
-    return id && TOWERS[id].placement === 'water' ? this.board.isWater(x, y) : this.board.isBuildable(x, y);
+    return id && this.onWater(id) ? this.board.isWater(x, y) : this.board.isBuildable(x, y);
+  }
+
+  /** Built on water: naval towers, and the hero on maps with no land at all (on a raft). */
+  onWater(id: TowerId): boolean {
+    return TOWERS[id].placement === 'water' || (!!TOWERS[id].hero && !this.board.hasLand);
   }
 
   /** The map has room for naval towers. */
@@ -644,8 +666,8 @@ export class Game {
         if (e.blinkTimer >= def.blink.every) {
           e.blinkTimer = 0;
           this.events.emit('blink', { x: e.x, y: e.y });
-          e.dist = Math.min(board.length - 0.3, e.dist + def.blink.distance);
-          const bp = board.pointAt(e.dist);
+          e.dist = Math.min(board.routeLength(e.route) - 0.3, e.dist + def.blink.distance);
+          const bp = board.pointAt(e.dist, e.route);
           e.x = bp.x;
           e.y = bp.y;
           this.events.emit('blink', { x: e.x, y: e.y });
@@ -655,7 +677,7 @@ export class Game {
         e.summonTimer += dt;
         if (e.summonTimer >= def.summon.every) {
           e.summonTimer = 0;
-          for (let i = 0; i < def.summon.count; i++) this.spawnEnemy(def.summon.into, e.wave, Math.max(0, e.dist - 0.4 - i * 0.35));
+          for (let i = 0; i < def.summon.count; i++) this.spawnEnemy(def.summon.into, e.wave, Math.max(0, e.dist - 0.4 - i * 0.35), e.route);
         }
       }
 
@@ -663,7 +685,7 @@ export class Game {
       const move = e.currentSpeed * dt;
       e.dist += move;
       e.walk += move;
-      if (e.dist >= board.length) {
+      if (e.dist >= board.routeLength(e.route)) {
         e.alive = false;
         this.leaked++;
         this.lives -= def.leak;
@@ -675,7 +697,7 @@ export class Game {
         }
         continue;
       }
-      const p = board.pointAt(Math.max(0, e.dist));
+      const p = board.pointAt(Math.max(0, e.dist), e.route);
       e.x = p.x;
       e.y = p.y;
       e.angle = p.angle;
@@ -699,11 +721,12 @@ export class Game {
     }
     if (list.length <= 1) return list;
     switch (mode) {
+      // By what is left to the castle: routes differ in length.
       case 'first':
-        list.sort((a, b) => b.dist - a.dist);
+        list.sort((a, b) => this.remaining(a) - this.remaining(b));
         break;
       case 'last':
-        list.sort((a, b) => a.dist - b.dist);
+        list.sort((a, b) => this.remaining(b) - this.remaining(a));
         break;
       case 'strong':
         list.sort((a, b) => b.totalHp - a.totalHp);
@@ -713,6 +736,11 @@ export class Game {
         break;
     }
     return list.slice(0, count);
+  }
+
+  /** Distance an enemy still has to walk to reach the castle. */
+  remaining(e: Enemy): number {
+    return this.board.routeLength(e.route) - e.dist;
   }
 
   enemiesInRadius(x: number, y: number, r: number, includeAir = true): Enemy[] {
@@ -918,7 +946,7 @@ export class Game {
     }
     if (e.def.split) {
       for (let i = 0; i < e.def.split.count; i++) {
-        const child = this.spawnEnemy(e.def.split.into, e.wave, Math.max(0, e.dist + (i - (e.def.split.count - 1) / 2) * 0.35));
+        const child = this.spawnEnemy(e.def.split.into, e.wave, Math.max(0, e.dist + (i - (e.def.split.count - 1) / 2) * 0.35), e.route);
         child.x += (i - 0.5) * 0.1;
       }
     }

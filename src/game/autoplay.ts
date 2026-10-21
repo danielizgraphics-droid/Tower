@@ -19,7 +19,7 @@ interface Action {
  * keeps some anti-air around.
  */
 export class AutoPlayer {
-  private pathCells: { x: number; y: number }[] = [];
+  private pathCells: { x: number; y: number; w: number }[] = [];
   private rng: Rng;
   private timer = 0;
   private airLeaks = 0;
@@ -37,13 +37,28 @@ export class AutoPlayer {
       if (enemy.def.flying) this.airLeaks++;
     });
     const b = game.board;
-    for (let y = 0; y < b.height; y++) for (let x = 0; x < b.width; x++) if (b.isWalkable(x, y)) this.pathCells.push({ x: x + 0.5, y: y + 0.5 });
+    // Each road tile counts by the share of enemies that walk it (maps with several routes).
+    const share = new Map<string, number>();
+    b.spawnRoutes.forEach((list) =>
+      list.forEach((r) => {
+        const seen = new Set<string>();
+        for (let d = 0; d <= b.routeLength(r); d += 0.5) {
+          const p = b.pointAt(d, r);
+          const k = `${Math.floor(p.x)},${Math.floor(p.y)}`;
+          if (seen.has(k)) continue;
+          seen.add(k);
+          share.set(k, (share.get(k) ?? 0) + 1 / b.spawns.length / list.length);
+        }
+      }),
+    );
+    for (let y = 0; y < b.height; y++)
+      for (let x = 0; x < b.width; x++) if (b.isWalkable(x, y)) this.pathCells.push({ x: x + 0.5, y: y + 0.5, w: share.get(`${x},${y}`) ?? 0 });
   }
 
   private coverage(x: number, y: number, range: number): number {
     let n = 0;
     const r2 = range * range;
-    for (const p of this.pathCells) if ((p.x - x) ** 2 + (p.y - y) ** 2 <= r2) n++;
+    for (const p of this.pathCells) if ((p.x - x) ** 2 + (p.y - y) ** 2 <= r2) n += p.w;
     return n;
   }
 
@@ -69,11 +84,11 @@ export class AutoPlayer {
     for (let i = 0; i < 4 && this.spendOnce(); i++);
     if (g.phase === 'build') g.startNextWave();
     if (g.spellReady('meteor') && g.enemies.length > 6) {
-      const e = g.enemies.reduce((a, b) => (a.dist > b.dist ? a : b));
+      const e = g.enemies.reduce((a, b) => (g.remaining(a) < g.remaining(b) ? a : b));
       g.castSpell('meteor', e.x, e.y);
     }
-    if (g.spellReady('frostNova') && g.enemies.some((e) => e.dist > g.board.length * 0.8)) {
-      const e = g.enemies.reduce((a, b) => (a.dist > b.dist ? a : b));
+    if (g.spellReady('frostNova') && g.enemies.some((e) => g.remaining(e) < g.board.routeLength(e.route) * 0.2)) {
+      const e = g.enemies.reduce((a, b) => (g.remaining(a) < g.remaining(b) ? a : b));
       g.castSpell('frostNova', e.x, e.y);
     }
     if (g.spellReady('blessing') && g.enemies.length > 15) g.castSpell('blessing');
@@ -96,7 +111,7 @@ export class AutoPlayer {
       }
     // Missions may cap the number of towers: then only upgrades are worth considering.
     for (const id of g.canBuildMore ? this.towerPool : []) {
-      const freeSpots = TOWERS[id].placement === 'water' ? waterSpots : landSpots;
+      const freeSpots = g.onWater(id) ? waterSpots : landSpots;
       const cost = g.buildCost(id);
       const s = g.previewStats(id, 1, -1);
       let best = 0;

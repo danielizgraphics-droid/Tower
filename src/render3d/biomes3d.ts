@@ -266,6 +266,8 @@ const TD_TILES = [
   'tile-corner-round',
   'tile-end-round',
   'tile-spawn-end-round',
+  'tile-split',
+  'tile-crossing',
   'tile-tree',
   'tile-tree-double',
   'tile-tree-quad',

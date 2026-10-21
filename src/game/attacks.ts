@@ -29,7 +29,7 @@ function projectileStyle(t: Tower): string {
 }
 
 function lead(g: Game, e: Enemy, time: number): { x: number; y: number } {
-  const p = g.board.pointAt(Math.min(g.board.length, e.dist + e.currentSpeed * time));
+  const p = g.board.pointAt(Math.min(g.board.routeLength(e.route), e.dist + e.currentSpeed * time), e.route);
   return { x: p.x, y: p.y };
 }
 

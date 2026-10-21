@@ -31,7 +31,18 @@ export type Route =
   | { name: 'codex' }
   | { name: 'missions' }
   | { name: 'heroes' }
-  | { name: 'game'; biome: Biome; seed: number; difficulty: Difficulty; endless: boolean; resume?: boolean; mission?: string };
+  | { name: 'expert' }
+  | {
+      name: 'game';
+      biome: Biome;
+      seed: number;
+      difficulty: Difficulty;
+      endless: boolean;
+      resume?: boolean;
+      mission?: string;
+      /** Expert map id. */
+      expert?: string;
+    };
 
 type ScreenFactory = (app: App, route: Route) => Screen;
 
