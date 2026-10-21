@@ -15,7 +15,8 @@ describe('missions', () => {
       for (const r of m.requires) expect(MISSION_BY_ID[r]).toBeTruthy();
     }
     for (const t of Object.values(TOWERS).filter((t) => t.exclusive)) expect(MISSIONS.some((m) => m.reward.tower === t.id)).toBe(true);
-    for (const b of Object.values(BIOME_BY_ID).filter((b) => b.exclusive)) expect(MISSIONS.some((m) => m.reward.region === b.id)).toBe(true);
+    for (const b of Object.values(BIOME_BY_ID).filter((b) => b.exclusive && !b.hidden))
+      expect(MISSIONS.some((m) => m.reward.region === b.id)).toBe(true);
   });
 
   it('exclusive towers and regions start locked and cannot be bought with stars', () => {

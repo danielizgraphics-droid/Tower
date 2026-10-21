@@ -15,6 +15,8 @@ export interface BiomeDef {
   goldMult?: number;
   /** Floating islands in the sky: the road is open air, only flyers come. */
   sky?: boolean;
+  /** Not a region of the map screen (Torre infinita floors). */
+  hidden?: boolean;
   /** Decoration densities. */
   trees: number;
   rocks: number;
@@ -236,6 +238,20 @@ export const BIOMES: BiomeDef[] = [
     flowers: 0.12,
     prefixes: ['Islas de', 'Archipiélago de', 'Cumbres de', 'Nubes de'],
     places: ['Aire', 'Viento Alto', 'Algodón', 'Halcón', 'Cielo Abierto', 'Altamar'],
+  },
+  {
+    id: 'keep',
+    name: 'Torre infinita',
+    description: 'Los pisos de la torre: suelos de piedra, columnas y el cielo alrededor.',
+    hpScale: 1,
+    exclusive: true,
+    hidden: true,
+    trees: 0.025,
+    rocks: 0,
+    water: 0,
+    flowers: 0.025,
+    prefixes: ['Sala de', 'Salón de', 'Galería de', 'Atrio de'],
+    places: ['los Estandartes', 'las Antorchas', 'los Ecos', 'la Guardia', 'los Vientos', 'las Columnas', 'los Reyes', 'la Campana'],
   },
 ];
 

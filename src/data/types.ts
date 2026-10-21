@@ -137,7 +137,8 @@ export type TowerId =
   | 'aurelia'
   | 'morwen'
   | 'brom'
-  | 'midas';
+  | 'midas'
+  | 'vigil';
 
 export type TowerTag = 'physical' | 'magic' | 'siege' | 'elemental' | 'support' | 'dark';
 
@@ -208,7 +209,8 @@ export type HeroUnlock =
   | { kind: 'mission'; id: string }
   | { kind: 'missions'; amount: number }
   | { kind: 'towers'; amount: number }
-  | { kind: 'masteries' };
+  | { kind: 'masteries' }
+  | { kind: 'climb'; floor: number };
 
 export interface HeroInfo {
   /** Short epithet, e.g. 'la Cazadora'. */
@@ -444,7 +446,9 @@ export type Biome =
   | 'sakura'
   | 'shadow'
   | 'gilded'
-  | 'sky';
+  | 'sky'
+  // Floors of the Torre infinita
+  | 'keep';
 
 export interface MapDef {
   id: string;
@@ -460,6 +464,8 @@ export interface MapDef {
   tiles: string[];
   /** Tile-by-tile routes from each spawn to the castle (maps with several entrances or forks). */
   routes?: { x: number; y: number }[][];
+  /** Only flying enemies come (a tower floor open to the sky). */
+  flyers?: boolean;
   waves: number;
   /** Multiplies enemy hp; lets later maps scale up. */
   hpScale: number;

@@ -27,6 +27,7 @@ export const BIOME_ICON: Record<Biome, string> = {
   shadow: 'eye',
   gilded: 'coins',
   sky: 'cloud',
+  keep: 'tower',
 };
 
 let previewToken = 0;
@@ -106,7 +107,7 @@ export function mapsScreen(app: App): Screen {
   function render() {
     const b = BIOME_BY_ID[state.biome!];
     biomeList.replaceChildren(
-      ...BIOMES.map((bd) => {
+      ...BIOMES.filter((bd) => !bd.hidden).map((bd) => {
         const open = unlocked(bd.id);
         const prog = p.maps[bd.id];
         const theme = THEMES[bd.id];

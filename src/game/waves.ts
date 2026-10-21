@@ -29,10 +29,13 @@ export function waveHpMultiplier(wave: number): number {
 }
 
 const BOSS_CYCLE: EnemyId[] = ['warlord', 'lich', 'dragon'];
+/** Guardians of the Torre infinita: every boss of every region, in turn. */
+const KEEP_BOSSES: EnemyId[] = ['warlord', 'scorpionKing', 'lich', 'hydra', 'dragon', 'colossus', 'hiveQueen', 'cyclopsKing', 'prismGolem'];
 
 /** Boss of a wave (every 10th wave), cycling forever in endless mode. Regions may replace the middle boss. */
 export function bossFor(wave: number, biome?: Biome): EnemyId | undefined {
   if (wave % 10 !== 0) return undefined;
+  if (biome === 'keep') return KEEP_BOSSES[(wave / 10 - 1) % KEEP_BOSSES.length];
   const slot = (wave / 10 - 1) % BOSS_CYCLE.length;
   // Over the clouds only winged bosses can reach the castle.
   if (biome && BIOME_BY_ID[biome]?.sky) return slot === 2 ? 'dragon' : 'hiveQueen';
@@ -55,7 +58,8 @@ export function generateWave(map: MapDef, wave: number): WaveDef {
   const rng = new Rng(hashString(map.id) * 31 + wave * 7919);
   const groups: SpawnGroup[] = [];
   let budget = threatBudget(wave);
-  const boss = bossFor(wave, map.theme);
+  // Maps may ask for flyers only (a tower floor open to the sky): waves as over the clouds.
+  const boss = bossFor(wave, map.flyers ? 'sky' : map.theme);
   let t = 0;
 
   if (boss) {
@@ -64,10 +68,10 @@ export function generateWave(map: MapDef, wave: number): WaveDef {
   }
 
   // Sky maps: only flyers (any region's), introduced a few waves earlier.
-  const sky = !!BIOME_BY_ID[map.theme]?.sky;
+  const sky = !!BIOME_BY_ID[map.theme]?.sky || !!map.flyers;
   const eligible = sky
     ? ENEMY_LIST.filter((e) => e.flying && !e.boss && e.threat > 0 && Math.max(1, e.minWave - 3) <= wave)
-    : ENEMY_LIST.filter((e) => e.minWave <= wave && !e.boss && e.threat > 0 && (!e.biomes || e.biomes.includes(map.theme)));
+    : ENEMY_LIST.filter((e) => e.minWave <= wave && !e.boss && e.threat > 0 && (!e.biomes || e.biomes.includes(map.theme) || map.theme === 'keep'));
   // Newly introduced enemy types get the spotlight on their debut wave.
   const debut = eligible.filter((e) => (sky ? Math.max(1, e.minWave - 3) : e.minWave) === wave);
   const groupCount = Math.min(eligible.length, wave < 4 ? 1 : wave < 12 ? rng.int(2, 3) : rng.int(2, 4));

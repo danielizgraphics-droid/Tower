@@ -79,6 +79,14 @@ export interface MissionRules {
   hpMult?: number;
   /** No flying enemies. */
   groundOnly?: boolean;
+  /** More (or fewer) enemies in each group. */
+  countMult?: number;
+  /** Enemy speed multiplier. */
+  speedMult?: number;
+  /** Gold dropped by enemies multiplier. */
+  goldMult?: number;
+  /** Tower range multiplier (fog). */
+  rangeMult?: number;
 }
 
 const FIXED_DT = 1 / 60;
@@ -253,12 +261,13 @@ export class Game {
   liveStats(t: Tower): TowerStats {
     if (!t.stats) this.refreshStats();
     const s = t.stats;
-    if (!t.buffDamage && !t.buffRate && !t.buffRange && !t.buffCrit && this.blessingTime <= 0 && !t.souls) return s;
+    const rangeMult = this.rules.rangeMult ?? 1;
+    if (!t.buffDamage && !t.buffRate && !t.buffRange && !t.buffCrit && this.blessingTime <= 0 && !t.souls && rangeMult === 1) return s;
     return {
       ...s,
       damage: (s.damage + t.souls) * (1 + t.buffDamage),
       rate: s.rate * (1 + t.buffRate) * (this.blessingTime > 0 ? 1 + BLESSING_RATE : 1),
-      range: s.range * (1 + t.buffRange),
+      range: s.range * (1 + t.buffRange) * rangeMult,
       critChance: Math.min(0.9, s.critChance + t.buffCrit),
     };
   }
@@ -302,12 +311,14 @@ export class Game {
       sp.time += dt;
       let allDone = true;
       sp.wave.groups.forEach((g, i) => {
-        while (sp.spawned[i] < g.count && sp.time >= g.start + sp.spawned[i] * g.interval) {
+        const count = Math.max(1, Math.round(g.count * (this.rules.countMult ?? 1)));
+        const interval = g.interval / Math.max(0.5, this.rules.countMult ?? 1);
+        while (sp.spawned[i] < count && sp.time >= g.start + sp.spawned[i] * interval) {
           // Missions may keep flying enemies away (naval maps).
           if (!(this.rules.groundOnly && ENEMIES[g.enemy].flying)) this.spawnEnemy(g.enemy, sp.wave.index, -SPAWN_LEAD);
           sp.spawned[i]++;
         }
-        if (sp.spawned[i] < g.count) allDone = false;
+        if (sp.spawned[i] < count) allDone = false;
       });
       sp.done = allDone;
     }
@@ -322,6 +333,7 @@ export class Game {
     const hpMult = waveHpMultiplier(wave) * this.board.def.hpScale * DIFFICULTY[this.difficulty].hp * (this.rules.hpMult ?? 1);
     const e = new Enemy(def, wave, hpMult, dist);
     e.route = route >= 0 ? route : this.pickRoute();
+    e.speedMult = this.rules.speedMult ?? 1;
     const p = this.board.pointAt(Math.max(0, dist), e.route);
     e.x = p.x;
     e.y = p.y;
@@ -911,6 +923,7 @@ export class Game {
     if (e.def.boss) gold += this.global.bossGold;
     // Gold touched by Midas; whoever finishes the enemy, Midas gets the credit for its level.
     gold *= 1 + e.goldMark;
+    gold *= this.rules.goldMult ?? 1;
     const marker = e.markedBy;
     if (marker && marker !== source && marker.def.hero && this.towers.includes(marker)) {
       marker.kills++;

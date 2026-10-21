@@ -24,6 +24,8 @@ export class Enemy {
   dist: number;
   /** Which of the map's routes it follows. */
   route = 0;
+  /** Battle-wide speed multiplier (floor modifiers). */
+  speedMult = 1;
   x = 0;
   y = 0;
   angle = 0;
@@ -104,7 +106,7 @@ export class Enemy {
   get currentSpeed(): number {
     if (this.stunTime > 0 || this.freezeTime > 0) return 0;
     const enr = this.def.enrage && this.hp < this.maxHp * this.def.enrage.below ? this.def.enrage.speed : 1;
-    return this.def.speed * enr * (1 - this.slow * this.ccFactor);
+    return this.def.speed * this.speedMult * enr * (1 - this.slow * this.ccFactor);
   }
 
   get isSlowed(): boolean {

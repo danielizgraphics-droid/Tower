@@ -1221,6 +1221,7 @@ const MODELS: Record<TowerId, ModelFn> = {
   morwen: (...a) => MODELS.obelisk(...a),
   brom: (...a) => MODELS.cannon(...a),
   midas: (...a) => MODELS.market(...a),
+  vigil: (...a) => MODELS.ballista(...a),
 };
 
 /** Draws a tower model with its base at (cx, cy, z). */

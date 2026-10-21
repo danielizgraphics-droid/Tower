@@ -42,7 +42,8 @@ describe('naval towers', () => {
             if (b.isWater(x, y) && [-2, -1, 0, 1, 2].some((dy) => [-2, -1, 0, 1, 2].some((dx) => b.isWalkable(x + dx, y + dy)))) near++;
         expect(near, `${biome.id} #${seed}`).toBeGreaterThan(0);
       }
-  });
+    // 260 full game setups: slower than the default 5 s on modest machines.
+  }, 20000);
 
   it('volcanic maps have lava but no water', () => {
     const g = gameOn('volcano');
@@ -104,8 +105,9 @@ describe('regional content', () => {
       for (let w = 1; w <= 30; w++)
         for (const gr of generateWave(map, w).groups) {
           const def = ENEMIES[gr.enemy];
-          // Sky maps draw flyers from every region.
-          if (def.biomes && !def.boss && !BIOME_BY_ID[map.theme].sky) expect(def.biomes, `${gr.enemy} in ${biome.id}`).toContain(biome.id);
+          // Sky maps draw flyers from every region; the Torre infinita's floors, every monster.
+          if (def.biomes && !def.boss && !BIOME_BY_ID[map.theme].sky && !BIOME_BY_ID[map.theme].hidden)
+            expect(def.biomes, `${gr.enemy} in ${biome.id}`).toContain(biome.id);
         }
     }
   });
@@ -120,7 +122,9 @@ describe('regional content', () => {
 
   it('every enemy and biome is wired up', () => {
     expect(ENEMY_LIST.length).toBeGreaterThanOrEqual(30);
-    expect(BIOMES).toHaveLength(15);
+    // 15 regions, plus the Torre infinita's floors.
+    expect(BIOMES.filter((b) => !b.hidden)).toHaveLength(15);
+    expect(BIOMES).toHaveLength(16);
     for (const b of BIOMES) if (b.requires) expect(BIOMES.some((o) => o.id === b.requires)).toBe(true);
     for (const b of BIOMES) if (b.boss) expect(ENEMIES[b.boss].boss).toBe(true);
   });

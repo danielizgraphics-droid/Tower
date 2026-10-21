@@ -4,8 +4,16 @@ import { Game } from '../src/game/game';
 import { generateWave } from '../src/game/waves';
 import { ModifierSet } from '../src/game/modifiers';
 import {
+  checkAchievements,
+  chooseDoor,
+  CLIMB_HP,
   CLIMB_LIVES,
   clearFloor,
+  floorRules,
+  hasPerk,
+  reachHeight,
+  resolveRoom,
+  rollDoors,
   climbStars,
   floorGold,
   floorMap,
@@ -17,7 +25,8 @@ import {
   rollRewards,
   takeReward,
 } from '../src/meta/climb';
-import { defaultProfile } from '../src/meta/profile';
+import { defaultProfile, heroProgress } from '../src/meta/profile';
+import { ENEMIES } from '../src/data/enemies';
 import { leaderboard } from '../src/meta/leaderboard';
 
 const veteran = () => {
@@ -93,5 +102,88 @@ describe('torre infinita', () => {
     expect(await leaderboard.available()).toBe(false);
     expect(await leaderboard.top('floor')).toBeNull();
     await expect(leaderboard.submit(defaultProfile())).resolves.toBeUndefined();
+  });
+});
+
+describe('torre infinita: variety and incentives', () => {
+  it('a door with a twist changes the battle and gives double loot', () => {
+    const p = veteran();
+    const run = newClimb(p, 11);
+    chooseDoor(run, p, { kind: 'battle', mod: 'horde', loot: true });
+    expect(run.stage).toBe('ready');
+    const rules = floorRules(run);
+    expect(rules.countMult).toBeGreaterThan(1);
+    expect(rules.hpMult).toBeLessThan(CLIMB_HP);
+    clearFloor(run, p, run.lives, 10);
+    expect(run.picks).toBe(2);
+    takeReward(run, run.offer![0]);
+    expect(run.stage).toBe('reward');
+    takeReward(run, run.offer![0]);
+    expect(run.stage).toBe('doors');
+    expect(run.doors).toHaveLength(2);
+  });
+
+  it('flyers-only floors ask for winged enemies', () => {
+    const run = newClimb(veteran(), 12);
+    run.next = { mod: 'flyers', loot: true };
+    const def = floorMap(run);
+    expect(def.flyers).toBe(true);
+    for (let w = 1; w <= 8; w++) for (const g of generateWave(def, w).groups) expect(ENEMIES[g.enemy].flying, g.enemy).toBe(true);
+  });
+
+  it('rooms skip a battle and count as a floor', () => {
+    const p = veteran();
+    const run = newClimb(p, 13);
+    run.floor = 4;
+    run.lives = 12;
+    chooseDoor(run, p, { kind: 'room', room: 'altar' });
+    expect(run.stage).toBe('room');
+    const pact = run.room!.choices.find((c) => c.cost > 0)!;
+    resolveRoom(run, pact);
+    expect(run.lives).toBe(12 - pact.cost);
+    expect(run.floor).toBe(5);
+    expect(run.stats.pacts).toBe(1);
+    expect(run.stage).toBe('doors');
+    // Never two rooms in a row.
+    expect(run.doors!.every((d) => d.kind === 'battle')).toBe(true);
+  });
+
+  it('boss floors offer two battles', () => {
+    const run = newClimb(veteran(), 14);
+    run.floor = [1, 2, 3, 4, 5, 6].find(isBossFloor)!;
+    expect(rollDoors(run).every((d) => d.kind === 'battle')).toBe(true);
+  });
+
+  it('heights unlock perks for good, once', () => {
+    const p = veteran();
+    const stars = p.stars;
+    expect(reachHeight(p, 12).map((m) => m.floor)).toEqual([5, 10]);
+    expect(p.stars).toBe(stars + 50 + 80);
+    expect(reachHeight(p, 11)).toEqual([]);
+    expect(hasPerk(p, 'purse')).toBe(true);
+    expect(hasPerk(p, 'recruit')).toBe(false);
+    const run = newClimb(p, 15);
+    expect(run.goldBonus).toBe(80);
+    expect(run.blessings).toHaveLength(1);
+    reachHeight(p, 25);
+    const strong = newClimb(p, 16);
+    expect(strong.towers).toHaveLength(4);
+    expect(strong.maxLives).toBe(CLIMB_LIVES + 5);
+    expect(heroProgress(p, 'vigil').done).toBe(true);
+  });
+
+  it('feats earn achievements (and their stars) once', () => {
+    const p = veteran();
+    const run = newClimb(p, 17);
+    for (let i = 0; i < 5; i++) {
+      run.next = { mod: null, loot: false };
+      clearFloor(run, p, run.lives, 5);
+      takeReward(run, run.offer![0]);
+    }
+    const stars = p.stars;
+    const got = checkAchievements(run, p).map((a) => a.id);
+    expect(got).toContain('flawless');
+    expect(p.stars).toBeGreaterThan(stars);
+    expect(checkAchievements(run, p)).toEqual([]);
   });
 });

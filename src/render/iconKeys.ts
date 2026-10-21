@@ -205,6 +205,7 @@ export const ICON_KEYS = new Set<string>([
   't-tide-5-1',
   't-tide-5-2',
   't-torvald-1--1',
+  't-vigil-1--1',
   't-warden-1--1',
   't-warden-2--1',
   't-warden-3--1',

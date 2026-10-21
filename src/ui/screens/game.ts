@@ -18,23 +18,25 @@ import { MISSION_BY_ID, ruleLines, type MissionDef } from '../../data/missions';
 import { EXPERT_BY_ID, expertMap } from '../../data/expert';
 import {
   blessingsOf,
-  CLIMB_HP,
-  CLIMB_LIVES,
+  checkAchievements,
   clearClimb,
   clearFloor,
   climbStars,
   floorGold,
   floorMap,
   floorOffset,
+  floorRules,
+  FLOOR_MODS,
   FLOOR_WAVES,
   isBossFloor,
   loadClimb,
   newClimb,
+  reachHeight,
   saveClimb,
   type ClimbRun,
 } from '../../meta/climb';
 import { leaderboard } from '../../meta/leaderboard';
-import { rewardPicker, startFloor } from './climb';
+import { intermission, startFloor } from './climb';
 import {
   activeHero,
   applyClimbEnd,
@@ -72,6 +74,9 @@ export function gameScreen(app: App, route: Route): Screen {
   const expert = run.expert ? (EXPERT_BY_ID[run.expert] ?? null) : null;
   /** Torre infinita: the climb this floor belongs to. */
   const climb = run.climb ? (loadClimb(app.storage) ?? newClimb(app.profile)) : null;
+  // Opened while the climb is still between floors (a reward or door to choose): go choose first.
+  if (climb && climb.stage !== 'ready') setTimeout(() => app.go({ name: 'climb' }));
+  const floorMod = climb?.next.mod ? FLOOR_MODS[climb.next.mod] : null;
   const mapDef = climb
     ? floorMap(climb)
     : expert
@@ -112,13 +117,13 @@ export function gameScreen(app: App, route: Route): Screen {
     difficulty,
     mods: profileModifiers(profile),
     unlockedTowers: unlocked,
-    rules: mission?.rules ?? expert?.rules ?? (climb ? { lives: climb.lives, noBlessings: true, hpMult: CLIMB_HP } : undefined),
+    rules: mission?.rules ?? expert?.rules ?? (climb ? floorRules(climb) : undefined),
     hero: heroId,
     waveOffset: climb ? floorOffset(climb.floor) : 0,
   });
   if (climb) {
     // Lives carry over from floor to floor; blessings won stay for the whole climb.
-    game.maxLives = CLIMB_LIVES;
+    game.maxLives = climb.maxLives;
     game.gold = floorGold(climb, game.global.startGold);
     for (const a of blessingsOf(climb)) {
       game.augments.push(a);
@@ -208,12 +213,12 @@ export function gameScreen(app: App, route: Route): Screen {
     cornerLeft.append(chip);
   }
   if (climb) {
-    const info = `Piso ${climb.floor} de la Torre infinita · ${FLOOR_WAVES} oleadas${isBossFloor(climb.floor) ? ' · ¡con jefe!' : ''}. Las vidas que pierdas no vuelven.`;
+    const info = `Piso ${climb.floor} de la Torre infinita · ${FLOOR_WAVES} oleadas${isBossFloor(climb.floor) ? ' · ¡con guardián!' : ''}${floorMod ? ` · ${floorMod.name}: ${floorMod.text}` : ''} Las vidas que pierdas apenas vuelven.`;
     const chip = h(
       'button.btn.wood.mission-chip',
       { 'aria-label': 'Torre infinita', title: 'Torre infinita' },
-      icon('tower', 16),
-      h('span', `Piso ${climb.floor}`),
+      icon(floorMod?.icon ?? 'tower', 16),
+      h('span', floorMod ? `Piso ${climb.floor} · ${floorMod.name}` : `Piso ${climb.floor}`),
     );
     chip.onclick = () => {
       sfx('click');
@@ -1305,23 +1310,27 @@ export function gameScreen(app: App, route: Route): Screen {
     banner('Modo infinito', 'Las oleadas ya no terminan');
   }
 
-  /** Torre infinita: a floor won leads to a reward and the next floor; a defeat ends the climb. */
+  /** Torre infinita: a floor won leads to rewards, doors and the next floor; a defeat ends the climb. */
   function finishFloor(c: ClimbRun, victory: boolean, abandoned: boolean) {
     applyClimbXp(profile, game.towerXp, game.global.xpGain);
+    const pill = (ic: string, text: string) => h('div.pill.mission-reward', { style: 'margin-top:8px;padding:8px 12px' }, icon(ic, 18), text);
     if (victory) {
       clearFloor(c, profile, game.lives, game.kills);
+      const heights = reachHeight(profile, c.floor - 1);
+      const earned = checkAchievements(c, profile);
       saveClimb(app.storage, c);
       profile.tutorialDone = true;
       app.save();
+      void leaderboard.submit(profile);
       setTimeout(() => {
         sfx('victory');
         const card = h(
-          'div.modal-card.panel',
-          { style: 'max-width:640px' },
+          'div.modal-card.panel.climb-modal',
           h('div', { style: 'color:#e2a01e;display:flex;justify-content:center' }, icon('tower', 52)),
           h('h2', `¡Piso ${c.floor - 1} superado!`),
-          h('p.muted', `Vidas: ${c.lives}/${CLIMB_LIVES} · Elige una recompensa para subir al piso ${c.floor}.`),
-          rewardPicker(app, c, () => startFloor(app, c)),
+          h('p.muted', `Vidas: ${c.lives}/${c.maxLives}`),
+          ...heights.map((m) => pill('crown', `¡Hito del piso ${m.floor}! +${m.stars} estrellas · ${m.text}`)),
+          intermission(app, c, () => startFloor(app, c), earned),
           h(
             'div.actions',
             h('button.btn.wood', { onclick: () => (sfx('click'), app.go({ name: 'climb' })) }, icon('home', 18), 'Descansar (se guarda)'),
@@ -1333,7 +1342,9 @@ export function gameScreen(app: App, route: Route): Screen {
     }
     const cleared = c.floor - 1;
     const stars = climbStars(cleared);
-    const record = applyClimbEnd(profile, cleared, stars, c.kills + game.kills, game.bossesKilled);
+    const earned = checkAchievements(c, profile);
+    applyClimbEnd(profile, stars, c.kills + game.kills, game.bossesKilled);
+    const record = cleared > c.startBest;
     clearClimb(app.storage);
     profile.tutorialDone = true;
     app.save();
@@ -1357,11 +1368,12 @@ export function gameScreen(app: App, route: Route): Screen {
             h('div.line', h('span', 'Enemigos abatidos'), h('span', String(c.kills + game.kills))),
             h('div.line', h('span', 'Mejor marca'), h('span', profile.climb.best ? `Piso ${profile.climb.best}` : '—')),
           ),
-          record && cleared ? h('div.pill.mission-reward', { style: 'margin-top:10px;padding:8px 12px' }, icon('medal', 18), '¡Nuevo récord!') : null,
-          stars ? h('div.pill.mission-reward', { style: 'margin-top:10px;padding:8px 12px' }, icon('star', 18), `+${stars} estrellas`) : null,
+          record && cleared ? pill('medal', '¡Nuevo récord!') : null,
+          stars ? pill('star', `+${stars} estrellas`) : null,
+          ...earned.map((a) => pill('medal', `¡Logro «${a.name}»! +${a.stars} estrellas`)),
           h(
             'div.actions',
-            h('button.btn', { onclick: () => (sfx('click'), app.go({ name: 'climb' })) }, icon('chart', 18), 'Clasificación'),
+            h('button.btn', { onclick: () => (sfx('click'), app.go({ name: 'climb' })) }, icon('chart', 18), 'Torre y clasificación'),
             h(
               'button.btn.purple',
               {
@@ -1666,7 +1678,12 @@ export function gameScreen(app: App, route: Route): Screen {
           ...wavePreview(next)
             .filter((p) => !(game.rules.groundOnly && ENEMIES[p.enemy].flying))
             .map((p) =>
-              h('span.e', h('img', { src: enemyPortrait(p.enemy, 48), alt: ENEMIES[p.enemy].name, title: ENEMIES[p.enemy].name }), `×${p.count}`),
+              h(
+                'span.e',
+                h('img', { src: enemyPortrait(p.enemy, 48), alt: ENEMIES[p.enemy].name, title: ENEMIES[p.enemy].name }),
+                // Floor twists (a horde) change how many come.
+                `×${Math.max(1, Math.round(p.count * (game.rules.countMult ?? 1)))}`,
+              ),
             ),
         );
       } else preview.style.display = 'none';
@@ -1700,7 +1717,11 @@ export function gameScreen(app: App, route: Route): Screen {
       'Arrastra una torre desde la barra inferior hasta una casilla junto al camino, o tócala y mueve la silueta por el mapa. Los enemigos salen del portal violeta.',
     );
   if (climb) {
-    banner(`Piso ${climb.floor}`, isBossFloor(climb.floor) ? '¡Un jefe aguarda en este piso!' : `${FLOOR_WAVES} oleadas`);
+    banner(
+      `Piso ${climb.floor}`,
+      floorMod ? `${floorMod.name}: ${floorMod.text}` : isBossFloor(climb.floor) ? '¡Un guardián aguarda en este piso!' : `${FLOOR_WAVES} oleadas`,
+      isBossFloor(climb.floor),
+    );
   }
   if (mission) {
     hint(`${mission.name}: ${ruleLines(mission).join(' · ')}.`);

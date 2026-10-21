@@ -13,7 +13,7 @@ import type { Game } from '../game/game';
 import type { Tile } from '../game/board';
 import type { Camera } from '../render/projection';
 import { instance, isLoaded, loadModel, model, ownMaterials, toFloatGeometry } from './assets';
-import { BIOMES_3D, biomeModels, tdTile, type Biome3D } from './biomes3d';
+import { BIOMES_3D, biomeModels, KEEP, tdTile, type Biome3D } from './biomes3d';
 import { ENEMY_LOOKS, type EnemyLook3D } from './looks';
 import { mergeRig } from './merge';
 import { clone as cloneSkinned } from 'three/examples/jsm/utils/SkeletonUtils.js';
@@ -88,6 +88,15 @@ interface EnemyObj {
   kind: string;
 }
 
+/** Sky and light of a Torre infinita floor (map id `climb-<floor>`): later hours higher up. */
+function keepAtmosphere(id: string): { top: string; bottom: string; light: Biome3D['light'] } {
+  const floor = Number(id.split('-')[1]) || 1;
+  if (floor < 10) return { top: '#6fa8e8', bottom: '#d8e8f8', light: { sky: '#eaf2ff', ground: '#9a8f86', hemi: 1.7, sun: '#fff6e8', sunI: 2.6 } };
+  if (floor < 20) return { top: '#e88a5a', bottom: '#ffd6a0', light: { sky: '#ffe2c8', ground: '#8a6a5a', hemi: 1.55, sun: '#ffc890', sunI: 2.5 } };
+  if (floor < 30) return { top: '#4a3a7a', bottom: '#c87aa0', light: { sky: '#e0c8f0', ground: '#4a3a5a', hemi: 1.4, sun: '#ffb0c8', sunI: 2.2 } };
+  return { top: '#0e1430', bottom: '#2a3a70', light: { sky: '#a8b8ff', ground: '#2a2a40', hemi: 1.25, sun: '#c8d4ff', sunI: 1.9 } };
+}
+
 export class Scene3D {
   readonly renderer: THREE.WebGLRenderer;
   readonly scene = new THREE.Scene();
@@ -137,7 +146,23 @@ export class Scene3D {
     this.renderer.toneMappingExposure = 1.05;
 
     this.biome = BIOMES_3D[game.board.def.theme];
-    const light = this.biome.light;
+    const keepSky = game.board.def.theme === 'keep' ? keepAtmosphere(game.board.def.id) : null;
+    const light = keepSky?.light ?? this.biome.light;
+    if (keepSky) {
+      // The higher the floor, the later the hour: day, sunset, dusk, night.
+      const c = document.createElement('canvas');
+      c.width = 2;
+      c.height = 256;
+      const ctx = c.getContext('2d')!;
+      const grad = ctx.createLinearGradient(0, 0, 0, 256);
+      grad.addColorStop(0, keepSky.top);
+      grad.addColorStop(1, keepSky.bottom);
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, 2, 256);
+      const tex = new THREE.CanvasTexture(c);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      this.scene.background = tex;
+    }
     const hemi = new THREE.HemisphereLight(light.sky, light.ground, light.hemi);
     this.scene.add(hemi);
     this.sun = new THREE.DirectionalLight(light.sun, light.sunI);
@@ -382,7 +407,8 @@ export class Scene3D {
       }
     };
     const sky = !!BIOME_BY_ID[b.def.theme]?.sky;
-    if (!sky) this.buildScenery(add, addFit, addH, grove);
+    const keep = b.def.theme === 'keep';
+    if (!sky && !keep) this.buildScenery(add, addFit, addH, grove);
     const isPath = (x: number, y: number) => b.isWalkable(x, y);
     const rnd = (t: Tile, i: number) => {
       const v = Math.sin(t.seed * 9301 + i * 49297) * 233280;
@@ -397,7 +423,10 @@ export class Scene3D {
           case 'grass':
           case 'flowers': {
             add(tdTile(bio, 'tile'), x, z);
-            if (t.kind === 'flowers') {
+            if (t.kind === 'flowers' && keep) {
+              // Tower floors: lanterns and banners.
+              addH(rnd(t, 1) < 0.6 ? KEEP.lantern : KEEP.banner, x, z, rnd(t, 1) < 0.6 ? 0.8 : 0.9, Math.floor(rnd(t, 2) * 4) * (Math.PI / 2));
+            } else if (t.kind === 'flowers' && bio.flowers.length) {
               const f = bio.flowers;
               for (let i = 0; i < 3; i++)
                 addH(
@@ -415,7 +444,11 @@ export class Scene3D {
           }
           case 'tree': {
             const r = rnd(t, 1);
-            if (bio.trees.length) {
+            if (keep) {
+              // Tower floors: stone columns instead of trees.
+              add(tdTile(bio, 'tile'), x, z);
+              addH(KEEP.pillar, x, z, 1.15, Math.floor(r * 4) * (Math.PI / 2));
+            } else if (bio.trees.length) {
               add(tdTile(bio, 'tile'), x, z);
               grove(x, z, (i) => rnd(t, i + 20), r < 0.4 ? 1 : r < 0.75 ? 2 : 3);
             } else
@@ -467,6 +500,8 @@ export class Scene3D {
           }
         }
       }
+    // (Before merging: the battlements join the floor's meshes.)
+    if (keep) this.buildKeep(group, add);
     for (const { mat, geos } of groups.values()) {
       const merged = mergeGeometries(geos, false);
       if (merged) {
@@ -512,6 +547,122 @@ export class Scene3D {
     this.ground = group;
     this.shadowDirty = true;
     this.buildCastle();
+  }
+
+  /**
+   * Torre infinita: the floor is the top of a tower. Battlements run around
+   * the edge, stone stairs climb up to every entrance, the tower's shaft drops
+   * away below and clouds drift past.
+   */
+  private buildKeep(group: THREE.Group, add: (path: string, x: number, z: number, rot?: number, scale?: number, y?: number) => void): void {
+    const b = this.game.board;
+    const W = b.width;
+    const H = b.height;
+    /** Size of a model's bounding box (for fitting it to one tile). */
+    const box = (path: string) => {
+      const g = model(path);
+      if (!g) return null;
+      const bb = new THREE.Box3().setFromObject(g.scene);
+      return { size: bb.getSize(new THREE.Vector3()), min: bb.min };
+    };
+    const wall = box(KEEP.wall);
+    const corner = box(KEEP.corner);
+    const stairs = box(KEEP.stairs);
+    const isSpawn = (x: number, y: number) => b.spawns.some((s) => s.x === x && s.y === y);
+    // A wall piece one tile long, lying along x (rot 0) or z (rot π/2).
+    const wallAt = (x: number, z: number, alongX: boolean) => {
+      if (!wall) return;
+      const long = Math.max(wall.size.x, wall.size.z);
+      const k = 1 / long;
+      const native = wall.size.x >= wall.size.z ? 0 : Math.PI / 2;
+      add(KEEP.wall, x, z, native + (alongX ? 0 : Math.PI / 2), k, GRASS_TOP * 2 - wall.min.y * k);
+    };
+    for (let x = 0; x < W; x++) {
+      if (!isSpawn(x, 0)) wallAt(x + 0.5, -0.5, true);
+      if (!isSpawn(x, H - 1)) wallAt(x + 0.5, H + 0.5, true);
+    }
+    for (let y = 0; y < H; y++) {
+      if (!isSpawn(0, y)) wallAt(-0.5, y + 0.5, false);
+      if (!isSpawn(W - 1, y)) wallAt(W + 0.5, y + 0.5, false);
+    }
+    // Corner turrets.
+    if (corner) {
+      const k = 1.2 / Math.max(corner.size.x, corner.size.z);
+      for (const [cx, cz] of [
+        [-0.5, -0.5],
+        [W + 0.5, -0.5],
+        [-0.5, H + 0.5],
+        [W + 0.5, H + 0.5],
+      ])
+        add(KEEP.corner, cx, cz, 0, k, GRASS_TOP * 2 - corner.min.y * k);
+    }
+    // Stone stairs coming up to every entrance, from the void outside.
+    if (stairs) {
+      const k = 1 / Math.max(stairs.size.x, stairs.size.z);
+      for (const s of b.spawns) {
+        const dir = s.x === 0 ? [-1, 0] : s.y === 0 ? [0, -1] : s.x === W - 1 ? [1, 0] : [0, 1];
+        // The model climbs towards -z at θ=0: turn it so it climbs towards the board.
+        const rot = Math.atan2(-dir[0], -dir[1]) + Math.PI;
+        // One flight just outside the wall, down to the ledge around the floor.
+        add(KEEP.stairs, s.x + 0.5 + dir[0], s.y + 0.5 + dir[1], rot, k, GRASS_TOP * 2 - stairs.min.y * k - 0.3);
+      }
+    }
+    // The tower itself, falling away below the floor.
+    const stone = new THREE.MeshStandardMaterial({ color: '#c4ab88', roughness: 1 });
+    // A ledge two tiles wide runs outside the walls (the stairs land on it).
+    const shaft = new THREE.Mesh(new THREE.BoxGeometry(W + 4.4, 60, H + 4.4), stone);
+    shaft.position.set(W / 2, -30.35, H / 2);
+    shaft.receiveShadow = true;
+    group.add(shaft);
+    // Rings of darker stone mark the floors below.
+    const band = new THREE.MeshStandardMaterial({ color: '#9a8366', roughness: 1 });
+    for (let i = 1; i <= 6; i++) {
+      const ring = new THREE.Mesh(new THREE.BoxGeometry(W + 4.7, 0.35, H + 4.7), band);
+      ring.position.set(W / 2, -i * 4.5, H / 2);
+      group.add(ring);
+    }
+    this.buildClouds(group, -3, -14, 90, false);
+  }
+
+  /** Clouds drifting around (and below) the board. */
+  private buildClouds(group: THREE.Group, yTop: number, yBottom: number, count: number, overBoard: boolean): void {
+    const b = this.game.board;
+    const W = b.width;
+    const H = b.height;
+    let seed = 11;
+    const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+    const geos: THREE.BufferGeometry[] = [];
+    for (let i = 0; i < count; i++) {
+      const cx = -14 + rnd() * (W + 28);
+      const cz = -14 + rnd() * (H + 28);
+      if (cx > -2 && cx < W + 2 && cz > -2 && cz < H + 2 && (!overBoard || rnd() < 0.7)) continue;
+      const y = yTop + (yBottom - yTop) * rnd();
+      for (let k = 0; k < 4; k++) {
+        const g = new THREE.IcosahedronGeometry(1, 1);
+        const s = 0.8 + rnd() * 1.3;
+        g.scale(s * 1.5, s * 0.6, s * 1.2);
+        g.translate(cx + (rnd() - 0.5) * 2.6, y + rnd() * 0.5, cz + (rnd() - 0.5) * 2);
+        geos.push(g);
+      }
+    }
+    const merged = mergeGeometries(geos, false);
+    for (const g of geos) g.dispose();
+    if (!merged) return;
+    const m = new THREE.Mesh(
+      merged,
+      new THREE.MeshStandardMaterial({
+        color: '#ffffff',
+        roughness: 1,
+        transparent: true,
+        opacity: 0.85,
+        emissive: '#e8f4ff',
+        emissiveIntensity: 0.3,
+        flatShading: true,
+      }),
+    );
+    m.matrixAutoUpdate = false;
+    m.updateMatrix();
+    group.add(m);
   }
 
   /**

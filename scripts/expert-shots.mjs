@@ -10,7 +10,13 @@ const shot = async (name, url, vp, fn) => {
   await page.addInitScript(() => {
     localStorage.setItem(
       'bastion-arcano.save',
-      JSON.stringify({ epoch: 2, tutorialDone: true, stars: 40, maps: { meadow: { bestWave: 22, cleared: {} } }, towers: { harbor: { unlocked: true, xp: 0, talents: {} } } }),
+      JSON.stringify({
+        epoch: 2,
+        tutorialDone: true,
+        stars: 40,
+        maps: { meadow: { bestWave: 22, cleared: {} } },
+        towers: { harbor: { unlocked: true, xp: 0, talents: {} } },
+      }),
     );
   });
   await page.goto(url);
@@ -20,7 +26,16 @@ const shot = async (name, url, vp, fn) => {
   await page.close();
 };
 const only = process.argv[2]?.split(',');
-const maps = { 'x-crossroads': 'meadow', 'x-forks': 'autumn', 'x-sky': 'sky', 'x-sea': 'coast', 'x-three': 'canyon', 'x-ash': 'volcano', 'x-frost': 'snow', 'x-chaos': 'dusk' };
+const maps = {
+  'x-crossroads': 'meadow',
+  'x-forks': 'autumn',
+  'x-sky': 'sky',
+  'x-sea': 'coast',
+  'x-three': 'canyon',
+  'x-ash': 'volcano',
+  'x-frost': 'snow',
+  'x-chaos': 'dusk',
+};
 if (!only || only.includes('menu')) {
   await shot('menu', 'http://localhost:5173/', { width: 1280, height: 800 });
   await shot('screen', 'http://localhost:5173/?screen=expert', { width: 1280, height: 800 });

@@ -19,7 +19,7 @@ function projectileStyle(t: Tower): string {
   if (id === 'obelisk') return 'shadow';
   if (id === 'quake') return 'boulder';
   if (id === 'falconer' || id === 'market' || id === 'warden') return 'arrow';
-  if (id === 'lyra') return 'bolt';
+  if (id === 'lyra' || id === 'vigil') return 'bolt';
   if (id === 'brunhild') return 'shard';
   if (id === 'aurelia') return 'holy';
   if (id === 'morwen') return 'shadow';

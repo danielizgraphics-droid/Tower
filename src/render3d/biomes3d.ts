@@ -37,7 +37,20 @@ export interface Biome3D {
   /** Extra ponds (water) or pools (lava) in the countryside. */
   pools?: 'water' | 'lava';
   light: { sky: string; ground: string; hemi: number; sun: string; sunI: number };
+  /** Other models the biome's scenery uses. */
+  extra?: string[];
 }
+
+/** Battlements, columns and stairs of the Torre infinita's floors. */
+export const KEEP = {
+  wall: 'castle/wall.glb',
+  corner: 'castle/tower-square-base.glb',
+  pillar: 'town/pillar-stone.glb',
+  stairs: 'castle/stairs-stone.glb',
+  banner: 'town/banner-red.glb',
+  lantern: 'town/lantern.glb',
+};
+const KEEP_MODELS = Object.values(KEEP);
 
 const GREEN_FAR = [HEX('mountain_A_grass_trees'), HEX('mountain_B_grass_trees'), HEX('hills_A_trees'), HEX('hills_B_trees')];
 const ROCK_FAR = [HEX('mountain_A'), HEX('mountain_B'), HEX('mountain_C')];
@@ -255,6 +268,20 @@ export const BIOMES_3D: Record<Biome, Biome3D> = {
     water: '#6ac8ff',
     light: { sky: '#eaf6ff', ground: '#8ab0d0', hemi: 1.75, sun: '#fffaf0', sunI: 2.6 },
   },
+  // Torre infinita: the roof of a tower above the clouds (built in Scene3D.buildKeep).
+  keep: {
+    ground: ['#e2d4bc', '#bfa98a'],
+    path: ['#c0453c', '#8f2b26'],
+    trees: [],
+    treeH: [1, 1],
+    props: [],
+    flowers: [],
+    far: [],
+    woods: 0,
+    water: '#6ac8ff',
+    light: { sky: '#eaf2ff', ground: '#9a8f86', hemi: 1.7, sun: '#fff6e8', sunI: 2.6 },
+    extra: KEEP_MODELS,
+  },
 };
 
 /** Kenney tower-defense tile in the biome's variant (snow or default). */
@@ -278,5 +305,5 @@ const TD_TILES = [
 
 /** Every model a biome's terrain may use (for preloading and packaging). */
 export function biomeModels(b: Biome3D): string[] {
-  return [...new Set([...TD_TILES.map((t) => tdTile(b, t)), ...b.trees, ...b.props, ...b.flowers, ...b.far])];
+  return [...new Set([...TD_TILES.map((t) => tdTile(b, t)), ...b.trees, ...b.props, ...b.flowers, ...b.far, ...(b.extra ?? [])])];
 }

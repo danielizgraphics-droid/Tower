@@ -61,7 +61,7 @@ export interface Profile {
   /** Highest rank already announced on the menu. */
   rankSeen: number;
   /** Torre infinita: highest floor reached, climbs started, and the name shown on the online ranking. */
-  climb: { best: number; runs: number; nick: string };
+  climb: { best: number; runs: number; nick: string; total: number; achievements: string[] };
   /** When this profile was last saved (ms since epoch) — the newer copy wins when syncing devices. */
   savedAt?: number;
 }
@@ -85,7 +85,7 @@ export function defaultProfile(): Profile {
     regions: [],
     hero: null,
     rankSeen: 0,
-    climb: { best: 0, runs: 0, nick: '' },
+    climb: { best: 0, runs: 0, nick: '', total: 0, achievements: [] },
   };
 }
 
@@ -102,7 +102,11 @@ export function migrateProfile(raw: unknown): Profile {
     version: SAVE_VERSION,
     settings: { ...base.settings, ...(p.settings ?? {}) },
     stats: { ...base.stats, ...(p.stats ?? {}) },
-    climb: { ...base.climb, ...(p.climb ?? {}) },
+    climb: {
+      ...base.climb,
+      ...(p.climb ?? {}),
+      achievements: Array.isArray(p.climb?.achievements) ? p.climb.achievements : [],
+    },
     general: { ...(p.general ?? {}) },
     maps: { ...(p.maps ?? {}) },
     seenEnemies: Array.isArray(p.seenEnemies) ? p.seenEnemies : [],
@@ -316,16 +320,13 @@ export function applyClimbXp(p: Profile, towerXp: Partial<Record<TowerId, number
   for (const [id, xp] of Object.entries(towerXp) as [TowerId, number][]) if (p.towers[id]) p.towers[id].xp += Math.round(xp * (1 + xpGain));
 }
 
-/** Torre infinita ended: record and stars. Returns whether it is a new record. */
-export function applyClimbEnd(p: Profile, floorReached: number, stars: number, kills: number, bosses: number): boolean {
-  const record = floorReached > p.climb.best;
-  p.climb.best = Math.max(p.climb.best, floorReached);
+/** Torre infinita ended: stars and stats (heights are recorded floor by floor). */
+export function applyClimbEnd(p: Profile, stars: number, kills: number, bosses: number): void {
   p.stars += stars;
   p.starsEarned += stars;
   p.stats.runs++;
   p.stats.kills += kills;
   p.stats.bossesKilled += bosses;
-  return record;
 }
 
 /** Can the player start battles in this region? */
@@ -450,6 +451,8 @@ export function heroProgress(p: Profile, id: TowerId): { done: boolean; text: st
         MASTERY_TOWERS.length,
         'Consigue la maestría dorada de todas las torres',
       );
+    case 'climb':
+      return count(p.climb.best, u.floor, `Supera el piso ${u.floor} de la Torre infinita`);
     case 'towers':
       return count(Object.values(p.towers).filter((t) => t.unlocked).length, u.amount, `Ten ${u.amount} torres desbloqueadas`);
   }
