@@ -201,14 +201,14 @@ function buildNetwork(rng: Rng, cw: number, ch: number, lanes: { spawns: number;
 }
 
 function tryNetwork(rng: Rng, cw: number, ch: number, lanes: { spawns: number; forks: number }): Network {
-  const main = findCoarsePath(rng, cw, ch, lanes.spawns > 1 ? 0.3 : 0.42);
+  const main = findCoarsePath(rng, cw, ch, lanes.spawns > 1 ? 0.16 : 0.22);
   const castle = main[main.length - 1];
   /** Road nodes: `rest` = nodes left to the castle; others may join where `mergeable`. */
   const used = new Map<string, { rest: number; mergeable: boolean }>();
   // Entrances join late, so each road needs its own defenders for most of the way.
   main.forEach((n, k) => used.set(nkey(n), { rest: main.length - 1 - k, mergeable: k >= main.length * 0.6 }));
   // No entrance may be much shorter than the main road (it would leave no time to react).
-  const minRoute = main.length * 0.65;
+  const minRoute = main.length * 0.6;
   const links: [Node, Node][] = main.slice(1).map((n, k) => [main[k], n]);
   const spawns = [main[0]];
   const inBounds = (n: Node) => n.i >= 0 && n.j >= 0 && n.i < cw && n.j < ch;
@@ -231,7 +231,7 @@ function tryNetwork(rng: Rng, cw: number, ch: number, lanes: { spawns: number; f
       if (spawns.some((sp) => manhattan(sp, start) < spread) || manhattan(start, castle) < spread) continue;
       const walk = [start];
       const seen = new Set([nkey(start)]);
-      const minLen = Math.round((cw + ch) * 0.3);
+      const minLen = Math.round((cw + ch) * 0.2);
       let join: Node | null = null;
       while (walk.length < cw * ch) {
         const cur = walk[walk.length - 1];

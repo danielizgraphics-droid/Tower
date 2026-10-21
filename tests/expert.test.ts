@@ -11,12 +11,12 @@ describe('expert maps', () => {
       const b = new Board(def);
       expect(b.spawns.length).toBe(x.spawns);
       expect(b.routes.length).toBeGreaterThanOrEqual(x.spawns + (x.forks > 0 ? 1 : 0));
-      const longest = Math.max(...b.routes.map((r) => r.length));
       for (const r of b.routes) {
         // Contiguous walkable cells from a spawn to the castle.
         const cells = def.routes!.find((c) => c[0].x === r.spawn.x && c[0].y === r.spawn.y)!;
         expect(cells).toBeDefined();
-        expect(r.length).toBeGreaterThan(longest * 0.5);
+        // Short roads, but always some room to react.
+        expect(r.length).toBeGreaterThan(15);
       }
       for (const cells of def.routes!) {
         const end = cells[cells.length - 1];
