@@ -303,6 +303,7 @@ export type EnemyId =
   | 'wyvern'
   | 'warlord'
   | 'lich'
+  | 'leire'
   | 'dragon'
   | 'spider'
   | 'orc'

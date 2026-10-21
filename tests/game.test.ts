@@ -42,11 +42,12 @@ describe('waves', () => {
       for (const g of wave.groups) expect(ENEMIES[g.enemy].minWave <= w || ENEMIES[g.enemy].boss).toBe(true);
     }
     expect(generateWave(MAP, 10).boss).toBe('warlord');
-    expect(generateWave(MAP, 20).boss).toBe('lich');
+    expect(generateWave(MAP, 20).boss).toBe('leire');
     expect(generateWave(MAP, 30).boss).toBe('dragon');
-    // Endless: bosses keep cycling and enemies keep scaling.
-    expect(generateWave(MAP, 40).boss).toBe('warlord');
-    expect(generateWave(MAP, 90).boss).toBe('dragon');
+    // Endless: bosses keep cycling (the lich joins at 40) and enemies keep scaling.
+    expect(generateWave(MAP, 40).boss).toBe('lich');
+    expect(generateWave(MAP, 50).boss).toBe('warlord');
+    expect(generateWave(MAP, 70).boss).toBe('dragon');
     expect(waveHpMultiplier(60) / waveHpMultiplier(30)).toBeGreaterThan(5);
   });
 });
@@ -210,4 +211,17 @@ describe('full runs (balance smoke tests)', () => {
     simulate(g, new AutoPlayer(g, ['archer', 'cannon', 'arcane', 'frost'], 2));
     expect(g.phase).toBe('defeat');
   }, 60000);
+});
+
+describe('La bruja Leire', () => {
+  it('leads wave 20 and calls her wolves, but nothing winged where flyers are kept away', () => {
+    expect(generateWave(MAP, 20).boss).toBe('leire');
+    for (const rules of [{}, { groundOnly: true }]) {
+      const g = new Game({ map: MAP, difficulty: 'normal', mods: new ModifierSet(), unlockedTowers: [], rules });
+      g.spawnEnemy('leire', 20, 0);
+      for (let i = 0; i < 60 * 8; i++) g.step(1 / 60);
+      expect(g.enemies.some((e) => e.def.id === 'wolf')).toBe(true);
+      expect(g.enemies.some((e) => e.def.flying)).toBe(false);
+    }
+  });
 });

@@ -116,7 +116,7 @@ describe('regional content', () => {
     expect(bossFor(20, 'swamp')).toBe('hydra');
     expect(bossFor(20, 'volcano')).toBe('colossus');
     expect(bossFor(20, 'desert')).toBe('scorpionKing');
-    expect(bossFor(20, 'meadow')).toBe('lich');
+    expect(bossFor(20, 'meadow')).toBe('leire');
     expect(bossFor(10, 'swamp')).toBe('warlord');
   });
 

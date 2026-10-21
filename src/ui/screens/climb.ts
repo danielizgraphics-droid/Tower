@@ -27,6 +27,7 @@ import { towerPortrait } from '../../render/portraits';
 import type { App, Screen } from '../app';
 import { h } from '../dom';
 import { icon } from '../icons';
+import { nickField } from '../nick';
 
 /** Waves to reach in any region before the climb opens. */
 export const CLIMB_UNLOCK_WAVE = 10;
@@ -279,13 +280,8 @@ export function climbScreen(app: App): Screen {
   const summary = h('div.start-summary');
   const ranking = h('div.ranking');
   const boardSeg = h('div.seg');
-  const nick = h('input.nick', {
-    type: 'text',
-    maxlength: '20',
-    placeholder: 'Tu nombre en la clasificación',
-    value: p.climb.nick,
-  }) as HTMLInputElement;
-  const nickRow = h('div.nick-row', nick);
+  const nickRow = nickField(app, () => void renderRanking());
+
   let destroyed = false;
 
   function renderLeft() {
@@ -353,7 +349,6 @@ export function climbScreen(app: App): Screen {
     const rows = await leaderboard.top(kind);
     if (destroyed || kind !== view.board) return;
     if (!rows) {
-      nickRow.style.display = 'none';
       ranking.replaceChildren(
         h('p.muted', 'La clasificación online está disponible al jugar desde la versión de Claude, con tu cuenta.'),
         h('p.muted.tiny', `Tus récords: piso ${p.climb.best || '—'} en la torre.`),
@@ -387,14 +382,6 @@ export function climbScreen(app: App): Screen {
       ),
     );
   }
-
-  let nickTimer = 0;
-  nick.oninput = () => {
-    p.climb.nick = nick.value.replace(/[\u0000-\u001f]/g, '').slice(0, 20);
-    app.save();
-    clearTimeout(nickTimer);
-    nickTimer = window.setTimeout(() => void renderRanking(), 1200);
-  };
 
   startBtn.onclick = () => {
     app.sfx('click');
@@ -436,7 +423,6 @@ export function climbScreen(app: App): Screen {
     el,
     destroy() {
       destroyed = true;
-      clearTimeout(nickTimer);
     },
   };
 }

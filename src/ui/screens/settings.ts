@@ -2,6 +2,7 @@ import { defaultProfile, exportProfileCode, importProfileCode, type Settings } f
 import type { App } from '../app';
 import { h } from '../dom';
 import { icon } from '../icons';
+import { nickField } from '../nick';
 
 function toggle(on: boolean, onChange: (v: boolean) => void): HTMLButtonElement {
   const b = h('button.switch', { 'aria-pressed': String(on) });
@@ -184,6 +185,7 @@ export function openSettings(app: App, host: HTMLElement, onClose?: () => void, 
           graphicsSeg(st.graphics ?? 'auto', (v) => ((st.graphics = v), apply())),
           h('span.muted.tiny', 'Ahorro: menos resolución y 30 imágenes por segundo, para que el móvil no se caliente.'),
         ),
+        h('div.setting.column', nickField(app)),
         h('div.setting', h('span', 'Progreso'), cloudBadge(app)),
         extra
           ? null

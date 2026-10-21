@@ -28,9 +28,9 @@ export function waveHpMultiplier(wave: number): number {
   return wave > 30 ? base * Math.pow(1.06, wave - 30) : base;
 }
 
-const BOSS_CYCLE: EnemyId[] = ['warlord', 'lich', 'dragon'];
+const BOSS_CYCLE: EnemyId[] = ['warlord', 'leire', 'dragon', 'lich'];
 /** Guardians of the Torre infinita: every boss of every region, in turn. */
-const KEEP_BOSSES: EnemyId[] = ['warlord', 'scorpionKing', 'lich', 'hydra', 'dragon', 'colossus', 'hiveQueen', 'cyclopsKing', 'prismGolem'];
+const KEEP_BOSSES: EnemyId[] = ['warlord', 'leire', 'scorpionKing', 'lich', 'hydra', 'dragon', 'colossus', 'hiveQueen', 'cyclopsKing', 'prismGolem'];
 
 /** Boss of a wave (every 10th wave), cycling forever in endless mode. Regions may replace the middle boss. */
 export function bossFor(wave: number, biome?: Biome): EnemyId | undefined {

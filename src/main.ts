@@ -22,6 +22,13 @@ import { talentsScreen } from './ui/screens/talents';
 // 3D renderer (WebGL + CC0 models) by default; ?r=2d forces the classic 2D renderer.
 Renderer.use3D = new URLSearchParams(location.search).get('r') !== '2d';
 
+// A failed background task (a model that didn't download, a cloud sync) must never
+// take the game down: note it and carry on.
+window.addEventListener('unhandledrejection', (e) => {
+  e.preventDefault();
+  console.warn('unhandled', e.reason);
+});
+
 const app = new App(document.getElementById('app')!);
 
 // Installed as an app (its own site, not inside Claude): keep working offline.

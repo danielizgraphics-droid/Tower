@@ -10,7 +10,36 @@ const page = await browser.newPage({ viewport: { width: 640, height: 360 }, hasT
 page.on('pageerror', (e) => console.log('ERR', e.message));
 await page.addInitScript((churn) => (window.__churn = churn), !!process.env.CHURN);
 await page.addInitScript(() => localStorage.setItem('bastion-arcano.save', JSON.stringify({ epoch: 2, tutorialDone: true })));
-await page.goto('http://localhost:5173/?screen=game&biome=meadow&seed=1&endless=1');
+// CLIMB=1: a Torre infinita floor with the Horde twist (twice the enemies).
+if (process.env.CLIMB)
+  await page.addInitScript(() =>
+    localStorage.setItem(
+      'bastion-arcano.climb',
+      JSON.stringify({
+        v: 2,
+        epoch: 2,
+        seed: 5,
+        floor: 10,
+        lives: 20,
+        maxLives: 20,
+        blessings: [],
+        towers: ['archer'],
+        goldBonus: 0,
+        kills: 0,
+        stage: 'ready',
+        offer: null,
+        picks: 0,
+        doors: null,
+        room: null,
+        next: { mod: 'horde', loot: true },
+        stats: { flawless: 0, bestFlawless: 0, bosses: 0, recruits: 0, modFloors: 0, rooms: [], pacts: 0, edge: false },
+        startBest: 0,
+      }),
+    ),
+  );
+await page.goto(
+  process.env.CLIMB ? 'http://localhost:5173/?screen=game&climb=1' : 'http://localhost:5173/?screen=game&biome=meadow&seed=1&endless=1',
+);
 await page.waitForTimeout(5000);
 await page.evaluate(() => {
   const { game } = window.__game;
@@ -37,6 +66,7 @@ await page.evaluate(() => {
         i++;
       }
   game.wave = 40;
+  game.totalWaves = Infinity;
   // CHURN: enemies die almost at once (exercises model recycling).
   if (window.__churn) {
     const spawn = game.spawnEnemy.bind(game);

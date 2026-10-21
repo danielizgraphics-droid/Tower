@@ -141,6 +141,8 @@ export class Fx {
   }
 
   label(x: number, y: number, z: number, text: string, color: string, size = 1.1, life = 1.1): void {
+    // Busy fights drop the oldest labels rather than piling up hundreds.
+    if (this.texts.length > 110) this.texts.shift();
     this.texts.push({ x, y, z, text, amount: 0, color, life: 0, max: life, size, born: this.clock });
   }
 

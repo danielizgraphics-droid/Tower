@@ -42,6 +42,7 @@ export const ENEMY_LOOKS: Partial<Record<EnemyId, EnemyLook3D>> = {
   skeleton: { model: C + 'Skeleton_Minion.glb', height: 0.7 },
   necromancer: { model: C + 'Skeleton_Mage.glb', height: 0.75, tint: '#9fffc0', tintAmount: 0.3, stride: 0.9 },
   mummy: { model: C + 'Skeleton_Warrior.glb', height: 0.75, tint: '#ffe6b0', tintAmount: 0.5, stride: 0.8 },
+  leire: { model: C + 'Mage.glb', height: 0.88, show: ['2H_Staff'], tint: '#5a2a7a', tintAmount: 0.55, glow: '#b04ae0', stride: 0.8 },
   lich: { model: C + 'Skeleton_Mage.glb', height: 0.85, tint: '#c8a0ff', tintAmount: 0.5, glow: '#7a30ff', stride: 0.7 },
   // ---- monsters (Quaternius)
   wolf: { model: M + 'Wolf.glb', height: 0.5, tint: '#8d93a0', tintAmount: 0.6 },

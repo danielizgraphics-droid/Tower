@@ -9,6 +9,18 @@ export type GraphicsSetting = 'auto' | 'high' | 'saver';
 
 export const IS_MOBILE = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
 
+/**
+ * Devices with little memory (old or budget phones and tablets): they start
+ * at the lightest graphics and never climb to the heaviest, since running out
+ * of memory makes the system close the app.
+ */
+export const LOW_MEMORY = (() => {
+  if (typeof navigator === 'undefined') return false;
+  const mem = (navigator as Navigator & { deviceMemory?: number }).deviceMemory;
+  if (mem !== undefined && mem <= 3) return true;
+  return IS_MOBILE && (navigator.hardwareConcurrency ?? 8) <= 4;
+})();
+
 export class AutoQuality {
   level: Quality;
   private ema = 0;
@@ -19,9 +31,9 @@ export class AutoQuality {
   constructor(
     readonly setting: GraphicsSetting,
     /** Highest level auto mode may use. */
-    readonly max: Quality = IS_MOBILE ? 1 : 2,
+    readonly max: Quality = LOW_MEMORY ? 1 : IS_MOBILE ? 1 : 2,
   ) {
-    this.level = setting === 'high' ? 2 : setting === 'saver' ? 0 : max;
+    this.level = setting === 'high' ? 2 : setting === 'saver' ? 0 : LOW_MEMORY ? 0 : max;
   }
 
   /** Frames per second to aim for (0 = as many as the screen shows). */

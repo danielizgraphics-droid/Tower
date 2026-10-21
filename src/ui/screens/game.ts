@@ -7,7 +7,7 @@ import { generateMap, seedCode } from '../../game/mapgen';
 import { SPELLS, SPELL_LIST } from '../../data/spells';
 import { BRANCH_TIER, MAX_TIER, TOWERS, TOWER_LIST } from '../../data/towers';
 import { HERO_LEVEL_KILLS, HERO_MAX_LEVEL } from '../../data/heroes';
-import type { AugmentDef, Difficulty, SpellId, TargetMode, TowerId } from '../../data/types';
+import type { AugmentDef, Difficulty, EnemyId, SpellId, TargetMode, TowerId } from '../../data/types';
 import type { SfxName } from '../../engine/audio';
 import { formatNumber } from '../../engine/math';
 import type { Tower } from '../../game/entities';
@@ -1255,8 +1255,28 @@ export function gameScreen(app: App, route: Route): Screen {
   ev.on('spawn', ({ enemy }) => {
     if (!profile.seenEnemies.includes(enemy.def.id)) profile.seenEnemies.push(enemy.def.id);
   });
+  /** Bosses with a warning of their own: a big alert with their portrait. */
+  const ALERT_BOSSES: Partial<Record<EnemyId, string>> = {
+    leire: 'Salta entre el humo, llama a sus lobos y se enfurece cuando está malherida. ¡Refuerza tus defensas!',
+  };
+  function bossAlert(id: EnemyId, title: string, sub: string) {
+    hud.querySelectorAll('.boss-alert').forEach((x) => x.remove());
+    const el = h(
+      'div.boss-alert',
+      h('img', { src: enemyPortrait(id, 96), alt: '' }),
+      h('div', h('div.alert-kicker', icon('skull', 14), '¡Atención!'), h('div.alert-title', title), h('div.alert-sub', sub)),
+    );
+    hud.append(el);
+    setTimeout(() => el.remove(), 5200);
+  }
+  ev.on('spawn', ({ enemy }) => {
+    if (enemy.def.id === 'leire' && enemy.dist <= 0) toast('¡La bruja Leire ha entrado en el campo de batalla!');
+  });
   ev.on('waveStart', ({ wave, boss }) => {
-    if (boss) {
+    if (boss && ALERT_BOSSES[boss]) {
+      sfx('boss');
+      bossAlert(boss, `¡${ENEMIES[boss].name} se acerca!`, ALERT_BOSSES[boss]!);
+    } else if (boss) {
       sfx('boss');
       banner(`Oleada ${wave}`, `¡Se acerca ${ENEMIES[boss].name}!`, true);
     } else {
@@ -1671,6 +1691,9 @@ export function gameScreen(app: App, route: Route): Screen {
     const sigPrev = next ? `${next.index}` : 'none';
     if (preview.dataset.sig !== sigPrev) {
       preview.dataset.sig = sigPrev;
+      // Warned bosses: an alert as soon as their wave is the next one.
+      if (next?.boss && ALERT_BOSSES[next.boss] && game.phase !== 'victory' && game.phase !== 'defeat')
+        bossAlert(next.boss, `En la próxima oleada: ${ENEMIES[next.boss].name}`, ALERT_BOSSES[next.boss]!);
       if (next) {
         preview.style.display = '';
         preview.replaceChildren(

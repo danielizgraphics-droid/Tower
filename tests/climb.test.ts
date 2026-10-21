@@ -27,7 +27,7 @@ import {
 } from '../src/meta/climb';
 import { defaultProfile, heroProgress } from '../src/meta/profile';
 import { ENEMIES } from '../src/data/enemies';
-import { leaderboard } from '../src/meta/leaderboard';
+import { cleanNick, leaderboard } from '../src/meta/leaderboard';
 
 const veteran = () => {
   const p = defaultProfile();
@@ -185,5 +185,13 @@ describe('torre infinita: variety and incentives', () => {
     expect(got).toContain('flawless');
     expect(p.stars).toBeGreaterThan(stars);
     expect(checkAchievements(run, p)).toEqual([]);
+  });
+});
+
+describe('nicknames', () => {
+  it('are cleaned up: printable, single-spaced, 16 characters at most', () => {
+    expect(cleanNick('  Daniel   el  Grande ')).toBe('Daniel el Grande');
+    expect(cleanNick('a\u0000b‮c')).toBe('abc');
+    expect(cleanNick('x'.repeat(30))).toHaveLength(16);
   });
 });

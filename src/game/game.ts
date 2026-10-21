@@ -690,7 +690,8 @@ export class Game {
           this.events.emit('blink', { x: e.x, y: e.y });
         }
       }
-      if (def.summon) {
+      // (No winged summons where flyers are kept away, as on naval maps.)
+      if (def.summon && !(this.rules.groundOnly && ENEMIES[def.summon.into].flying)) {
         e.summonTimer += dt;
         if (e.summonTimer >= def.summon.every) {
           e.summonTimer = 0;

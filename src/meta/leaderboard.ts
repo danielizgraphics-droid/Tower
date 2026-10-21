@@ -14,7 +14,7 @@ export interface ScoreRow {
   /** Most waves survived in endless mode (any region). */
   endless: number;
   me: boolean;
-  /** Display name to show. */
+  /** Name to show: the nickname, or an anonymous one. */
   name: string;
 }
 
@@ -52,11 +52,14 @@ export function bestEndless(p: Profile): number {
   return Math.max(0, ...Object.values(p.maps).map((m) => m.bestEndless ?? 0));
 }
 
-const clean = (s: unknown) =>
+/** A nickname as shown: printable, single-spaced, 16 characters at most. */
+export const cleanNick = (s: unknown): string =>
   String(s ?? '')
-    .replace(/[\u0000-\u001f]/g, '')
+    .replace(/[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u2028-\u202e\u2066-\u2069]/g, '')
+    .replace(/\s+/g, ' ')
     .trim()
-    .slice(0, 20);
+    .slice(0, 16);
+const clean = cleanNick;
 
 export class Leaderboard {
   private conn: Promise<{ db: DB; user: UserNs; id: string } | null> | null = null;
@@ -128,9 +131,8 @@ export class Leaderboard {
         if (v && Number(v[kind]) > 0)
           rows.push({ id: c.id, nick: clean(v.nick), floor: Number(v.floor) || 0, endless: Number(v.endless) || 0, me: true, name: '' });
       }
-      // Names are resolved now, never stored: a chosen nickname, else the account's name.
-      const people = await c.user.profiles(rows.filter((r) => !r.nick).map((r) => r.id));
-      for (const r of rows) r.name = r.nick || people[r.id]?.name || 'Defensor anónimo';
+      // Players are shown by the nickname they chose (never by their account's name).
+      for (const r of rows) r.name = r.nick || 'Defensor anónimo';
       return rows;
     } catch {
       return null;

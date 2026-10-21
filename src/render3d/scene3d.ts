@@ -5,6 +5,7 @@
 // World mapping: game (x, y, z) → three (X = x, Y = z, Z = y).
 
 import * as THREE from 'three';
+import { LOW_MEMORY } from '../render/quality';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { BIOME_BY_ID } from '../data/biomes';
 import type { EnemyDef, TowerId } from '../data/types';
@@ -128,7 +129,14 @@ export class Scene3D {
     readonly canvas: HTMLCanvasElement,
     readonly game: Game,
   ) {
-    this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, preserveDrawingBuffer: false });
+    // Multisampling costs GPU memory that small devices can't spare.
+    this.renderer = new THREE.WebGLRenderer({
+      canvas,
+      antialias: !LOW_MEMORY,
+      alpha: true,
+      preserveDrawingBuffer: false,
+      powerPreference: 'default',
+    });
     // The browser may drop the GPU context (memory pressure, e.g. when an iPhone rotates):
     // the 2D layer takes over until it comes back.
     canvas.addEventListener('webglcontextlost', (e) => {

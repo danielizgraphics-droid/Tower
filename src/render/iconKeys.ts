@@ -14,6 +14,7 @@ export const ICON_KEYS = new Set<string>([
   'e-iceKnight',
   'e-imp',
   'e-knight',
+  'e-leire',
   'e-lich',
   'e-mummy',
   'e-myconid',
