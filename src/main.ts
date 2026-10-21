@@ -16,6 +16,7 @@ import { menuScreen } from './ui/screens/menu';
 import { missionsScreen } from './ui/screens/missions';
 import { heroesScreen } from './ui/screens/heroes';
 import { expertScreen } from './ui/screens/expert';
+import { climbScreen } from './ui/screens/climb';
 import { talentsScreen } from './ui/screens/talents';
 
 // 3D renderer (WebGL + CC0 models) by default; ?r=2d forces the classic 2D renderer.
@@ -31,6 +32,7 @@ app.register('maps', mapsScreen);
 app.register('missions', missionsScreen);
 app.register('heroes', heroesScreen);
 app.register('expert', expertScreen);
+app.register('climb', climbScreen);
 app.register('talents', talentsScreen);
 app.register('codex', codexScreen);
 app.register('game', gameScreen);
@@ -47,8 +49,17 @@ if (screen === 'game')
     endless: params.get('endless') === '1',
     mission: params.get('mission') ?? undefined,
     expert: params.get('expert') ?? undefined,
+    climb: params.get('climb') === '1' || undefined,
   });
-else if (screen === 'maps' || screen === 'talents' || screen === 'codex' || screen === 'missions' || screen === 'heroes' || screen === 'expert')
+else if (
+  screen === 'maps' ||
+  screen === 'talents' ||
+  screen === 'codex' ||
+  screen === 'missions' ||
+  screen === 'heroes' ||
+  screen === 'expert' ||
+  screen === 'climb'
+)
   app.go({ name: screen });
 else app.go({ name: 'menu' });
 

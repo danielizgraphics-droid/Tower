@@ -17,7 +17,28 @@ import { wavePreview } from '../../game/waves';
 import { MISSION_BY_ID, ruleLines, type MissionDef } from '../../data/missions';
 import { EXPERT_BY_ID, expertMap } from '../../data/expert';
 import {
+  blessingsOf,
+  CLIMB_HP,
+  CLIMB_LIVES,
+  clearClimb,
+  clearFloor,
+  climbStars,
+  floorGold,
+  floorMap,
+  floorOffset,
+  FLOOR_WAVES,
+  isBossFloor,
+  loadClimb,
+  newClimb,
+  saveClimb,
+  type ClimbRun,
+} from '../../meta/climb';
+import { leaderboard } from '../../meta/leaderboard';
+import { rewardPicker, startFloor } from './climb';
+import {
   activeHero,
+  applyClimbEnd,
+  applyClimbXp,
   applyMissionResult,
   masteredTowers,
   towerMastered,
@@ -49,9 +70,13 @@ export function gameScreen(app: App, route: Route): Screen {
   let continued: { waves: number; kills: number; bosses: number; xp: Partial<Record<TowerId, number>> } | null = null;
   const mission = run.mission ? (MISSION_BY_ID[run.mission] ?? null) : null;
   const expert = run.expert ? (EXPERT_BY_ID[run.expert] ?? null) : null;
-  const mapDef = expert
-    ? expertMap(expert, endless ? Infinity : 30)
-    : generateMap({ biome: run.biome, seed: run.seed, waves: mission ? mission.waves : endless ? Infinity : 30, water: mission?.water });
+  /** Torre infinita: the climb this floor belongs to. */
+  const climb = run.climb ? (loadClimb(app.storage) ?? newClimb(app.profile)) : null;
+  const mapDef = climb
+    ? floorMap(climb)
+    : expert
+      ? expertMap(expert, endless ? Infinity : 30)
+      : generateMap({ biome: run.biome, seed: run.seed, waves: mission ? mission.waves : endless ? Infinity : 30, water: mission?.water });
   /** Open sea: only naval towers (the hero stands on a raft). */
   const seaMap = !!expert?.allWater;
   const difficulty: Difficulty = route.difficulty;
@@ -59,7 +84,7 @@ export function gameScreen(app: App, route: Route): Screen {
   // A mission decides which towers can be built (even ones the player doesn't own yet).
   // Over the clouds only towers that can hit flyers make sense.
   const skyMap = !!BIOMES.find((b) => b.id === run.biome)?.sky;
-  const saved0 = run.resume && !mission ? loadRun(app.storage) : null;
+  const saved0 = run.resume && !mission && !climb ? loadRun(app.storage) : null;
   // Resuming a battle saved between waves (the page was closed or reloaded).
   const saved =
     saved0 &&
@@ -74,12 +99,12 @@ export function gameScreen(app: App, route: Route): Screen {
   const heroId = heroPick && (!skyMap || TOWERS[heroPick].targetsAir) ? heroPick : null;
   const unlocked = [
     ...(heroId ? [heroId] : []),
-    ...(mission ? mission.towers : TOWER_LIST.filter((t) => profile.towers[t.id].unlocked).map((t) => t.id)),
+    ...(mission ? mission.towers : climb ? climb.towers : TOWER_LIST.filter((t) => profile.towers[t.id].unlocked).map((t) => t.id)),
   ].filter((id) => (!skyMap || TOWERS[id].targetsAir) && (!seaMap || TOWERS[id].hero || TOWERS[id].placement === 'water'));
   /** Towers shown in the build bar: the hero first; exclusive ones only once earned; in missions, only the allowed ones. */
   const barTowers = [
     ...(heroId ? [TOWERS[heroId]] : []),
-    ...TOWER_LIST.filter((t) => (mission || skyMap || seaMap ? unlocked.includes(t.id) : !t.exclusive || unlocked.includes(t.id))),
+    ...TOWER_LIST.filter((t) => (mission || skyMap || seaMap || climb ? unlocked.includes(t.id) : !t.exclusive || unlocked.includes(t.id))),
   ];
 
   const game = new Game({
@@ -87,9 +112,19 @@ export function gameScreen(app: App, route: Route): Screen {
     difficulty,
     mods: profileModifiers(profile),
     unlockedTowers: unlocked,
-    rules: mission?.rules ?? expert?.rules,
+    rules: mission?.rules ?? expert?.rules ?? (climb ? { lives: climb.lives, noBlessings: true, hpMult: CLIMB_HP } : undefined),
     hero: heroId,
+    waveOffset: climb ? floorOffset(climb.floor) : 0,
   });
+  if (climb) {
+    // Lives carry over from floor to floor; blessings won stay for the whole climb.
+    game.maxLives = CLIMB_LIVES;
+    game.gold = floorGold(climb, game.global.startGold);
+    for (const a of blessingsOf(climb)) {
+      game.augments.push(a);
+      game.mods.add(a.mods);
+    }
+  }
   if (saved) {
     restoreRun(game, saved);
     endless = saved.endless;
@@ -127,7 +162,7 @@ export function gameScreen(app: App, route: Route): Screen {
   let selected: Tower | null = null;
   let finished = false;
   let autoWave = false;
-  let tutorialStep = profile.tutorialDone || saved || mission ? -1 : 0;
+  let tutorialStep = profile.tutorialDone || saved || mission || climb ? -1 : 0;
   let panelSig = '';
   let panelTimer = 0;
   let lastGold = -1;
@@ -169,6 +204,20 @@ export function gameScreen(app: App, route: Route): Screen {
     chip.onclick = () => {
       sfx('click');
       hint(hintEl ? null : `${mission.name}: ${ruleLines(mission).join(' · ')}.`);
+    };
+    cornerLeft.append(chip);
+  }
+  if (climb) {
+    const info = `Piso ${climb.floor} de la Torre infinita · ${FLOOR_WAVES} oleadas${isBossFloor(climb.floor) ? ' · ¡con jefe!' : ''}. Las vidas que pierdas no vuelven.`;
+    const chip = h(
+      'button.btn.wood.mission-chip',
+      { 'aria-label': 'Torre infinita', title: 'Torre infinita' },
+      icon('tower', 16),
+      h('span', `Piso ${climb.floor}`),
+    );
+    chip.onclick = () => {
+      sfx('click');
+      hint(hintEl ? null : info);
     };
     cornerLeft.append(chip);
   }
@@ -982,13 +1031,16 @@ export function gameScreen(app: App, route: Route): Screen {
             icon('gear', 18),
             'Ajustes',
           ),
-          h(
-            'button.btn',
-            // Same battle from the start: a mission stays a mission (with its rules and towers).
-            { onclick: () => (sfx('click'), app.go({ ...run, endless, resume: false })) },
-            icon('refresh', 18),
-            'Reiniciar',
-          ),
+          // A climb floor can't be restarted (that would undo lost lives).
+          climb
+            ? null
+            : h(
+                'button.btn',
+                // Same battle from the start: a mission stays a mission (with its rules and towers).
+                { onclick: () => (sfx('click'), app.go({ ...run, endless, resume: false })) },
+                icon('refresh', 18),
+                'Reiniciar',
+              ),
           h('button.btn.red', { onclick: () => abandon() }, icon('home', 18), 'Abandonar'),
         ),
       ),
@@ -1220,7 +1272,7 @@ export function gameScreen(app: App, route: Route): Screen {
   /** Keeps the battle resumable: saved whenever it is between waves. */
   function persist() {
     // Missions are short and fixed: they are not resumed.
-    if (finished || mission || game.phase !== 'build') return;
+    if (finished || mission || climb || game.phase !== 'build') return;
     saveRun(app.storage, captureRun(game, { biome: run.biome, seed: run.seed, difficulty, endless, continued, expert: run.expert }));
   }
   for (const e of ['build', 'upgrade', 'sell'] as const) ev.on(e, () => persist());
@@ -1251,6 +1303,85 @@ export function gameScreen(app: App, route: Route): Screen {
     game.continueEndless();
     persist();
     banner('Modo infinito', 'Las oleadas ya no terminan');
+  }
+
+  /** Torre infinita: a floor won leads to a reward and the next floor; a defeat ends the climb. */
+  function finishFloor(c: ClimbRun, victory: boolean, abandoned: boolean) {
+    applyClimbXp(profile, game.towerXp, game.global.xpGain);
+    if (victory) {
+      clearFloor(c, profile, game.lives, game.kills);
+      saveClimb(app.storage, c);
+      profile.tutorialDone = true;
+      app.save();
+      setTimeout(() => {
+        sfx('victory');
+        const card = h(
+          'div.modal-card.panel',
+          { style: 'max-width:640px' },
+          h('div', { style: 'color:#e2a01e;display:flex;justify-content:center' }, icon('tower', 52)),
+          h('h2', `¡Piso ${c.floor - 1} superado!`),
+          h('p.muted', `Vidas: ${c.lives}/${CLIMB_LIVES} · Elige una recompensa para subir al piso ${c.floor}.`),
+          rewardPicker(app, c, () => startFloor(app, c)),
+          h(
+            'div.actions',
+            h('button.btn.wood', { onclick: () => (sfx('click'), app.go({ name: 'climb' })) }, icon('home', 18), 'Descansar (se guarda)'),
+          ),
+        );
+        hud.append(h('div.modal', card));
+      }, 900);
+      return;
+    }
+    const cleared = c.floor - 1;
+    const stars = climbStars(cleared);
+    const record = applyClimbEnd(profile, cleared, stars, c.kills + game.kills, game.bossesKilled);
+    clearClimb(app.storage);
+    profile.tutorialDone = true;
+    app.save();
+    void leaderboard.submit(profile);
+    if (abandoned) return app.go({ name: 'climb' });
+    setTimeout(() => {
+      sfx('defeat');
+      const modal = h(
+        'div.modal',
+        h(
+          'div.modal-card.panel',
+          h('div', { style: 'color:#a3362a;display:flex;justify-content:center' }, icon('skull', 56)),
+          h('h2', 'Fin de la escalada'),
+          h(
+            'p.muted',
+            cleared ? `Has superado ${cleared} ${cleared === 1 ? 'piso' : 'pisos'} de la Torre infinita.` : 'Has caído en el primer piso.',
+          ),
+          h(
+            'div.results',
+            h('div.line', h('span', 'Pisos superados'), h('span', String(cleared))),
+            h('div.line', h('span', 'Enemigos abatidos'), h('span', String(c.kills + game.kills))),
+            h('div.line', h('span', 'Mejor marca'), h('span', profile.climb.best ? `Piso ${profile.climb.best}` : '—')),
+          ),
+          record && cleared ? h('div.pill.mission-reward', { style: 'margin-top:10px;padding:8px 12px' }, icon('medal', 18), '¡Nuevo récord!') : null,
+          stars ? h('div.pill.mission-reward', { style: 'margin-top:10px;padding:8px 12px' }, icon('star', 18), `+${stars} estrellas`) : null,
+          h(
+            'div.actions',
+            h('button.btn', { onclick: () => (sfx('click'), app.go({ name: 'climb' })) }, icon('chart', 18), 'Clasificación'),
+            h(
+              'button.btn.purple',
+              {
+                onclick: () => {
+                  sfx('click');
+                  const next = newClimb(profile);
+                  profile.climb.runs++;
+                  app.save();
+                  saveClimb(app.storage, next);
+                  startFloor(app, next);
+                },
+              },
+              icon('refresh', 18),
+              'Nueva escalada',
+            ),
+          ),
+        ),
+      );
+      hud.append(modal);
+    }, 1400);
   }
 
   function finishMission(m: MissionDef, victory: boolean, abandoned: boolean) {
@@ -1328,6 +1459,7 @@ export function gameScreen(app: App, route: Route): Screen {
     game.paused = true;
     hint(null);
     if (mission) return finishMission(mission, victory, abandoned);
+    if (climb) return finishFloor(climb, victory, abandoned);
     clearRun(app.storage);
     const mapsBefore = new Set(BIOMES.filter((m) => isRegionOpen(profile, m.id)).map((m) => m.id));
     const g = game.global;
@@ -1348,6 +1480,8 @@ export function gameScreen(app: App, route: Route): Screen {
     });
     profile.tutorialDone = true;
     app.save();
+    // Endless records go to the online ranking.
+    if (endless) void leaderboard.submit(profile);
     const newMaps = BIOMES.filter((m) => !mapsBefore.has(m.id) && isRegionOpen(profile, m.id)).map((m) => m.name);
     if (abandoned) {
       app.go({ name: 'menu' });
@@ -1565,6 +1699,9 @@ export function gameScreen(app: App, route: Route): Screen {
     hint(
       'Arrastra una torre desde la barra inferior hasta una casilla junto al camino, o tócala y mueve la silueta por el mapa. Los enemigos salen del portal violeta.',
     );
+  if (climb) {
+    banner(`Piso ${climb.floor}`, isBossFloor(climb.floor) ? '¡Un jefe aguarda en este piso!' : `${FLOOR_WAVES} oleadas`);
+  }
   if (mission) {
     hint(`${mission.name}: ${ruleLines(mission).join(' · ')}.`);
     const shown = hintEl;

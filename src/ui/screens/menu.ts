@@ -10,6 +10,7 @@ import { loadRun } from '../../meta/runsave';
 import { cloudBadge, openSettings } from './settings';
 import { pendingMissions } from './missions';
 import { newHeroes } from './heroes';
+import { climbOpen } from './climb';
 
 /** True when the player can buy at least one talent somewhere. */
 export function hasAffordableTalent(app: App): boolean {
@@ -118,6 +119,12 @@ export function menuScreen(app: App): Screen {
           { onclick: click(() => app.go({ name: 'expert' })) },
           icon(expertOpen(p) ? 'skull' : 'lock', 22),
           'Modo experto',
+        ),
+        h(
+          `button.btn.big.purple${climbOpen(app) ? '' : '.locked'}`,
+          { onclick: click(() => app.go({ name: 'climb' })) },
+          icon(climbOpen(app) ? 'tower' : 'lock', 22),
+          'Torre infinita',
         ),
         heroesBtn,
         talentsBtn,

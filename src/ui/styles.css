@@ -2752,3 +2752,144 @@ table.dmg td.bad {
   height: 100%;
   background: #ffe08a;
 }
+
+/* ------------------------------------------------------------------ torre infinita (climb) */
+.climb-rewards {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin: 12px 0 4px;
+}
+.climb-reward {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 14px 12px;
+  border-radius: 14px;
+  background: var(--surface-2);
+  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--accent) 45%, transparent);
+  text-align: center;
+  transition:
+    transform 0.12s ease,
+    box-shadow 0.12s ease;
+}
+@media (max-width: 560px) {
+  .climb-rewards {
+    grid-template-columns: 1fr;
+  }
+  .climb-reward {
+    padding: 10px;
+  }
+}
+.climb-reward:hover {
+  transform: translateY(-2px);
+  box-shadow: inset 0 0 0 3px var(--accent);
+}
+.climb-reward img {
+  width: 56px;
+  height: 56px;
+}
+.climb-reward b {
+  font-size: 15px;
+}
+.climb-reward span:last-child {
+  font-size: 12px;
+  color: var(--ink-2);
+  line-height: 1.3;
+}
+.reward-icon {
+  width: 56px;
+  height: 56px;
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+}
+.climb-run {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  border-radius: 14px;
+  background: var(--surface-2);
+}
+.climb-stats,
+.climb-blessings {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.climb-towers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.climb-towers img {
+  width: 44px;
+  height: 44px;
+}
+.climb-rules {
+  margin: 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13.5px;
+  color: var(--ink-2);
+}
+.nick-row input {
+  width: 100%;
+  padding: 9px 12px;
+  border-radius: 10px;
+  border: 2px solid var(--surface-3);
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+}
+.rank-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.rank-list li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 10px;
+  border-radius: 10px;
+  background: var(--surface-2);
+  font-size: 14px;
+}
+.rank-list li.me {
+  box-shadow: inset 0 0 0 2px var(--forest);
+  background: var(--surface);
+}
+.rank-list .pos {
+  width: 26px;
+  text-align: center;
+  font-weight: 700;
+  color: var(--ink-3);
+  display: flex;
+  justify-content: center;
+}
+.rank-list li:nth-child(1) .pos {
+  color: #e2a01e;
+}
+.rank-list li:nth-child(2) .pos {
+  color: #9aa6b2;
+}
+.rank-list li:nth-child(3) .pos {
+  color: #c07a3f;
+}
+.rank-list .name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

@@ -60,6 +60,8 @@ export interface Profile {
   hero: TowerId | null;
   /** Highest rank already announced on the menu. */
   rankSeen: number;
+  /** Torre infinita: highest floor reached, climbs started, and the name shown on the online ranking. */
+  climb: { best: number; runs: number; nick: string };
   /** When this profile was last saved (ms since epoch) — the newer copy wins when syncing devices. */
   savedAt?: number;
 }
@@ -83,6 +85,7 @@ export function defaultProfile(): Profile {
     regions: [],
     hero: null,
     rankSeen: 0,
+    climb: { best: 0, runs: 0, nick: '' },
   };
 }
 
@@ -99,6 +102,7 @@ export function migrateProfile(raw: unknown): Profile {
     version: SAVE_VERSION,
     settings: { ...base.settings, ...(p.settings ?? {}) },
     stats: { ...base.stats, ...(p.stats ?? {}) },
+    climb: { ...base.climb, ...(p.climb ?? {}) },
     general: { ...(p.general ?? {}) },
     maps: { ...(p.maps ?? {}) },
     seenEnemies: Array.isArray(p.seenEnemies) ? p.seenEnemies : [],
@@ -305,6 +309,23 @@ export function applyRunResult(p: Profile, r: RunResult): RewardSummary {
     if (after > before) levelUps.push({ tower: id, from: before, to: after });
   }
   return { stars, firstClear: r.victory && !alreadyCleared, levelUps };
+}
+
+/** Torre infinita: tower experience after each floor won. */
+export function applyClimbXp(p: Profile, towerXp: Partial<Record<TowerId, number>>, xpGain: number): void {
+  for (const [id, xp] of Object.entries(towerXp) as [TowerId, number][]) if (p.towers[id]) p.towers[id].xp += Math.round(xp * (1 + xpGain));
+}
+
+/** Torre infinita ended: record and stars. Returns whether it is a new record. */
+export function applyClimbEnd(p: Profile, floorReached: number, stars: number, kills: number, bosses: number): boolean {
+  const record = floorReached > p.climb.best;
+  p.climb.best = Math.max(p.climb.best, floorReached);
+  p.stars += stars;
+  p.starsEarned += stars;
+  p.stats.runs++;
+  p.stats.kills += kills;
+  p.stats.bossesKilled += bosses;
+  return record;
 }
 
 /** Can the player start battles in this region? */

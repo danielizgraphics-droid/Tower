@@ -56,6 +56,8 @@ export interface GameOptions {
   rules?: MissionRules;
   /** The hero tower the player brings (one per battle). */
   hero?: TowerId | null;
+  /** Enemies of this battle's waves are those of later waves (tower climb floors). */
+  waveOffset?: number;
 }
 
 /** Restrictions a mission imposes on a battle. The towers allowed are given by `unlockedTowers`. */
@@ -101,6 +103,8 @@ export class Game {
   /** Hero available in this battle, and whether it has been placed (only once). */
   readonly hero: TowerId | null;
   heroUsed = false;
+  /** Added to the wave number when generating waves (strength, bosses). */
+  readonly waveOffset: number;
   global: GlobalStats;
 
   phase: Phase = 'build';
@@ -153,6 +157,7 @@ export class Game {
     this.unlockedTowers = [...opts.unlockedTowers];
     this.rules = opts.rules ?? {};
     this.hero = opts.hero && TOWERS[opts.hero]?.hero ? opts.hero : null;
+    this.waveOffset = opts.waveOffset ?? 0;
     if (this.hero && !this.unlockedTowers.includes(this.hero)) this.unlockedTowers.push(this.hero);
     this.totalWaves = opts.map.waves;
     this.global = this.mods.global();
@@ -279,7 +284,7 @@ export class Game {
       this.addGold(bonus);
     }
     this.wave++;
-    const w = generateWave(this.board.def, this.wave);
+    const w = generateWave(this.board.def, this.wave + this.waveOffset);
     this.spawners.push({ wave: w, time: 0, spawned: w.groups.map(() => 0), done: false });
     for (const t of this.towers) t.freshBuild = false;
     this.setPhase('wave');
@@ -288,7 +293,7 @@ export class Game {
   }
 
   nextWaveDef(): WaveDef | null {
-    return this.wave < this.totalWaves ? generateWave(this.board.def, this.wave + 1) : null;
+    return this.wave < this.totalWaves ? generateWave(this.board.def, this.wave + 1 + this.waveOffset) : null;
   }
 
   private updateSpawners(dt: number): void {

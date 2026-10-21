@@ -32,6 +32,7 @@ export type Route =
   | { name: 'missions' }
   | { name: 'heroes' }
   | { name: 'expert' }
+  | { name: 'climb' }
   | {
       name: 'game';
       biome: Biome;
@@ -42,6 +43,8 @@ export type Route =
       mission?: string;
       /** Expert map id. */
       expert?: string;
+      /** A floor of the Torre infinita (the climb itself is kept in storage). */
+      climb?: boolean;
     };
 
 type ScreenFactory = (app: App, route: Route) => Screen;
